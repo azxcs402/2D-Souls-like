@@ -1,8 +1,8 @@
 public class StateMachine
 {
-    public EntityState CurrentState { get; private set; }
+    public IState CurrentState { get; private set; }
 
-    public void Initialize(EntityState startState)
+    public void Initialize(IState startState)
     {
         if (startState == null)
         {
@@ -13,7 +13,7 @@ public class StateMachine
         CurrentState.Enter();
     }
 
-    public void ChangeState(EntityState newState)
+    public void ChangeState(IState newState)
     {
         if (newState == null || newState == CurrentState)
         {

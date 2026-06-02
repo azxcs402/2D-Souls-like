@@ -1,6 +1,14 @@
 using UnityEngine;
 
-public class EntityState
+public interface IState
+{
+    void Enter();
+    void Update();
+    void FixedUpdate();
+    void Exit();
+}
+
+public class EntityState : IState
 {
     protected StateMachine stateMachine;
     protected Player player;

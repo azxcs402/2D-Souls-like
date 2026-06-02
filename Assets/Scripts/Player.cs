@@ -3,7 +3,7 @@ using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
-public class Player : MonoBehaviour
+public class Player : Entity
 {
     private static readonly int IdleAnimHash = Animator.StringToHash("idle");
     private static readonly int MoveAnimHash = Animator.StringToHash("move");
@@ -23,16 +23,6 @@ public class Player : MonoBehaviour
 
     [Header("Jump Info")]
     [SerializeField] private float jumpForce = 12f;
-
-    [Header("Ground Check")]
-    [SerializeField] private float groundCheckDistance = .08f;
-    [SerializeField] private LayerMask whatIsGround;
-
-    [Header("Wall Check")]
-    [SerializeField] private float wallCheckDistance = .03f;
-    [SerializeField, Range(.1f, 1.5f)] private float wallCheckVerticalSpan = .65f;
-    [SerializeField] private Transform primaryWallCheck;
-    [SerializeField] private Transform secondaryWallCheck;
 
     [Header("Wall Slide Info")]
     [SerializeField] private float wallSlideSpeed = 2f;
@@ -118,13 +108,6 @@ public class Player : MonoBehaviour
     [SerializeField] private float fallAttackEndAnimationMaxSpeed = 8f;
     [SerializeField] private float fallAttackEndAnimationLandingOffset = .15f;
 
-    // Rigidbody
-    public Rigidbody2D rb { get; private set; }
-    public CapsuleCollider2D cd { get; private set; }
-
-    // Animator
-    public Animator anim { get; private set; }
-
     private Transform visualTransform;
     private Vector3 defaultVisualLocalPosition;
     private bool applyWallSlideVisualOffset;
@@ -169,9 +152,6 @@ public class Player : MonoBehaviour
     public Player_AirAttackState airAttackState { get; private set; }
     public Player_FallAttackState fallAttackState { get; private set; }
 
-    // Facing Direction
-    private int facingDirection = 1;
-
     // Input
     public Vector2 moveInput { get; private set; }
     private bool wasDownInputHeldLastFrame;
@@ -180,7 +160,6 @@ public class Player : MonoBehaviour
     public float AirMoveSpeed => moveSpeed * airMoveSpeedMultiplier;
     public float WallSlideSpeed => wallSlideSpeed;
     public float WallSlideNoInputDropTime => wallSlideNoInputDropTime;
-    public float GroundCheckDistance => groundCheckDistance;
     public bool WallHoldHasDuration => wallHoldHasDuration;
     public float WallHoldDuration => wallHoldDuration;
     public bool CanWallHold => wallHoldEnabled && canWallHold;
@@ -209,7 +188,6 @@ public class Player : MonoBehaviour
     public float AirAttackDashComboInputWindow => airAttackDashComboInputWindow;
     public float AirAttackDashTurnInputWindow => airAttackDashTurnInputWindow;
     public float AirAttackComboGroundBlockDistance => airAttackComboGroundBlockDistance;
-    public int FacingDirection => facingDirection;
     public bool HasBasicAttackComboWindow => pendingBasicAttackComboIndex >= 0 && pendingBasicAttackComboTimer > 0f;
     public bool HasAirAttackComboWindow => pendingAirAttackComboIndex >= 0 && pendingAirAttackComboTimer > 0f;
     public string FallAttackStartAnimationName => fallAttackStartAnimationName;
@@ -225,25 +203,10 @@ public class Player : MonoBehaviour
     public float FallAttackEndAnimationMaxSpeed => fallAttackEndAnimationMaxSpeed;
     public float FallAttackEndAnimationLandingOffset => fallAttackEndAnimationLandingOffset;
 
-    private void Awake()
+    protected override void Awake()
     {
-        rb = GetComponent<Rigidbody2D>();
-        cd = GetComponent<CapsuleCollider2D>();
+        base.Awake();
 
-        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
-        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-        rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-
-        if (cd != null && cd.sharedMaterial == null)
-        {
-            cd.sharedMaterial = new PhysicsMaterial2D("Player_NoFriction")
-            {
-                friction = 0,
-                bounciness = 0
-            };
-        }
-
-        anim = GetComponentInChildren<Animator>();
         visualTransform = anim.transform;
         defaultVisualLocalPosition = visualTransform.localPosition;
 
@@ -262,13 +225,11 @@ public class Player : MonoBehaviour
         basicAttackState = new Player_BasicAttackState(this, stateMachine);
         airAttackState = new Player_AirAttackState(this, stateMachine);
         fallAttackState = new Player_FallAttackState(this, stateMachine);
-
-        EnsureWallCheckTransforms();
     }
 
-    private void Reset()
+    protected override void Reset()
     {
-        EnsureWallCheckTransforms();
+        base.Reset();
     }
 
     private void OnEnable()
@@ -310,114 +271,10 @@ public class Player : MonoBehaviour
         UpdateVisualPosition();
     }
 
-    // Movement
-    public void SetVelocity(float xVelocity, float yVelocity)
-    {
-        rb.velocity = new Vector2(xVelocity, yVelocity);
-    }
-
     // Jump
     public void Jump()
     {
         SetVelocity(rb.velocity.x, jumpForce);
-    }
-
-    // Ground Detection
-    public bool GroundDetected()
-    {
-        Vector2 origin = GetGroundCheckRayOrigin();
-
-        return Physics2D.Raycast(
-            origin,
-            Vector2.down,
-            groundCheckDistance,
-            whatIsGround
-        );
-    }
-
-    public bool GroundContactDetected()
-    {
-        if (cd == null)
-        {
-            cd = GetComponent<CapsuleCollider2D>();
-        }
-
-        return cd != null && cd.IsTouchingLayers(whatIsGround);
-    }
-
-    public bool AirAttackComboGroundDetected()
-    {
-        if (airAttackComboGroundBlockDistance <= 0f)
-        {
-            return false;
-        }
-
-        Vector2 origin = GetGroundCheckRayOrigin();
-
-        return Physics2D.Raycast(
-            origin,
-            Vector2.down,
-            airAttackComboGroundBlockDistance,
-            whatIsGround
-        );
-    }
-
-    public bool WallDetected()
-    {
-        return WallDetectedAtTransform(primaryWallCheck)
-            && WallDetectedAtTransform(secondaryWallCheck);
-    }
-
-    public bool WallContactDetected()
-    {
-        return WallDetectedAtTransform(primaryWallCheck, 1)
-            && WallDetectedAtTransform(secondaryWallCheck, 1)
-            || WallDetectedAtTransform(primaryWallCheck, -1)
-            && WallDetectedAtTransform(secondaryWallCheck, -1);
-    }
-
-    public bool FacingWallContactDetected()
-    {
-        return FacingWallContactDetected(facingDirection);
-    }
-
-    public bool FacingWallContactDetected(int direction)
-    {
-        if (direction == 0)
-        {
-            return false;
-        }
-
-        Bounds bounds = GetColliderBounds();
-        float checkDistance = Mathf.Max(wallCheckDistance, .08f);
-        float frontX = direction > 0 ? bounds.max.x : bounds.min.x;
-        float inset = Mathf.Min(.08f, bounds.extents.y * .2f);
-
-        Vector2 upperOrigin = new Vector2(bounds.center.x, bounds.max.y - inset);
-        Vector2 middleOrigin = bounds.center;
-        Vector2 lowerOrigin = new Vector2(bounds.center.x, bounds.min.y + inset);
-        Vector2 rayDirection = Vector2.right * (direction > 0 ? 1 : -1);
-
-        return Physics2D.Raycast(upperOrigin, rayDirection, Mathf.Abs(frontX - upperOrigin.x) + checkDistance, whatIsGround)
-            || Physics2D.Raycast(middleOrigin, rayDirection, Mathf.Abs(frontX - middleOrigin.x) + checkDistance, whatIsGround)
-            || Physics2D.Raycast(lowerOrigin, rayDirection, Mathf.Abs(frontX - lowerOrigin.x) + checkDistance, whatIsGround);
-    }
-
-    public bool IsInputTowardWall(float xInput)
-    {
-        return Mathf.Abs(xInput) > .01f
-            && Mathf.Sign(xInput) == facingDirection;
-    }
-
-    public bool IsInputAwayFromWall(float xInput)
-    {
-        return Mathf.Abs(xInput) > .01f
-            && Mathf.Sign(xInput) == -facingDirection;
-    }
-
-    public bool IsNoHorizontalInput(float xInput)
-    {
-        return Mathf.Abs(xInput) <= .01f;
     }
 
     public bool JumpInputPressed()
@@ -698,6 +555,16 @@ public class Player : MonoBehaviour
             && !GroundDetected()
             && DownInputHeld()
             && !FallAttackGroundDetected();
+    }
+
+    public bool AirAttackComboGroundDetected()
+    {
+        return Physics2D.Raycast(
+            GetGroundCheckRayOrigin(),
+            Vector2.down,
+            airAttackComboGroundBlockDistance,
+            whatIsGround
+        );
     }
 
     public bool FallAttackGroundDetected()
@@ -1021,31 +888,10 @@ public class Player : MonoBehaviour
         UpdateVisualPosition();
     }
 
-    // Flip
-    public void CheckForFlip(float xInput)
+    protected override void OnValidate()
     {
-        if (xInput > 0 && facingDirection == -1)
-        {
-            Flip(1);
-        }
-        else if (xInput < 0 && facingDirection == 1)
-        {
-            Flip(-1);
-        }
-    }
+        base.OnValidate();
 
-    private void Flip(int direction)
-    {
-        facingDirection = direction;
-
-        transform.rotation =
-            facingDirection == 1
-            ? Quaternion.identity
-            : Quaternion.Euler(0, 180, 0);
-    }
-
-    private void OnValidate()
-    {
         moveSpeed = Mathf.Max(0f, moveSpeed);
         airMoveSpeedMultiplier = Mathf.Max(0f, airMoveSpeedMultiplier);
         jumpForce = Mathf.Max(0f, jumpForce);
@@ -1163,18 +1009,16 @@ public class Player : MonoBehaviour
 
         if (!Application.isPlaying)
         {
-            EnsureWallCheckTransforms();
+            ApplyWallCheckVerticalSpan();
         }
     }
 
     // Debug Ray
-    private void OnDrawGizmosSelected()
+    protected override void OnDrawGizmosSelected()
     {
-        Vector2 airComboBlockRayOrigin = GetGroundCheckRayOrigin();
-        Vector2 groundRayOrigin = GetGroundCheckRayOrigin();
+        base.OnDrawGizmosSelected();
 
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(groundRayOrigin, groundRayOrigin + Vector2.down * groundCheckDistance);
+        Vector2 airComboBlockRayOrigin = GetGroundCheckRayOrigin();
 
         Gizmos.color = new Color(1f, .45f, 0f, 1f);
         Gizmos.DrawLine(airComboBlockRayOrigin, airComboBlockRayOrigin + Vector2.down * airAttackComboGroundBlockDistance);
@@ -1183,121 +1027,6 @@ public class Player : MonoBehaviour
         Gizmos.DrawLine(transform.position, transform.position + Vector3.down * fallAttackGroundCheckDistance);
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(transform.position, transform.position + Vector3.down * fallAttackGroundSearchDistance);
-        Gizmos.color = Color.red;
-        DrawWallCheckGizmo(primaryWallCheck);
-        DrawWallCheckGizmo(secondaryWallCheck);
-
-    }
-
-    private bool WallDetectedAtTransform(Transform wallCheckTransform)
-    {
-        return WallDetectedAtTransform(wallCheckTransform, facingDirection);
-    }
-
-    private bool WallDetectedAtTransform(Transform wallCheckTransform, int direction)
-    {
-        if (wallCheckTransform == null)
-        {
-            return false;
-        }
-
-        return Physics2D.Raycast(
-            wallCheckTransform.position,
-            Vector2.right * direction,
-            wallCheckDistance,
-            whatIsGround
-        );
-    }
-
-    private void DrawWallCheckGizmo(Transform wallCheckTransform)
-    {
-        if (wallCheckTransform == null)
-        {
-            return;
-        }
-
-        Vector2 origin = wallCheckTransform.position;
-        Gizmos.DrawLine(origin, origin + Vector2.right * facingDirection * wallCheckDistance);
-    }
-
-    private void EnsureWallCheckTransforms()
-    {
-        primaryWallCheck = EnsureWallCheckTransform(primaryWallCheck, "PrimaryWallCheck", new Vector2(.32f, wallCheckVerticalSpan * .5f));
-        secondaryWallCheck = EnsureWallCheckTransform(secondaryWallCheck, "SecondaryWallCheck", new Vector2(.32f, -wallCheckVerticalSpan * .5f));
-        ApplyWallCheckVerticalSpan();
-    }
-
-    private void ApplyWallCheckVerticalSpan()
-    {
-        ApplyWallCheckLocalY(primaryWallCheck, wallCheckVerticalSpan * .5f);
-        ApplyWallCheckLocalY(secondaryWallCheck, -wallCheckVerticalSpan * .5f);
-    }
-
-    private void ApplyWallCheckLocalY(Transform wallCheckTransform, float localY)
-    {
-        if (wallCheckTransform == null || wallCheckTransform.parent != transform)
-        {
-            return;
-        }
-
-        Vector3 localPosition = wallCheckTransform.localPosition;
-        localPosition.y = localY;
-        wallCheckTransform.localPosition = localPosition;
-    }
-
-    private Transform EnsureWallCheckTransform(Transform wallCheckTransform, string wallCheckName, Vector2 localPosition)
-    {
-        if (wallCheckTransform != null)
-        {
-            return wallCheckTransform;
-        }
-
-        Transform existing = transform.Find(wallCheckName);
-        if (existing != null)
-        {
-            return existing;
-        }
-
-        if (Application.isPlaying)
-        {
-            return null;
-        }
-
-        GameObject wallCheckObject = new GameObject(wallCheckName);
-        wallCheckObject.transform.SetParent(transform, false);
-        wallCheckObject.transform.localPosition = localPosition;
-        wallCheckObject.transform.localRotation = Quaternion.identity;
-        wallCheckObject.transform.localScale = Vector3.one;
-        return wallCheckObject.transform;
-    }
-
-    private Bounds GetColliderBounds()
-    {
-        if (cd == null)
-        {
-            cd = GetComponent<CapsuleCollider2D>();
-        }
-
-        return cd != null
-            ? cd.bounds
-            : new Bounds(transform.position, Vector3.one);
-    }
-
-    private Vector2 GetGroundCheckBoxSize(Bounds bounds)
-    {
-        float height = Mathf.Min(.08f, bounds.size.y * .1f);
-        return new Vector2(bounds.size.x * .8f, height);
-    }
-
-    private Vector2 GetGroundCheckBoxOrigin(Bounds bounds, Vector2 boxSize)
-    {
-        return new Vector2(bounds.center.x, bounds.min.y + boxSize.y * .5f);
-    }
-
-    private Vector2 GetGroundCheckRayOrigin()
-    {
-        Bounds bounds = GetColliderBounds();
-        return new Vector2(bounds.center.x, bounds.min.y + .02f);
     }
 
     private void UpdateVisualPosition()
