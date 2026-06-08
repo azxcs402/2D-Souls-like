@@ -5,9 +5,10 @@ public abstract class Enemy : Entity
 {
     private static readonly int IdleAnimHash = Animator.StringToHash("idle");
     private static readonly int MoveAnimHash = Animator.StringToHash("move");
+    private static readonly int AttackAnimHash = Animator.StringToHash("attack");
 
     [Header("Enemy Info")]
-    [SerializeField] protected int maxHealth = 1;
+    [SerializeField, Range(1, 20)] protected int maxHealth = 3;
     [SerializeField] protected bool canTakeDamage = true;
 
     public StateMachine stateMachine { get; protected set; }
@@ -15,6 +16,7 @@ public abstract class Enemy : Entity
     public int CurrentHealth => currentHealth;
     public bool CanTakeDamage => canTakeDamage && !isDead;
     public bool IsDead => isDead;
+    public IState DeadState => GetDeadState();
 
     protected int currentHealth;
     protected bool isDead;
@@ -42,7 +44,7 @@ public abstract class Enemy : Entity
         stateMachine.CurrentState?.FixedUpdate();
     }
 
-    public void SetAnimation(bool idle, bool move)
+    public void SetAnimation(bool idle, bool move, bool attack = false)
     {
         if (anim == null)
         {
@@ -51,6 +53,7 @@ public abstract class Enemy : Entity
 
         anim.SetBool(IdleAnimHash, idle);
         anim.SetBool(MoveAnimHash, move);
+        anim.SetBool(AttackAnimHash, attack);
     }
 
     protected virtual void SyncAnimationState()
@@ -94,7 +97,30 @@ public abstract class Enemy : Entity
     protected virtual void Die()
     {
         isDead = true;
+
+        if (stateMachine != null && DeadState != null)
+        {
+            stateMachine.ChangeState(DeadState);
+            return;
+        }
+
         SetVelocity(0f, rb != null ? rb.velocity.y : 0f);
+    }
+
+    public virtual void Revive()
+    {
+        currentHealth = Mathf.Max(1, maxHealth);
+        isDead = false;
+
+        if (anim != null && !anim.isActiveAndEnabled)
+        {
+            anim.enabled = true;
+        }
+    }
+
+    protected virtual IState GetDeadState()
+    {
+        return null;
     }
 
     private void EnsureCoreComponents()

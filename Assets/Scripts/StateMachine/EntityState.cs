@@ -54,18 +54,24 @@ public class EntityState : IState
     protected bool TryEnterBasicAttackState()
     {
         bool canContinuePendingCombo = player.HasBasicAttackComboWindow && player.AttackInputHeld();
+        bool canRestartAfterLoopCooldown = player.HasBasicAttackLoopRestartRequest;
 
         if (stateMachine.CurrentState == player.basicAttackState
             || stateMachine.CurrentState == player.airAttackState
             || stateMachine.CurrentState == player.fallAttackState
             || stateMachine.CurrentState == player.dashState
             || !player.GroundDetected()
-            || (!player.AttackInputPressed() && !canContinuePendingCombo))
+            || (player.IsBasicAttackLoopCooldownActive && !canRestartAfterLoopCooldown)
+            || (!player.AttackInputPressed() && !canContinuePendingCombo && !canRestartAfterLoopCooldown))
         {
             return false;
         }
 
-        if (player.TryConsumeBasicAttackComboWindow(out int comboIndex, out int attackDirection))
+        if (player.TryConsumeBasicAttackLoopRestartRequest(out int restartDirection))
+        {
+            player.basicAttackState.SetAttack(0, restartDirection);
+        }
+        else if (player.TryConsumeBasicAttackComboWindow(out int comboIndex, out int attackDirection))
         {
             player.basicAttackState.SetAttack(comboIndex, attackDirection);
         }

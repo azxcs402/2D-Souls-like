@@ -13,6 +13,7 @@ public class Player_AirAttackState : EntityState
     private float defaultAnimatorSpeed;
     private bool comboInputBuffered;
     private bool currentAttackResolved;
+    private bool damageTriggered;
 
     public Player_AirAttackState(Player player, StateMachine stateMachine)
         : base(player, stateMachine)
@@ -113,7 +114,13 @@ public class Player_AirAttackState : EntityState
 
     public void AttackTrigger()
     {
-        // Kept for existing animation events. Combo input is evaluated by the configured time window.
+        if (damageTriggered)
+        {
+            return;
+        }
+
+        damageTriggered = true;
+        player.GetComponent<Entity_Combat>()?.AttackTrigger(player.GetAirAttackData(comboIndex));
     }
 
     public void SetAttack(int attackIndex, int direction = 0)
@@ -160,6 +167,7 @@ public class Player_AirAttackState : EntityState
         moveTimer = player.AirAttackMoveDuration;
         comboInputBuffered = false;
         currentAttackResolved = false;
+        damageTriggered = false;
         nextAttackDirection = attackDirection;
 
         player.anim.speed = player.GetAirAttackAnimationSpeed(comboIndex);

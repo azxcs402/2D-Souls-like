@@ -12,6 +12,7 @@ public class Player_BasicAttackState : EntityState
     private float attackDuration;
     private float defaultAnimatorSpeed;
     private bool comboInputBuffered;
+    private bool damageTriggered;
 
     public Player_BasicAttackState(Player player, StateMachine stateMachine)
         : base(player, stateMachine)
@@ -94,7 +95,13 @@ public class Player_BasicAttackState : EntityState
 
     public void AttackTrigger()
     {
-        // Kept for existing animation events. Combo input is evaluated by the configured time window.
+        if (damageTriggered)
+        {
+            return;
+        }
+
+        damageTriggered = true;
+        player.GetComponent<Entity_Combat>()?.AttackTrigger(player.GetBasicAttackData(comboIndex));
     }
 
     public void SetAttack(int attackIndex, int direction = 0)
@@ -108,6 +115,13 @@ public class Player_BasicAttackState : EntityState
         if (IsInsideLeftTurnInputWindow())
         {
             UpdateNextAttackDirectionFromInput();
+        }
+
+        if (IsLastComboAttack())
+        {
+            player.StartBasicAttackLoopCooldown(nextAttackDirection, CanContinueCombo());
+            FinishAttack();
+            return;
         }
 
         if (CanContinueCombo())
@@ -133,6 +147,7 @@ public class Player_BasicAttackState : EntityState
         attackDuration = GetCurrentAttackDuration();
         moveTimer = player.BasicAttackMoveDuration;
         comboInputBuffered = false;
+        damageTriggered = false;
         nextAttackDirection = attackDirection;
 
         player.anim.speed = player.GetBasicAttackAnimationSpeed(comboIndex);
@@ -211,6 +226,11 @@ public class Player_BasicAttackState : EntityState
     private int GetNextComboIndex()
     {
         return (comboIndex + 1) % player.BasicAttackCount;
+    }
+
+    private bool IsLastComboAttack()
+    {
+        return comboIndex >= player.BasicAttackCount - 1;
     }
 
     private void UpdateNextAttackDirectionFromInput()

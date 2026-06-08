@@ -13,6 +13,7 @@ public class Player_FallAttackState : EntityState
     private bool isAttackFinished;
     private bool hasLanded;
     private bool isEndAnimationFinished;
+    private bool damageTriggered;
 
     public Player_FallAttackState(Player player, StateMachine stateMachine)
         : base(player, stateMachine)
@@ -33,6 +34,7 @@ public class Player_FallAttackState : EntityState
         isAttackFinished = false;
         hasLanded = false;
         isEndAnimationFinished = false;
+        damageTriggered = false;
         endAnimationLength = 0f;
         endAnimationTimer = 0f;
         landingTimer = 0f;
@@ -127,6 +129,14 @@ public class Player_FallAttackState : EntityState
     public void AttackTrigger()
     {
         diveRequested = true;
+
+        if (damageTriggered)
+        {
+            return;
+        }
+
+        damageTriggered = true;
+        player.GetComponent<Entity_Combat>()?.AttackTrigger(player.FallAttackData);
     }
 
     public void AttackOver()

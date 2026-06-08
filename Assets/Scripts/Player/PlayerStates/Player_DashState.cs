@@ -20,6 +20,7 @@ public class Player_DashState : EntityState
         defaultGravityScale = player.rb.gravityScale;
 
         player.StartDashCooldown();
+        player.BeginDashEnemyCollisionIgnore();
         player.CheckForFlip(dashDirection);
         player.rb.gravityScale = 0f;
 
@@ -56,6 +57,7 @@ public class Player_DashState : EntityState
         base.Exit();
 
         player.rb.gravityScale = defaultGravityScale;
+        player.EndDashEnemyCollisionIgnore();
         player.SetDash(false);
         player.OpenQueuedBasicAttackComboAfterDash();
         player.OpenQueuedAirAttackComboAfterDash();

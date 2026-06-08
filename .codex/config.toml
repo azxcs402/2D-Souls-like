@@ -1,6 +1,5 @@
 [mcp_servers.ai-game-developer]
-bearer_token_env_var = "GAME_DEV_AUTH_TOKEN"
+args = ["port=26336","plugin-timeout=10000","client-transport=stdio","authorization=none"]
+command = "E:/UnityProject/2D-Souls-like/Library/mcp-server/win-x64/unity-mcp-server.exe"
 enabled = true
-startup_timeout_sec = 30
 tool_timeout_sec = 300
-url = "http://localhost:29975"
