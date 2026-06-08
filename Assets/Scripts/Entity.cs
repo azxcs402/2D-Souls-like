@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public abstract class Entity : MonoBehaviour
@@ -22,6 +23,10 @@ public abstract class Entity : MonoBehaviour
 
     protected int facingDirection = 1;
     protected virtual bool UseWallChecks => true;
+    private Coroutine knockbackCoroutine;
+    private bool knockbackActive;
+
+    public bool IsKnockedBack => knockbackActive;
 
     protected virtual void Awake()
     {
@@ -51,6 +56,11 @@ public abstract class Entity : MonoBehaviour
             anim.updateMode = AnimatorUpdateMode.Normal;
             anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             anim.speed = 1f;
+
+            if (anim.GetComponent<Entity_AnimationTriggers>() == null)
+            {
+                anim.gameObject.AddComponent<Entity_AnimationTriggers>();
+            }
         }
 
         EnsureWallCheckTransforms();
@@ -90,12 +100,48 @@ public abstract class Entity : MonoBehaviour
 
     public void SetVelocity(float xVelocity, float yVelocity)
     {
+        if (knockbackActive)
+        {
+            return;
+        }
+
         if (rb == null)
         {
             rb = GetComponent<Rigidbody2D>();
         }
 
         rb.velocity = new Vector2(xVelocity, yVelocity);
+    }
+
+    public void ApplyKnockback(Vector2 velocity, float duration)
+    {
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        if (rb == null || velocity == Vector2.zero)
+        {
+            return;
+        }
+
+        if (knockbackCoroutine != null)
+        {
+            StopCoroutine(knockbackCoroutine);
+        }
+
+        knockbackCoroutine = StartCoroutine(KnockbackRoutine(velocity, duration));
+    }
+
+    private IEnumerator KnockbackRoutine(Vector2 velocity, float duration)
+    {
+        knockbackActive = true;
+        rb.velocity = velocity;
+
+        yield return new WaitForSeconds(Mathf.Max(.01f, duration));
+
+        knockbackActive = false;
+        knockbackCoroutine = null;
     }
 
     public void PlayAnimatorState(string stateName, float normalizedTime = 0f, int layer = 0)

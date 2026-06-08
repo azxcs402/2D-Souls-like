@@ -1,14 +1,12 @@
 using UnityEngine;
 
-public class Enemy_MoveState : EnemyState
+public class Enemy_MoveState : Enemy_GroundedState
 {
-    private readonly Enemy_Skeleton skeleton;
     private float turnTimer;
 
     public Enemy_MoveState(Enemy enemy, StateMachine stateMachine)
         : base(enemy, stateMachine)
     {
-        skeleton = enemy as Enemy_Skeleton;
     }
 
     public override void Enter()
@@ -20,6 +18,7 @@ public class Enemy_MoveState : EnemyState
 
         if (skeleton != null)
         {
+            skeleton.SetMoveAnimationSpeed(1f);
             enemy.SetAnimation(false, true);
         }
     }
@@ -30,6 +29,18 @@ public class Enemy_MoveState : EnemyState
 
         if (stateMachine.CurrentState != this)
         {
+            return;
+        }
+
+        if (skeleton != null && skeleton.ShouldReturnToPatrol)
+        {
+            skeleton.ClearReturnToPatrolRequest();
+
+            if (skeleton.idleState != null)
+            {
+                stateMachine.ChangeState(skeleton.idleState);
+            }
+
             return;
         }
 
@@ -73,9 +84,12 @@ public class Enemy_MoveState : EnemyState
         }
 
         enemy.SetAnimation(false, true);
-        enemy.SetVelocity(
-            enemy.FacingDirection * skeleton.SkeletonMoveSpeed,
-            rb.velocity.y
-        );
+        skeleton.SetMoveAnimationSpeed(1f);
+
+        int moveDirection = enemy.FacingDirection;
+        float moveSpeed = skeleton.SkeletonMoveSpeed;
+
+        enemy.FaceDirection(moveDirection);
+        enemy.SetVelocity(moveDirection * moveSpeed, rb.velocity.y);
     }
 }

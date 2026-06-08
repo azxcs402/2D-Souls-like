@@ -16,6 +16,7 @@ public class Player : Entity
     private static readonly int AirAttackIndexAnimHash = Animator.StringToHash("basicAttack_air_Index");
     private static readonly int FallAttackAnimHash = Animator.StringToHash("fallAttack");
     private static readonly int FallAttackTriggerAnimHash = Animator.StringToHash("fallAttackTrigger");
+    private static readonly int DeadAnimHash = Animator.StringToHash("Dead");
 
     [Header("Move Info")]
     [SerializeField] private float moveSpeed = 5f;
@@ -45,6 +46,7 @@ public class Player : Entity
     [SerializeField] private float dashDuration = .2f;
     [SerializeField] private float dashCooldown = 3f;
     [SerializeField] private bool wallDashAwayFromWallEnabled = true;
+    [SerializeField] private bool ignoreEnemyCollisionDuringDash = true;
 
     [Header("Basic Attack Info")]
     [SerializeField] private string[] basicAttackAnimationNames =
@@ -66,12 +68,25 @@ public class Player : Entity
         new Vector2(.45f, 0f),
         new Vector2(.55f, 0f)
     };
+    [SerializeField, HideInInspector] private Vector2[] basicAttackKnockbackForces =
+    {
+        new Vector2(4f, 2f),
+        new Vector2(5f, 2.5f),
+        new Vector2(7f, 3f)
+    };
+    [SerializeField] private Entity_AttackData[] basicAttackData =
+    {
+        new Entity_AttackData(new Vector2(.6f, 0f), .6f, new Vector2(4f, 2f)),
+        new Entity_AttackData(new Vector2(.7f, 0f), .65f, new Vector2(5f, 2.5f)),
+        new Entity_AttackData(new Vector2(.8f, 0f), .7f, new Vector2(7f, 3f))
+    };
     [SerializeField] private float[] basicAttackComboInputLeftWindows = { 10f, 10f, 10f };
     [SerializeField] private float[] basicAttackComboInputRightWindows = { 0f, 0f, 0f };
     [SerializeField] private float[] basicAttackTurnInputLeftWindows = { 10f, 10f, 10f };
     [SerializeField] private float[] basicAttackTurnInputRightWindows = { 0f, 0f, 0f };
     [SerializeField] private float basicAttackDashComboInputWindow = .25f;
     [SerializeField] private float basicAttackDashTurnInputWindow = .25f;
+    [SerializeField] private float basicAttackLoopCooldown = .25f;
     [SerializeField] private float basicAttackMoveDuration = .12f;
     [SerializeField] private bool canMoveDuringBasicAttack = true;
     [SerializeField] private float basicAttackMoveSpeedMultiplier = .25f;
@@ -83,6 +98,18 @@ public class Player : Entity
         new Vector2(.35f, .12f),
         new Vector2(.45f, .12f),
         new Vector2(.55f, .12f)
+    };
+    [SerializeField, HideInInspector] private Vector2[] airAttackKnockbackForces =
+    {
+        new Vector2(4f, 1f),
+        new Vector2(5f, 1.5f),
+        new Vector2(7f, 2f)
+    };
+    [SerializeField] private Entity_AttackData[] airAttackData =
+    {
+        new Entity_AttackData(new Vector2(.6f, 0f), .6f, new Vector2(4f, 1f)),
+        new Entity_AttackData(new Vector2(.7f, 0f), .65f, new Vector2(5f, 1.5f)),
+        new Entity_AttackData(new Vector2(.8f, 0f), .7f, new Vector2(7f, 2f))
     };
     [SerializeField] private float[] airAttackComboInputLeftWindows = { 10f, 10f, 10f };
     [SerializeField] private float[] airAttackComboInputRightWindows = { 0f, 0f, 0f };
@@ -107,10 +134,16 @@ public class Player : Entity
     [SerializeField] private float fallAttackEndAnimationMinSpeed = .05f;
     [SerializeField] private float fallAttackEndAnimationMaxSpeed = 8f;
     [SerializeField] private float fallAttackEndAnimationLandingOffset = .15f;
+    [SerializeField] private Entity_AttackData fallAttackData = new Entity_AttackData(new Vector2(.6f, -.2f), .7f, new Vector2(6f, 3f));
+
+    [Header("Death Info")]
+    [SerializeField, Min(0f)] private float deathGroundVisualDownOffset = .08f;
 
     private Transform visualTransform;
     private Vector3 defaultVisualLocalPosition;
+    private float defaultGravityScale;
     private bool applyWallSlideVisualOffset;
+    private bool applyDeathGroundVisualOffset;
     private bool canWallHold = true;
     private bool canFallAttack = true;
     private bool canAirAttack = true;
@@ -122,6 +155,9 @@ public class Player : Entity
     private int pendingBasicAttackDirection;
     private float pendingBasicAttackComboTimer;
     private float pendingBasicAttackTurnTimer;
+    private float basicAttackLoopCooldownTimer;
+    private bool hasBasicAttackLoopRestartRequest;
+    private int basicAttackLoopRestartDirection;
     private int pendingAirAttackComboIndex = -1;
     private int pendingAirAttackDirection;
     private float pendingAirAttackComboTimer;
@@ -132,6 +168,9 @@ public class Player : Entity
     private bool hasAirAttackComboAfterDash;
     private int airAttackComboAfterDashIndex;
     private int airAttackComboAfterDashDirection;
+    private bool dashEnemyCollisionIgnoreActive;
+    private bool previousPlayerEnemyLayerIgnore;
+    private Entity_Health health;
 
     // Input
     public PlayerInputSet input { get; private set; }
@@ -151,6 +190,7 @@ public class Player : Entity
     public Player_BasicAttackState basicAttackState { get; private set; }
     public Player_AirAttackState airAttackState { get; private set; }
     public Player_FallAttackState fallAttackState { get; private set; }
+    public Player_DeadState deadState { get; private set; }
 
     // Input
     public Vector2 moveInput { get; private set; }
@@ -176,7 +216,12 @@ public class Player : Entity
     public float DashSpeed => dashDistance / dashDuration;
     public bool CanDash => dashCooldownTimer <= 0f;
     public bool WallDashAwayFromWallEnabled => wallDashAwayFromWallEnabled;
+    public bool IgnoreEnemyCollisionDuringDash => ignoreEnemyCollisionDuringDash;
     public float BasicAttackMoveDuration => basicAttackMoveDuration;
+    public bool IsBasicAttackLoopCooldownActive => basicAttackLoopCooldownTimer > 0f;
+    public bool HasBasicAttackLoopRestartRequest => hasBasicAttackLoopRestartRequest
+        && basicAttackLoopCooldownTimer <= 0f
+        && AttackInputHeld();
     public bool CanMoveDuringBasicAttack => canMoveDuringBasicAttack;
     public float BasicAttackMoveSpeedMultiplier => basicAttackMoveSpeedMultiplier;
     public float BasicAttackDashComboInputWindow => basicAttackDashComboInputWindow;
@@ -202,6 +247,10 @@ public class Player : Entity
     public float FallAttackEndAnimationMinSpeed => fallAttackEndAnimationMinSpeed;
     public float FallAttackEndAnimationMaxSpeed => fallAttackEndAnimationMaxSpeed;
     public float FallAttackEndAnimationLandingOffset => fallAttackEndAnimationLandingOffset;
+    public Entity_AttackData FallAttackData => fallAttackData;
+    public float DeathGroundVisualDownOffset => deathGroundVisualDownOffset;
+    public float DefaultGravityScale => defaultGravityScale;
+    public bool IsDead => health != null && health.IsDead;
 
     protected override void Awake()
     {
@@ -209,6 +258,7 @@ public class Player : Entity
 
         visualTransform = anim.transform;
         defaultVisualLocalPosition = visualTransform.localPosition;
+        defaultGravityScale = rb != null ? rb.gravityScale : 1f;
 
         input = new PlayerInputSet();
 
@@ -225,6 +275,7 @@ public class Player : Entity
         basicAttackState = new Player_BasicAttackState(this, stateMachine);
         airAttackState = new Player_AirAttackState(this, stateMachine);
         fallAttackState = new Player_FallAttackState(this, stateMachine);
+        deadState = new Player_DeadState(this, stateMachine);
     }
 
     protected override void Reset()
@@ -239,20 +290,44 @@ public class Player : Entity
 
     private void OnDisable()
     {
+        EndDashEnemyCollisionIgnore();
         input?.Disable();
     }
 
     private void Start()
     {
-        stateMachine.Initialize(idleState);
+        health = GetComponent<Entity_Health>();
+
+        if (IsDead)
+        {
+            SetDeadPlayerBodyLayer();
+        }
+
+        if (stateMachine.CurrentState == null)
+        {
+            stateMachine.Initialize(IsDead && deadState != null ? deadState : idleState);
+        }
     }
 
     private void Update()
     {
+        if (IsDead && stateMachine.CurrentState != deadState)
+        {
+            EnterDeadState();
+        }
+
+        if (IsDead)
+        {
+            stateMachine.CurrentState?.Update();
+            wasDownInputHeldLastFrame = DownInputHeld();
+            return;
+        }
+
         moveInput = input.Player.Movement.ReadValue<Vector2>();
         UpdateDownInputPressedThisFrame();
         UpdateDashCooldownTimer();
         UpdateWallJumpAirAttackWindowTimer();
+        UpdateBasicAttackLoopCooldownTimer();
         UpdateBasicAttackComboTimer();
         UpdateAirAttackComboTimer();
 
@@ -263,6 +338,12 @@ public class Player : Entity
 
     private void FixedUpdate()
     {
+        if (IsDead)
+        {
+            stateMachine.CurrentState?.FixedUpdate();
+            return;
+        }
+
         stateMachine.CurrentState?.FixedUpdate();
     }
 
@@ -387,6 +468,54 @@ public class Player : Entity
         }
 
         return airAttackMoveDistances[attackIndex];
+    }
+
+    public Vector2 GetBasicAttackKnockbackForce(int attackIndex)
+    {
+        if (basicAttackKnockbackForces == null
+            || attackIndex < 0
+            || attackIndex >= basicAttackKnockbackForces.Length)
+        {
+            return Vector2.zero;
+        }
+
+        return basicAttackKnockbackForces[attackIndex];
+    }
+
+    public Vector2 GetAirAttackKnockbackForce(int attackIndex)
+    {
+        if (airAttackKnockbackForces == null
+            || attackIndex < 0
+            || attackIndex >= airAttackKnockbackForces.Length)
+        {
+            return GetBasicAttackKnockbackForce(attackIndex);
+        }
+
+        return airAttackKnockbackForces[attackIndex];
+    }
+
+    public Entity_AttackData GetBasicAttackData(int attackIndex)
+    {
+        if (basicAttackData == null
+            || attackIndex < 0
+            || attackIndex >= basicAttackData.Length)
+        {
+            return new Entity_AttackData(Vector2.zero, .6f, GetBasicAttackKnockbackForce(attackIndex));
+        }
+
+        return basicAttackData[attackIndex];
+    }
+
+    public Entity_AttackData GetAirAttackData(int attackIndex)
+    {
+        if (airAttackData == null
+            || attackIndex < 0
+            || attackIndex >= airAttackData.Length)
+        {
+            return new Entity_AttackData(Vector2.zero, .6f, GetAirAttackKnockbackForce(attackIndex));
+        }
+
+        return airAttackData[attackIndex];
     }
 
     public float GetBasicAttackComboInputLeftWindow(int attackIndex)
@@ -592,7 +721,10 @@ public class Player : Entity
 
     public void OpenBasicAttackComboWindow(int attackIndex, int attackDirection, float comboDuration, float turnDuration)
     {
-        if (comboDuration <= 0f || attackIndex < 0 || attackIndex >= BasicAttackCount)
+        if (basicAttackLoopCooldownTimer > 0f
+            || comboDuration <= 0f
+            || attackIndex < 0
+            || attackIndex >= BasicAttackCount)
         {
             return;
         }
@@ -603,6 +735,15 @@ public class Player : Entity
         pendingBasicAttackTurnTimer = Mathf.Max(0f, turnDuration);
 
         UpdatePendingBasicAttackDirectionFromInput();
+    }
+
+    public void StartBasicAttackLoopCooldown(int attackDirection, bool queueRestart)
+    {
+        basicAttackLoopCooldownTimer = basicAttackLoopCooldown;
+        hasBasicAttackLoopRestartRequest = queueRestart || AttackInputHeld();
+        basicAttackLoopRestartDirection = NormalizeDirection(attackDirection, facingDirection);
+        ClearBasicAttackComboWindow();
+        ClearBasicAttackComboAfterDash();
     }
 
     public void OpenAirAttackComboWindow(int attackIndex, int attackDirection, float comboDuration, float turnDuration)
@@ -707,6 +848,20 @@ public class Player : Entity
         return true;
     }
 
+    public bool TryConsumeBasicAttackLoopRestartRequest(out int attackDirection)
+    {
+        attackDirection = basicAttackLoopRestartDirection;
+
+        if (!HasBasicAttackLoopRestartRequest)
+        {
+            return false;
+        }
+
+        hasBasicAttackLoopRestartRequest = false;
+        basicAttackLoopRestartDirection = 0;
+        return true;
+    }
+
     public bool TryConsumeAirAttackComboWindow(out int attackIndex, out int attackDirection)
     {
         attackIndex = pendingAirAttackComboIndex;
@@ -741,6 +896,44 @@ public class Player : Entity
     public void StartDashCooldown()
     {
         dashCooldownTimer = dashCooldown;
+    }
+
+    public void BeginDashEnemyCollisionIgnore()
+    {
+        if (!ignoreEnemyCollisionDuringDash || dashEnemyCollisionIgnoreActive)
+        {
+            return;
+        }
+
+        int playerLayer = LayerMask.NameToLayer("Player");
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+
+        if (playerLayer < 0 || enemyLayer < 0)
+        {
+            return;
+        }
+
+        previousPlayerEnemyLayerIgnore = Physics2D.GetIgnoreLayerCollision(playerLayer, enemyLayer);
+        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, true);
+        dashEnemyCollisionIgnoreActive = true;
+    }
+
+    public void EndDashEnemyCollisionIgnore()
+    {
+        if (!dashEnemyCollisionIgnoreActive)
+        {
+            return;
+        }
+
+        int playerLayer = LayerMask.NameToLayer("Player");
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+
+        if (playerLayer >= 0 && enemyLayer >= 0)
+        {
+            Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, previousPlayerEnemyLayerIgnore);
+        }
+
+        dashEnemyCollisionIgnoreActive = false;
     }
 
     public void SetDashDirectionOverride(int direction)
@@ -825,6 +1018,50 @@ public class Player : Entity
         IsWallSlideDropLocked = false;
     }
 
+    public void EnterDeadState()
+    {
+        if (stateMachine == null || deadState == null)
+        {
+            return;
+        }
+
+        SetDeadPlayerBodyLayer();
+
+        if (stateMachine.CurrentState == deadState)
+        {
+            return;
+        }
+
+        stateMachine.ChangeState(deadState);
+    }
+
+    private void SetDeadPlayerBodyLayer()
+    {
+        int deadLayer = LayerMask.NameToLayer("DeadPlayerBody");
+
+        if (deadLayer < 0)
+        {
+            return;
+        }
+
+        SetLayerRecursively(gameObject, deadLayer);
+    }
+
+    private void SetLayerRecursively(GameObject target, int layer)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        target.layer = layer;
+
+        foreach (Transform child in target.transform)
+        {
+            SetLayerRecursively(child.gameObject, layer);
+        }
+    }
+
     // Animation
     public void SetAnimation(bool idle, bool move)
     {
@@ -872,6 +1109,17 @@ public class Player : Entity
         anim.SetBool(FallAttackAnimHash, fallAttack);
     }
 
+    public void SetDead(bool dead)
+    {
+        anim.SetBool(DeadAnimHash, dead);
+    }
+
+    public void SetDeathGroundVisualOffset(bool active)
+    {
+        applyDeathGroundVisualOffset = active;
+        UpdateVisualPosition();
+    }
+
     public void TriggerFallAttack()
     {
         anim.SetTrigger(FallAttackTriggerAnimHash);
@@ -911,6 +1159,7 @@ public class Player : Entity
         dashCooldown = Mathf.Max(0f, dashCooldown);
         basicAttackDashComboInputWindow = Mathf.Max(0f, basicAttackDashComboInputWindow);
         basicAttackDashTurnInputWindow = Mathf.Max(0f, basicAttackDashTurnInputWindow);
+        basicAttackLoopCooldown = Mathf.Max(0f, basicAttackLoopCooldown);
         fallAttackAnimationSpeed = Mathf.Max(.01f, fallAttackAnimationSpeed);
         fallAttackWindupDuration = Mathf.Max(0f, fallAttackWindupDuration);
         fallAttackGravityMultiplier = Mathf.Max(0f, fallAttackGravityMultiplier);
@@ -1043,6 +1292,11 @@ public class Player : Entity
             targetPosition += Vector3.right * wallSlideVisualOffset;
         }
 
+        if (applyDeathGroundVisualOffset)
+        {
+            targetPosition += Vector3.down * deathGroundVisualDownOffset;
+        }
+
         visualTransform.localPosition = targetPosition;
     }
 
@@ -1066,6 +1320,30 @@ public class Player : Entity
         if (wallJumpAirAttackWindowTimer <= 0f)
         {
             ClearWallJumpAirAttackWindow();
+        }
+    }
+
+    private void UpdateBasicAttackLoopCooldownTimer()
+    {
+        if (basicAttackLoopCooldownTimer <= 0f)
+        {
+            return;
+        }
+
+        if (AttackInputHeld())
+        {
+            hasBasicAttackLoopRestartRequest = true;
+        }
+        else
+        {
+            hasBasicAttackLoopRestartRequest = false;
+        }
+
+        basicAttackLoopCooldownTimer -= Time.deltaTime;
+
+        if (basicAttackLoopCooldownTimer <= 0f)
+        {
+            basicAttackLoopCooldownTimer = 0f;
         }
     }
 

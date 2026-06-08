@@ -1,13 +1,12 @@
 using UnityEngine;
 
-public class Enemy_IdleState : EnemyState
+public class Enemy_IdleState : Enemy_GroundedState
 {
-    private readonly Enemy_Skeleton skeleton;
+    private bool hasResolvedIdleEndTurn;
 
     public Enemy_IdleState(Enemy enemy, StateMachine stateMachine)
         : base(enemy, stateMachine)
     {
-        skeleton = enemy as Enemy_Skeleton;
     }
 
     public override void Enter()
@@ -15,16 +14,14 @@ public class Enemy_IdleState : EnemyState
         base.Enter();
 
         stateTimer = skeleton != null ? skeleton.IdleDuration : .5f;
+        hasResolvedIdleEndTurn = false;
 
         if (skeleton != null)
         {
             enemy.SetAnimation(true, false);
         }
 
-        if (rb != null)
-        {
-            enemy.SetVelocity(0f, rb.velocity.y);
-        }
+        StopHorizontalMovement();
     }
 
     public override void Update()
@@ -36,8 +33,20 @@ public class Enemy_IdleState : EnemyState
             return;
         }
 
+        if (TryEnterCombatState())
+        {
+            return;
+        }
+
         if (stateTimer <= 0f && skeleton != null)
         {
+            if (!hasResolvedIdleEndTurn)
+            {
+                skeleton.TryRandomPatrolTurn();
+                hasResolvedIdleEndTurn = true;
+                return;
+            }
+
             stateMachine.ChangeState(skeleton.moveState);
         }
     }
@@ -51,9 +60,6 @@ public class Enemy_IdleState : EnemyState
             enemy.SetAnimation(true, false);
         }
 
-        if (rb != null)
-        {
-            enemy.SetVelocity(0f, rb.velocity.y);
-        }
+        StopHorizontalMovement();
     }
 }
