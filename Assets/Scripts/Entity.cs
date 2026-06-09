@@ -1,4 +1,5 @@
 using System.Collections;
+using System;
 using UnityEngine;
 
 public abstract class Entity : MonoBehaviour
@@ -20,6 +21,7 @@ public abstract class Entity : MonoBehaviour
     public float GroundCheckDistance => groundCheckDistance;
     public float WallCheckDistance => wallCheckDistance;
     public float WallCheckVerticalSpan => wallCheckVerticalSpan;
+    public event Action OnFlipped;
 
     protected int facingDirection = 1;
     protected virtual bool UseWallChecks => true;
@@ -451,5 +453,7 @@ public abstract class Entity : MonoBehaviour
             facingDirection == 1
             ? Quaternion.identity
             : Quaternion.Euler(0, 180, 0);
+
+        OnFlipped?.Invoke();
     }
 }

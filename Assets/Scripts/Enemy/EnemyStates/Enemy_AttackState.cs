@@ -28,6 +28,15 @@ public class Enemy_AttackState : Enemy_GroundedState
         damageWindowActive = false;
         combat = enemy.GetComponent<Entity_Combat>();
         stateTimer = GetAttackClipLength();
+        skeleton?.DisableCounterWindow();
+
+        string currentStateName = stateMachine != null && stateMachine.CurrentState != null
+            ? stateMachine.CurrentState.GetType().Name
+            : "null";
+        Debug.Log(
+            $"{enemy.name} entered attack state. CounterWindowActive={(skeleton != null && skeleton.IsCounterWindowActive)}, " +
+            $"AttackClipLength={stateTimer:0.000}, State={currentStateName}",
+            enemy);
 
         if (skeleton != null)
         {
@@ -82,6 +91,7 @@ public class Enemy_AttackState : Enemy_GroundedState
     {
         base.Exit();
 
+        skeleton?.DisableCounterWindow();
         enemy.SetAnimation(false, false, false);
         enemy.SetVelocity(0f, rb != null ? rb.velocity.y : 0f);
     }
@@ -93,14 +103,30 @@ public class Enemy_AttackState : Enemy_GroundedState
 
     public void AttackTrigger()
     {
+        Debug.Log(
+            $"{enemy.name} AttackTrigger received. damageTriggered={damageTriggered}, " +
+            $"counterWindowActive={(skeleton != null && skeleton.IsCounterWindowActive)}, " +
+            $"attackDirection={attackDirection}, elapsedAttackTime={elapsedAttackTime:0.000}",
+            enemy);
+
         if (damageTriggered)
         {
             return;
         }
 
         damageWindowActive = true;
-        TryApplyAttackDamage();
+        bool hitPlayer = TryApplyAttackDamage();
         damageWindowActive = false;
+
+        if (hitPlayer)
+        {
+            damageTriggered = true;
+            Debug.Log($"{enemy.name} AttackTrigger applied damage successfully.", enemy);
+        }
+        else
+        {
+            Debug.Log($"{enemy.name} AttackTrigger missed. Keeping later AttackTrigger events available.", enemy);
+        }
     }
 
     public void AttackOver()
@@ -108,55 +134,29 @@ public class Enemy_AttackState : Enemy_GroundedState
         damageWindowActive = false;
         animationTriggered = true;
         stateTimer = 0f;
+
+        Debug.Log(
+            $"{enemy.name} AttackOver received. CounterWindowActive={(skeleton != null && skeleton.IsCounterWindowActive)}, " +
+            $"ElapsedAttackTime={elapsedAttackTime:0.000}",
+            enemy);
     }
 
-    private void TryApplyAttackDamage()
+    private bool TryApplyAttackDamage()
     {
-        if (!damageWindowActive || damageTriggered || combat == null)
+        if (!damageWindowActive || combat == null)
         {
-            return;
+            return false;
         }
 
         Entity_AttackData attackData = skeleton != null
             ? skeleton.SkeletonAttackData
             : new Entity_AttackData(Vector2.zero, .6f, Vector2.zero);
 
-        bool hitPlayer = combat.AttackTrigger(attackData) || TryDamageTrackedPlayer(attackData);
-
-        if (!hitPlayer)
-        {
-            return;
-        }
-
-        damageTriggered = true;
-        damageWindowActive = false;
-    }
-
-    private bool TryDamageTrackedPlayer(Entity_AttackData attackData)
-    {
-        if (skeleton == null || skeleton.PlayerTarget == null)
-        {
-            return false;
-        }
-
-        Entity_Combat playerCombat = skeleton.PlayerTarget.GetComponentInParent<Entity_Combat>();
-        if (playerCombat == null || playerCombat == combat)
-        {
-            return false;
-        }
-
-        return playerCombat.TryReceiveHitFromCollider(
-            combat,
-            combat.GetAttackCenter(attackData),
+        bool hitPlayer = combat.AttackTriggerFromTargetCheck(
             attackData.TargetCheckRadius,
-            GetAttackKnockback(attackData)
-        );
-    }
+            attackData.KnockbackForce);
 
-    private Vector2 GetAttackKnockback(Entity_AttackData attackData)
-    {
-        int direction = skeleton != null ? skeleton.PlayerTargetDirection : enemy.FacingDirection;
-        return new Vector2(attackData.KnockbackForce.x * direction, attackData.KnockbackForce.y);
+        return hitPlayer;
     }
 
     private void PlayAttackAnimation()

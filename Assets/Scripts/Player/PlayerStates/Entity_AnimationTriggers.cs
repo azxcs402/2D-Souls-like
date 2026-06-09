@@ -33,6 +33,24 @@ public class Entity_AnimationTriggers : MonoBehaviour
         }
     }
 
+    public void EnableCounterWindow()
+    {
+        if (entity is Enemy enemy && enemy is ICounterable counterable)
+        {
+            Debug.Log($"{enemy.name} animation event EnableCounterWindow fired.", enemy);
+            counterable.EnableCounterWindow();
+        }
+    }
+
+    public void DisableCounterWindow()
+    {
+        if (entity is Enemy enemy && enemy is ICounterable counterable)
+        {
+            Debug.Log($"{enemy.name} animation event DisableCounterWindow fired.", enemy);
+            counterable.DisableCounterWindow();
+        }
+    }
+
     public void AttackTrigger()
     {
         if (entity is Player player)
@@ -58,7 +76,11 @@ public class Entity_AnimationTriggers : MonoBehaviour
 
     public void CurrentStateTrigger()
     {
-        if (entity is Enemy enemy && enemy.stateMachine.CurrentState is Enemy_AttackState attackState)
+        if (entity is Player player && player.stateMachine.CurrentState == player.counterAttackState)
+        {
+            player.counterAttackState.CurrentStateTrigger();
+        }
+        else if (entity is Enemy enemy && enemy.stateMachine.CurrentState is Enemy_AttackState attackState)
         {
             attackState.CurrentStateTrigger();
         }

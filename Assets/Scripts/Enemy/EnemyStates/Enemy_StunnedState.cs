@@ -3,8 +3,10 @@ using UnityEngine;
 public class Enemy_StunnedState : EnemyState
 {
     private float defaultGravityScale;
+    private RigidbodyConstraints2D defaultConstraints;
     private float stunDuration;
     private bool hasCompleted;
+    private string activeStunnedStateName;
     private Enemy_Skeleton skeleton => enemy as Enemy_Skeleton;
 
     public Enemy_StunnedState(Enemy enemy, StateMachine stateMachine)
@@ -18,20 +20,25 @@ public class Enemy_StunnedState : EnemyState
 
         hasCompleted = false;
         defaultGravityScale = enemy != null && enemy.rb != null ? enemy.rb.gravityScale : 1f;
+        defaultConstraints = enemy != null && enemy.rb != null ? enemy.rb.constraints : RigidbodyConstraints2D.None;
         stunDuration = GetStunClipLength();
         stateTimer = stunDuration;
+        activeStunnedStateName = null;
 
         if (enemy.anim != null)
         {
             enemy.anim.speed = 1f;
             enemy.SetAnimation(false, false, false);
+            skeleton?.SetStunnedAnimation(true);
             PlayStunnedAnimation();
         }
 
         if (enemy.rb != null)
         {
             enemy.rb.gravityScale = 0f;
-            enemy.SetVelocity(GetStunVelocity().x, GetStunVelocity().y);
+            enemy.rb.velocity = Vector2.zero;
+            enemy.rb.angularVelocity = 0f;
+            enemy.rb.constraints = RigidbodyConstraints2D.FreezeAll;
         }
     }
 
@@ -44,8 +51,14 @@ public class Enemy_StunnedState : EnemyState
             return;
         }
 
+        if (skeleton != null)
+        {
+            skeleton.SetStunnedAnimation(true);
+        }
+
         if (stateTimer > 0f)
         {
+            EnsureStunnedAnimationLoops();
             return;
         }
 
@@ -70,17 +83,27 @@ public class Enemy_StunnedState : EnemyState
             return;
         }
 
-        Vector2 stunVelocity = GetStunVelocity();
-        enemy.SetVelocity(stunVelocity.x, stunVelocity.y);
+        enemy.rb.velocity = Vector2.zero;
+        enemy.rb.angularVelocity = 0f;
+        enemy.rb.MovePosition(enemy.rb.position);
+        EnsureStunnedAnimationLoops();
     }
 
     public override void Exit()
     {
         base.Exit();
 
+        if (skeleton != null)
+        {
+            skeleton.SetStunnedAnimation(false);
+        }
+
         if (enemy.rb != null)
         {
             enemy.rb.gravityScale = defaultGravityScale;
+            enemy.rb.constraints = defaultConstraints;
+            enemy.rb.velocity = Vector2.zero;
+            enemy.rb.angularVelocity = 0f;
         }
     }
 
@@ -91,34 +114,68 @@ public class Enemy_StunnedState : EnemyState
             return;
         }
 
-        string stunnedStateName = skeleton != null && !string.IsNullOrWhiteSpace(skeleton.StunnedAnimationState)
-            ? skeleton.StunnedAnimationState
-            : "skeletonStunned";
-
-        string fullStateName = stunnedStateName.Contains(".")
-            ? stunnedStateName
-            : $"Base Layer.{stunnedStateName}";
-        int fullStateHash = Animator.StringToHash(fullStateName);
-
-        if (enemy.anim.HasState(0, fullStateHash))
+        string[] candidateStateNames = GetCandidateStunnedStateNames();
+        for (int i = 0; i < candidateStateNames.Length; i++)
         {
-            enemy.anim.Play(fullStateName, 0, 0f);
-            enemy.anim.Update(0f);
+            string candidateStateName = candidateStateNames[i];
+            if (string.IsNullOrWhiteSpace(candidateStateName))
+            {
+                continue;
+            }
+
+            string fullStateName = candidateStateName.Contains(".")
+                ? candidateStateName
+                : $"Base Layer.{candidateStateName}";
+            int fullStateHash = Animator.StringToHash(fullStateName);
+
+            if (enemy.anim.HasState(0, fullStateHash))
+            {
+                activeStunnedStateName = candidateStateName;
+                enemy.anim.Play(fullStateName, 0, 0f);
+                enemy.anim.Update(0f);
+                return;
+            }
+        }
+
+        activeStunnedStateName = candidateStateNames[0];
+        enemy.PlayAnimatorState(candidateStateNames[0]);
+    }
+
+    private void EnsureStunnedAnimationLoops()
+    {
+        if (enemy == null || enemy.anim == null || string.IsNullOrWhiteSpace(activeStunnedStateName))
+        {
             return;
         }
 
-        enemy.PlayAnimatorState(stunnedStateName);
-    }
+        string fullStateName = activeStunnedStateName.Contains(".")
+            ? activeStunnedStateName
+            : $"Base Layer.{activeStunnedStateName}";
+        int fullStateHash = Animator.StringToHash(fullStateName);
 
-    private Vector2 GetStunVelocity()
-    {
-        Vector2 moveDistance = skeleton != null ? skeleton.StunnedMoveDistance : new Vector2(0f, .5f);
-        float duration = Mathf.Max(.01f, stunDuration);
+        if (!enemy.anim.HasState(0, fullStateHash))
+        {
+            return;
+        }
 
-        return new Vector2(
-            moveDistance.x * (enemy != null ? enemy.FacingDirection : 1f),
-            moveDistance.y
-        ) / duration;
+        AnimatorStateInfo stateInfo = enemy.anim.GetCurrentAnimatorStateInfo(0);
+        if (stateInfo.fullPathHash != fullStateHash)
+        {
+            return;
+        }
+
+        if (stateInfo.loop)
+        {
+            return;
+        }
+
+        if (stateInfo.normalizedTime < 1f)
+        {
+            return;
+        }
+
+        enemy.anim.Play(fullStateName, 0, 0f);
+        enemy.anim.Update(0f);
     }
 
     private float GetStunClipLength()
@@ -128,18 +185,38 @@ public class Enemy_StunnedState : EnemyState
             return .5f;
         }
 
-        string stunnedStateName = skeleton != null && !string.IsNullOrWhiteSpace(skeleton.StunnedAnimationState)
-            ? skeleton.StunnedAnimationState
-            : "skeletonStunned";
+        string[] candidateStateNames = GetCandidateStunnedStateNames();
 
         foreach (AnimationClip clip in enemy.anim.runtimeAnimatorController.animationClips)
         {
-            if (clip != null && clip.name == stunnedStateName)
+            if (clip == null)
             {
-                return Mathf.Max(.05f, clip.length);
+                continue;
+            }
+
+            for (int i = 0; i < candidateStateNames.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(candidateStateNames[i]) && clip.name == candidateStateNames[i])
+                {
+                    return Mathf.Max(.05f, clip.length);
+                }
             }
         }
 
         return .5f;
+    }
+
+    private string[] GetCandidateStunnedStateNames()
+    {
+        string configuredStateName = skeleton != null && !string.IsNullOrWhiteSpace(skeleton.StunnedAnimationState)
+            ? skeleton.StunnedAnimationState
+            : "skeletonStunned";
+
+        return new[]
+        {
+            configuredStateName,
+            "skeletonStunned",
+            "skeletonStunnded"
+        };
     }
 }

@@ -97,6 +97,7 @@ public class Enemy_Healthy : Entity_Health
         maxHealth = enemy.MaxHealth;
         currentHealth = enemy.CurrentHealth;
         isDead = enemy.IsDead;
+        UpdateHealthBar();
     }
 
     public void RefreshFromEnemy()

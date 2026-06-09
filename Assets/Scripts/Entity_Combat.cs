@@ -4,8 +4,11 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class Entity_Combat : MonoBehaviour
 {
+    private static int nextAttackId = 1;
+
     [Header("Damage")]
     [SerializeField, Range(1, 20)] private int damage = 1;
+    [SerializeField] private bool showCombatDebugLogs = true;
 
     [Header("Target detection")]
     [SerializeField] private Transform targetCheck;
@@ -34,11 +37,14 @@ public class Entity_Combat : MonoBehaviour
     public float PreviewNormalizedTime => previewNormalizedTime;
 
     private Entity owner;
-    private int lastAttackFrame = -1;
+    private Entity_VFX vfx;
+    private readonly Dictionary<Entity_Combat, int> receivedAttackIdsByAttacker = new Dictionary<Entity_Combat, int>();
 
     private void Awake()
     {
         owner = GetComponent<Entity>();
+        EnsureVfxComponent();
+        vfx = GetComponent<Entity_VFX>();
         EnsureHealthComponent();
         EnsureTargetCheck();
         AutoAssignTargetLayerIfEmpty();
@@ -46,6 +52,7 @@ public class Entity_Combat : MonoBehaviour
 
     private void Reset()
     {
+        EnsureVfxComponent();
         EnsureHealthComponent();
         EnsureTargetCheck();
         AutoAssignTargetLayerIfEmpty();
@@ -58,6 +65,7 @@ public class Entity_Combat : MonoBehaviour
 
         if (!Application.isPlaying)
         {
+            EnsureVfxComponent();
             EnsureTargetCheck();
             AutoAssignTargetLayerIfEmpty();
         }
@@ -65,43 +73,86 @@ public class Entity_Combat : MonoBehaviour
 
     public bool AttackTrigger(Entity_AttackData attackData)
     {
-        if (lastAttackFrame == Time.frameCount)
-        {
-            return false;
-        }
+        return AttackTrigger(attackData, GetNextAttackId());
+    }
 
-        lastAttackFrame = Time.frameCount;
-
+    public bool AttackTrigger(Entity_AttackData attackData, int attackId)
+    {
         Vector2 attackCenter = GetAttackCenter(attackData);
         float attackRadius = attackData.TargetCheckRadius;
 
-        Collider2D[] targets = Physics2D.OverlapCircleAll(
-            attackCenter,
-            attackRadius,
-            whatIsTarget
+        if (showCombatDebugLogs)
+        {
+            Debug.Log(
+                $"{name} AttackTrigger start. attackId={attackId}, center={attackCenter}, radius={attackRadius:0.000}, layerMask={whatIsTarget.value}",
+                this);
+        }
+
+        bool hitAnyTarget = TryAttackTargets(
+            Physics2D.OverlapCircleAll(attackCenter, attackRadius, whatIsTarget),
+            attackData,
+            attackId,
+            strictLayerMatch: true
         );
 
-        HashSet<Entity_Combat> damagedTargets = new HashSet<Entity_Combat>();
-        bool hitAnyTarget = false;
-        foreach (Collider2D targetCollider in targets)
+        if (!hitAnyTarget)
         {
-            if (targetCollider == null || IsSelfCollider(targetCollider))
-            {
-                continue;
-            }
+            hitAnyTarget = TryAttackTargets(
+                Physics2D.OverlapCircleAll(attackCenter, attackRadius, ~0),
+                attackData,
+                attackId,
+                strictLayerMatch: false
+            );
+        }
 
-            Entity_Combat targetCombat = targetCollider.GetComponentInParent<Entity_Combat>();
-            if (targetCombat == null || targetCombat == this)
-            {
-                continue;
-            }
+        if (showCombatDebugLogs)
+        {
+            Debug.Log(
+                $"{name} AttackTrigger end. attackId={attackId}, hitAnyTarget={hitAnyTarget}",
+                this);
+        }
 
-            if (!damagedTargets.Add(targetCombat))
-            {
-                continue;
-            }
+        return hitAnyTarget;
+    }
 
-            hitAnyTarget |= targetCombat.ReceiveHit(this, GetWorldKnockback(attackData.KnockbackForce));
+    public bool AttackTriggerFromTargetCheck(float attackRadius, Vector2 knockbackForce)
+    {
+        return AttackTriggerFromTargetCheck(attackRadius, knockbackForce, GetNextAttackId());
+    }
+
+    public bool AttackTriggerFromTargetCheck(float attackRadius, Vector2 knockbackForce, int attackId)
+    {
+        Vector2 attackCenter = GetTargetCheckWorldPosition();
+
+        if (showCombatDebugLogs)
+        {
+            Debug.Log(
+                $"{name} AttackTriggerFromTargetCheck start. attackId={attackId}, center={attackCenter}, radius={attackRadius:0.000}, layerMask={whatIsTarget.value}",
+                this);
+        }
+
+        bool hitAnyTarget = TryAttackTargets(
+            Physics2D.OverlapCircleAll(attackCenter, attackRadius, whatIsTarget),
+            new Entity_AttackData(Vector2.zero, attackRadius, knockbackForce),
+            attackId,
+            strictLayerMatch: true
+        );
+
+        if (!hitAnyTarget)
+        {
+            hitAnyTarget = TryAttackTargets(
+                Physics2D.OverlapCircleAll(attackCenter, attackRadius, ~0),
+                new Entity_AttackData(Vector2.zero, attackRadius, knockbackForce),
+                attackId,
+                strictLayerMatch: false
+            );
+        }
+
+        if (showCombatDebugLogs)
+        {
+            Debug.Log(
+                $"{name} AttackTriggerFromTargetCheck end. attackId={attackId}, hitAnyTarget={hitAnyTarget}",
+                this);
         }
 
         return hitAnyTarget;
@@ -114,12 +165,27 @@ public class Entity_Combat : MonoBehaviour
 
     public bool ReceiveHit(Entity_Combat attacker, Vector2 knockbackVelocity)
     {
+        return ReceiveHit(attacker, knockbackVelocity, GetNextAttackId());
+    }
+
+    public bool ReceiveHit(Entity_Combat attacker, Vector2 knockbackVelocity, int attackId)
+    {
+        if (!CanReceiveAttack(attacker, attackId))
+        {
+            return false;
+        }
+
         Entity_Health health = GetComponentInParent<Entity_Health>();
         return health != null
             && health.TakeDamage(attacker != null ? attacker.Damage : 0, attacker, knockbackVelocity);
     }
 
     public bool TryReceiveHitFromCollider(Entity_Combat attacker, Vector2 attackCenter, float attackRadius, Vector2 knockbackVelocity)
+    {
+        return TryReceiveHitFromCollider(attacker, attackCenter, attackRadius, knockbackVelocity, GetNextAttackId());
+    }
+
+    public bool TryReceiveHitFromCollider(Entity_Combat attacker, Vector2 attackCenter, float attackRadius, Vector2 knockbackVelocity, int attackId)
     {
         Collider2D targetCollider = GetComponentInParent<Collider2D>();
         if (targetCollider == null)
@@ -133,7 +199,109 @@ public class Entity_Combat : MonoBehaviour
             return false;
         }
 
-        return ReceiveHit(attacker, knockbackVelocity);
+        return ReceiveHit(attacker, knockbackVelocity, attackId);
+    }
+
+    private bool TryAttackTargets(Collider2D[] targets, Entity_AttackData attackData, int attackId, bool strictLayerMatch)
+    {
+        HashSet<Entity_Health> damagedTargets = new HashSet<Entity_Health>();
+        bool hitAnyTarget = false;
+        Vector2 knockbackVelocity = GetWorldKnockback(attackData.KnockbackForce);
+
+        if (showCombatDebugLogs)
+        {
+            Debug.Log(
+                $"{name} evaluating {targets.Length} collider(s). strictLayerMatch={strictLayerMatch}, attackId={attackId}",
+                this);
+        }
+
+        foreach (Collider2D targetCollider in targets)
+        {
+            if (targetCollider == null || IsSelfCollider(targetCollider))
+            {
+                if (showCombatDebugLogs && targetCollider != null)
+                {
+                    Debug.Log($"{name} skipped self collider {targetCollider.name}.", targetCollider);
+                }
+                continue;
+            }
+
+            if (strictLayerMatch && !IsTargetLayer(targetCollider.gameObject.layer))
+            {
+                if (showCombatDebugLogs)
+                {
+                    Debug.Log(
+                        $"{name} skipped {targetCollider.name} on layer {LayerMask.LayerToName(targetCollider.gameObject.layer)} because it is not in target mask.",
+                        targetCollider);
+                }
+                continue;
+            }
+
+            Entity_Health targetHealth = targetCollider.GetComponentInParent<Entity_Health>();
+            if (targetHealth == null || targetHealth == GetComponentInParent<Entity_Health>())
+            {
+                if (showCombatDebugLogs)
+                {
+                    Debug.Log(
+                        $"{name} collider {targetCollider.name} has no valid Entity_Health target.",
+                        targetCollider);
+                }
+                continue;
+            }
+
+            if (!damagedTargets.Add(targetHealth))
+            {
+                if (showCombatDebugLogs)
+                {
+                    Debug.Log($"{name} already damaged {targetHealth.name} for attackId={attackId}.", targetHealth);
+                }
+                continue;
+            }
+
+            bool hitTarget = targetHealth.TakeDamage(Damage, this, knockbackVelocity);
+            hitAnyTarget |= hitTarget;
+
+            if (hitTarget && vfx != null)
+            {
+                vfx.CreateOnHitVFX(targetHealth.transform);
+            }
+
+            if (showCombatDebugLogs)
+            {
+                Debug.Log(
+                    $"{name} attackId={attackId} -> target={targetHealth.name}, hit={hitTarget}, damage={Damage}, knockback={knockbackVelocity}",
+                    targetHealth);
+            }
+        }
+
+        return hitAnyTarget;
+    }
+
+    private static int GetNextAttackId()
+    {
+        if (nextAttackId == int.MaxValue)
+        {
+            nextAttackId = 1;
+        }
+
+        return nextAttackId++;
+    }
+
+    private bool CanReceiveAttack(Entity_Combat attacker, int attackId)
+    {
+        if (attacker == null || attackId <= 0)
+        {
+            return true;
+        }
+
+        if (receivedAttackIdsByAttacker.TryGetValue(attacker, out int lastAttackId)
+            && lastAttackId == attackId)
+        {
+            return false;
+        }
+
+        receivedAttackIdsByAttacker[attacker] = attackId;
+        return true;
     }
 
     private Vector2 GetWorldKnockback(Vector2 knockbackForce)
@@ -149,6 +317,11 @@ public class Entity_Combat : MonoBehaviour
 
     public Vector2 GetAttackCenter(Entity_AttackData attackData)
     {
+        if (targetCheck != null)
+        {
+            return (Vector2)targetCheck.position + attackData.TargetCheckOffset;
+        }
+
         if (owner == null)
         {
             owner = GetComponent<Entity>();
@@ -158,6 +331,17 @@ public class Entity_Combat : MonoBehaviour
         Vector2 offset = attackData.TargetCheckOffset;
         offset.x *= direction;
         return (Vector2)transform.position + offset;
+    }
+
+    public Vector2 GetTargetCheckWorldPosition()
+    {
+        EnsureTargetCheck();
+        if (targetCheck != null)
+        {
+            return targetCheck.position;
+        }
+
+        return transform.position;
     }
 
     public Entity_AttackData GetLegacyAttackData(Vector2 knockbackForce)
@@ -268,10 +452,28 @@ public class Entity_Combat : MonoBehaviour
         }
     }
 
+    private void EnsureVfxComponent()
+    {
+        if (GetComponent<Entity_VFX>() == null)
+        {
+            gameObject.AddComponent<Entity_VFX>();
+        }
+    }
+
     private bool IsSelfCollider(Collider2D targetCollider)
     {
         return targetCollider.transform == transform
             || targetCollider.transform.IsChildOf(transform);
+    }
+
+    private bool IsTargetLayer(int layer)
+    {
+        if (whatIsTarget == 0)
+        {
+            return true;
+        }
+
+        return (whatIsTarget.value & (1 << layer)) != 0;
     }
 
     private void OnDrawGizmos()

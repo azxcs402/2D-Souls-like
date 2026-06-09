@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 
-public class Enemy_Skeleton : Enemy
+public class Enemy_Skeleton : Enemy, ICounterable
 {
     [Header("Patrol Info")]
     [SerializeField, Min(.1f)] private float idleDuration = 1.2f;
@@ -44,6 +44,7 @@ public class Enemy_Skeleton : Enemy
 
     [Header("Stun Info")]
     [SerializeField] private Vector2 stunnedMoveDistance = new Vector2(0f, .5f);
+    [SerializeField] private string stunnedBoolParameter = "stunned";
     [SerializeField] private string stunnedAnimationState = "skeletonStunned";
 
     [Header("Death Info")]
@@ -95,6 +96,7 @@ public class Enemy_Skeleton : Enemy
     public float SkeletonTurnDelay => skeletonTurnDelay;
     public int SkeletonContactDamage => skeletonContactDamage;
     public Vector2 StunnedMoveDistance => stunnedMoveDistance;
+    public string StunnedBoolParameter => stunnedBoolParameter;
     public string StunnedAnimationState => stunnedAnimationState;
     public bool CanSkeletonBeKnockedBack => canSkeletonBeKnockedBack
         && (canSkeletonBeKnockedBackDuringAttack || stateMachine == null || stateMachine.CurrentState != attackState);
@@ -118,6 +120,7 @@ public class Enemy_Skeleton : Enemy
     public Transform PlayerTarget => playerTarget;
     public Bounds PlayerBounds => GetPlayerBounds();
     public bool IsStunned => stateMachine != null && stateMachine.CurrentState == stunnedState;
+    public bool IsCounterWindowActive => counterWindowActive;
 
     private Transform playerTarget;
     private Player playerComponent;
@@ -130,6 +133,7 @@ public class Enemy_Skeleton : Enemy
     private bool playerVisible;
     private bool playerInAttackRange;
     private bool playerWithinChaseHeight;
+    private bool counterWindowActive;
     private int playerTargetDirection = 1;
     private float playerLostTimer;
     private float attackCooldownTimer;
@@ -158,12 +162,6 @@ public class Enemy_Skeleton : Enemy
 
     protected override void Update()
     {
-        if (Input.GetKeyDown(KeyCode.G) && !IsDead && stunnedState != null)
-        {
-            stateMachine.ChangeState(stunnedState);
-            return;
-        }
-
         RefreshBattleMoveSpeedMultiplier();
 
         if (attackCooldownTimer > 0f)
@@ -325,6 +323,53 @@ public class Enemy_Skeleton : Enemy
         }
     }
 
+    public void SetStunnedAnimation(bool stunned)
+    {
+        if (anim == null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(stunnedBoolParameter))
+        {
+            int stunnedHash = Animator.StringToHash(stunnedBoolParameter);
+            if (HasAnimatorParameter(stunnedHash))
+            {
+                anim.SetBool(stunnedHash, stunned);
+            }
+        }
+    }
+
+    public void EnableCounterWindow()
+    {
+        counterWindowActive = true;
+        Debug.Log($"{name} counter window ENABLED. State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}.", this);
+    }
+
+    public void DisableCounterWindow()
+    {
+        counterWindowActive = false;
+        Debug.Log($"{name} counter window DISABLED. State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}.", this);
+    }
+
+    public bool TryCounter()
+    {
+        Debug.Log(
+            $"{name} counter attempt. CounterWindowActive={counterWindowActive}, IsDead={IsDead}, " +
+            $"State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}, " +
+            $"CanStun={(stunnedState != null)}",
+            this);
+
+        if (!counterWindowActive || IsDead || stunnedState == null || stateMachine == null)
+        {
+            return false;
+        }
+
+        Debug.Log($"{name} counter success -> entering stunned state.", this);
+        stateMachine.ChangeState(stunnedState);
+        return true;
+    }
+
     protected override void OnValidate()
     {
         base.OnValidate();
@@ -351,7 +396,6 @@ public class Enemy_Skeleton : Enemy
         skeletonAttackMoveYDelay = Mathf.Max(0f, skeletonAttackMoveYDelay);
         skeletonTurnDelay = Mathf.Max(0f, skeletonTurnDelay);
         skeletonContactDamage = Mathf.Max(0, skeletonContactDamage);
-        stunnedMoveDistance.x = Mathf.Max(0f, stunnedMoveDistance.x);
         stunnedMoveDistance.y = Mathf.Max(0f, stunnedMoveDistance.y);
         deadFallSpeed = Mathf.Max(0f, deadFallSpeed);
         deadSlideSpeed = Mathf.Max(0f, deadSlideSpeed);
@@ -378,6 +422,11 @@ public class Enemy_Skeleton : Enemy
         if (string.IsNullOrWhiteSpace(stunnedAnimationState))
         {
             stunnedAnimationState = "skeletonStunned";
+        }
+
+        if (string.IsNullOrWhiteSpace(stunnedBoolParameter))
+        {
+            stunnedBoolParameter = "stunned";
         }
 
         if (whatIsPlayer == 0)

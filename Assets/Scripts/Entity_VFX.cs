@@ -8,6 +8,10 @@ public class Entity_VFX : MonoBehaviour
     [SerializeField] private Material onDamageVFXMaterial;
     [SerializeField, Min(.01f)] private float onDamageVFXDuration = .15f;
 
+    [Header("On Hit VFX")]
+    [SerializeField] private Color hitVFXColor = Color.white;
+    [SerializeField] private GameObject hitVFX;
+
     private SpriteRenderer[] spriteRenderers;
     private Material[] originalMaterials;
     private Coroutine onDamageVFXCoroutine;
@@ -16,18 +20,47 @@ public class Entity_VFX : MonoBehaviour
     {
         CacheRenderers();
         TryAssignOnDamageMaterial();
+        TryAssignHitVFX();
     }
 
     private void Reset()
     {
         CacheRenderers();
         TryAssignOnDamageMaterial();
+        TryAssignHitVFX();
     }
 
     private void OnValidate()
     {
         onDamageVFXDuration = Mathf.Max(.01f, onDamageVFXDuration);
         TryAssignOnDamageMaterial();
+        TryAssignHitVFX();
+    }
+
+    public void CreateOnHitVFX(Transform target)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        TryAssignHitVFX();
+
+        if (hitVFX == null)
+        {
+            return;
+        }
+
+        GameObject vfx = Instantiate(hitVFX, target.position, Quaternion.identity);
+        vfx.transform.SetParent(target, true);
+        vfx.transform.position = target.position;
+        vfx.transform.rotation = Quaternion.identity;
+
+        SpriteRenderer spriteRenderer = vfx.GetComponentInChildren<SpriteRenderer>();
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = hitVFXColor;
+        }
     }
 
     public void PlayOnDamageVFX()
@@ -103,6 +136,18 @@ public class Entity_VFX : MonoBehaviour
         {
             onDamageVFXMaterial = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
                 "Assets/Materials/OnDamageVFX_Material.mat"
+            );
+        }
+#endif
+    }
+
+    private void TryAssignHitVFX()
+    {
+#if UNITY_EDITOR
+        if (hitVFX == null)
+        {
+            hitVFX = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Prefabs/VFX/OnHitVFX.prefab"
             );
         }
 #endif

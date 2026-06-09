@@ -35,9 +35,11 @@ public class Player_DeadState : EntityState
         player.SetBasicAttackIndex(0);
         player.SetAirAttackIndex(0);
         player.SetFallAttack(false);
+        player.SetCounterAttack(false);
+        player.SetCounterAttackPerformed(false);
         player.ResetFallAttackTrigger();
         player.SetDead(false);
-        player.SetDeathGroundVisualOffset(!waitingForGround);
+        player.SetDeathGroundVisualOffset(false);
 
         if (!waitingForGround)
         {
@@ -116,6 +118,8 @@ public class Player_DeadState : EntityState
         player.SetBasicAttackIndex(0);
         player.SetAirAttackIndex(0);
         player.SetFallAttack(false);
+        player.SetCounterAttack(false);
+        player.SetCounterAttackPerformed(false);
         player.ResetFallAttackTrigger();
         player.SetYVelocity(0f);
         player.SetVelocity(0f, 0f);

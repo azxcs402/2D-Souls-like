@@ -4,7 +4,7 @@ using UnityEngine;
 
 public static class EnemySkeletonPivotUtility
 {
-    [MenuItem("Codex/Enemy/Bake Skeleton Animator Offset Into Root")]
+    [MenuItem("Tools/Enemy/Bake Skeleton Animator Offset Into Root")]
     private static void BakeSkeletonAnimatorOffsetIntoRoot()
     {
         Enemy_Skeleton skeleton = Selection.activeGameObject != null
@@ -47,7 +47,7 @@ public static class EnemySkeletonPivotUtility
         Debug.Log($"Baked Animator offset {offset} into {root.name}. Animator local position reset to zero.");
     }
 
-    [MenuItem("Codex/Enemy/Bake Skeleton Animator Offset Into Root", true)]
+    [MenuItem("Tools/Enemy/Bake Skeleton Animator Offset Into Root", true)]
     private static bool CanBakeSkeletonAnimatorOffsetIntoRoot()
     {
         return Selection.activeGameObject != null

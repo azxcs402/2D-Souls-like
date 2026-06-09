@@ -16,6 +16,8 @@ public class Player : Entity
     private static readonly int AirAttackIndexAnimHash = Animator.StringToHash("basicAttack_air_Index");
     private static readonly int FallAttackAnimHash = Animator.StringToHash("fallAttack");
     private static readonly int FallAttackTriggerAnimHash = Animator.StringToHash("fallAttackTrigger");
+    private static readonly int CounterAttackAnimHash = Animator.StringToHash("counterAttack");
+    private static readonly int CounterAttackPerformedAnimHash = Animator.StringToHash("counterAttackPerformed");
     private static readonly int DeadAnimHash = Animator.StringToHash("Dead");
 
     [Header("Move Info")]
@@ -122,8 +124,8 @@ public class Player : Entity
     [SerializeField] private float airAttackFallSpeed = 1.5f;
 
     [Header("Fall Attack Info")]
-    [SerializeField] private string fallAttackStartAnimationName = "playerFallAttack_start";
-    [SerializeField] private string fallAttackEndAnimationName = "playerFallAttack_end";
+    [SerializeField] private string fallAttackStartAnimationName = "playerFallAttack";
+    [SerializeField] private string fallAttackEndAnimationName = "playerFallAttack_performed";
     [SerializeField] private float fallAttackAnimationSpeed = 1f;
     [SerializeField] private float fallAttackWindupDuration = .35f;
     [SerializeField] private float fallAttackGravityMultiplier = 1f;
@@ -135,6 +137,11 @@ public class Player : Entity
     [SerializeField] private float fallAttackEndAnimationMaxSpeed = 8f;
     [SerializeField] private float fallAttackEndAnimationLandingOffset = .15f;
     [SerializeField] private Entity_AttackData fallAttackData = new Entity_AttackData(new Vector2(.6f, -.2f), .7f, new Vector2(6f, 3f));
+
+    [Header("Counter Attack Info")]
+    [SerializeField, Min(0f)] private float counterDuration = .35f;
+    [SerializeField] private string counterAttackAnimationState = "playerCounterAttack";
+    [SerializeField] private string counterAttackPerformedAnimationState = "playerCounterAttack_performed";
 
     [Header("Death Info")]
     [SerializeField, Min(0f)] private float deathGroundVisualDownOffset = .08f;
@@ -190,6 +197,7 @@ public class Player : Entity
     public Player_BasicAttackState basicAttackState { get; private set; }
     public Player_AirAttackState airAttackState { get; private set; }
     public Player_FallAttackState fallAttackState { get; private set; }
+    public Player_CounterAttackState counterAttackState { get; private set; }
     public Player_DeadState deadState { get; private set; }
 
     // Input
@@ -248,6 +256,9 @@ public class Player : Entity
     public float FallAttackEndAnimationMaxSpeed => fallAttackEndAnimationMaxSpeed;
     public float FallAttackEndAnimationLandingOffset => fallAttackEndAnimationLandingOffset;
     public Entity_AttackData FallAttackData => fallAttackData;
+    public float CounterDuration => counterDuration;
+    public string CounterAttackAnimationState => counterAttackAnimationState;
+    public string CounterAttackPerformedAnimationState => counterAttackPerformedAnimationState;
     public float DeathGroundVisualDownOffset => deathGroundVisualDownOffset;
     public float DefaultGravityScale => defaultGravityScale;
     public bool IsDead => health != null && health.IsDead;
@@ -275,6 +286,7 @@ public class Player : Entity
         basicAttackState = new Player_BasicAttackState(this, stateMachine);
         airAttackState = new Player_AirAttackState(this, stateMachine);
         fallAttackState = new Player_FallAttackState(this, stateMachine);
+        counterAttackState = new Player_CounterAttackState(this, stateMachine);
         deadState = new Player_DeadState(this, stateMachine);
     }
 
@@ -331,6 +343,8 @@ public class Player : Entity
         UpdateBasicAttackComboTimer();
         UpdateAirAttackComboTimer();
 
+        TryEnterCounterAttackState();
+
         stateMachine.CurrentState?.Update();
 
         wasDownInputHeldLastFrame = DownInputHeld();
@@ -350,6 +364,21 @@ public class Player : Entity
     private void LateUpdate()
     {
         UpdateVisualPosition();
+    }
+
+    private bool TryEnterCounterAttackState()
+    {
+        if (counterAttackState == null
+            || !CounterInputPressed()
+            || stateMachine.CurrentState == counterAttackState
+            || stateMachine.CurrentState == deadState
+            || stateMachine.CurrentState == dashState)
+        {
+            return false;
+        }
+
+        stateMachine.ChangeState(counterAttackState);
+        return true;
     }
 
     // Jump
@@ -384,6 +413,11 @@ public class Player : Entity
     public bool AttackInputHeld()
     {
         return input.Player.Attack.IsPressed();
+    }
+
+    public bool CounterInputPressed()
+    {
+        return Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame;
     }
 
     public bool DownInputHeld()
@@ -1109,6 +1143,16 @@ public class Player : Entity
         anim.SetBool(FallAttackAnimHash, fallAttack);
     }
 
+    public void SetCounterAttack(bool counterAttack)
+    {
+        anim.SetBool(CounterAttackAnimHash, counterAttack);
+    }
+
+    public void SetCounterAttackPerformed(bool counterAttackPerformed)
+    {
+        anim.SetBool(CounterAttackPerformedAnimHash, counterAttackPerformed);
+    }
+
     public void SetDead(bool dead)
     {
         anim.SetBool(DeadAnimHash, dead);
@@ -1169,6 +1213,17 @@ public class Player : Entity
         fallAttackGroundSearchDistance = Mathf.Max(fallAttackGroundCheckDistance + .01f, fallAttackGroundSearchDistance);
         fallAttackEndAnimationMinSpeed = Mathf.Max(0f, fallAttackEndAnimationMinSpeed);
         fallAttackEndAnimationMaxSpeed = Mathf.Max(fallAttackEndAnimationMinSpeed + .01f, fallAttackEndAnimationMaxSpeed);
+        counterDuration = Mathf.Max(0f, counterDuration);
+        if (string.IsNullOrWhiteSpace(counterAttackAnimationState))
+        {
+            counterAttackAnimationState = "playerCounterAttack";
+        }
+
+        if (string.IsNullOrWhiteSpace(counterAttackPerformedAnimationState))
+        {
+            counterAttackPerformedAnimationState = "playerCounterAttack_performed";
+        }
+
         if (basicAttackAnimationSpeeds != null)
         {
             for (int i = 0; i < basicAttackAnimationSpeeds.Length; i++)
