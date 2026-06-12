@@ -1,9 +1,12 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 public class Entity_Health : MonoBehaviour, IDamagable
 {
+    public event Action<Entity_Health> OnHealthChanged;
+
     [Header("Health")]
     [SerializeField, Range(1, 20)] protected int maxHealth = 3;
     [SerializeField] protected bool canTakeDamage = true;
@@ -16,6 +19,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
     [SerializeField] protected GameObject healthBarPrefab;
     [SerializeField] protected Vector3 healthBarLocalOffset = new Vector3(0f, 1.2f, 0f);
     [SerializeField] protected bool autoCreateHealthBar = true;
+    [SerializeField] protected bool showMiniHealthBar = true;
 
     public int MaxHealth => maxHealth;
     public int CurrentHealth => currentHealth;
@@ -37,6 +41,11 @@ public class Entity_Health : MonoBehaviour, IDamagable
             entityVFX = gameObject.AddComponent<Entity_VFX>();
         }
 
+        if (TryGetComponent<Player>(out _))
+        {
+            showMiniHealthBar = false;
+        }
+
         EnsureHealthBar();
         UpdateHealthBar();
     }
@@ -46,6 +55,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
         maxHealth = Mathf.Max(1, maxHealth);
         knockbackDuration = Mathf.Max(.01f, knockbackDuration);
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+
         EnsureHealthBar();
         UpdateHealthBar();
     }
@@ -60,6 +70,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
         currentHealth = Mathf.Max(0, currentHealth - damage);
         ApplyKnockback(knockbackVelocity);
         OnDamageTaken(damage, damageSource);
+        UpdateHealthBar();
 
         if (currentHealth <= 0)
         {
@@ -128,15 +139,24 @@ public class Entity_Health : MonoBehaviour, IDamagable
         UpdateHealthBar();
     }
 
+    public void SetMiniHealthBarVisible(bool visible)
+    {
+        showMiniHealthBar = visible;
+        EnsureHealthBar();
+        UpdateHealthBar();
+    }
+
+    public bool IsMiniHealthBarVisible => showMiniHealthBar;
+
     protected virtual void UpdateHealthBar()
     {
-        if (healthBar == null)
+        if (healthBar != null)
         {
-            return;
+            healthBar.maxValue = maxHealth;
+            healthBar.value = currentHealth;
         }
 
-        healthBar.maxValue = maxHealth;
-        healthBar.value = currentHealth;
+        OnHealthChanged?.Invoke(this);
     }
 
     private void EnsureHealthBar()
@@ -146,7 +166,13 @@ public class Entity_Health : MonoBehaviour, IDamagable
             healthBar = GetComponentInChildren<Slider>(true);
         }
 
-        if (healthBar != null || !autoCreateHealthBar)
+        if (healthBar != null)
+        {
+            ApplyMiniHealthBarVisibility();
+            return;
+        }
+
+        if (!autoCreateHealthBar || !showMiniHealthBar)
         {
             return;
         }
@@ -173,6 +199,20 @@ public class Entity_Health : MonoBehaviour, IDamagable
         if (healthBar != null)
         {
             UpdateHealthBar();
+        }
+    }
+
+    private void ApplyMiniHealthBarVisibility()
+    {
+        if (healthBar == null)
+        {
+            return;
+        }
+
+        GameObject healthBarObject = healthBar.gameObject;
+        if (healthBarObject.activeSelf != showMiniHealthBar)
+        {
+            healthBarObject.SetActive(showMiniHealthBar);
         }
     }
 }

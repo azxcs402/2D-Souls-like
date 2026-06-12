@@ -52,6 +52,7 @@ public class Entity_VFX : MonoBehaviour
         }
 
         GameObject vfx = Instantiate(hitVFX, target.position, Quaternion.identity);
+        vfx.SetActive(true);
         vfx.transform.SetParent(target, true);
         vfx.transform.position = target.position;
         vfx.transform.rotation = Quaternion.identity;
@@ -143,6 +144,15 @@ public class Entity_VFX : MonoBehaviour
 
     private void TryAssignHitVFX()
     {
+        if (hitVFX == null)
+        {
+            Transform childTemplate = transform.Find("OnHitVFX");
+            if (childTemplate != null)
+            {
+                hitVFX = childTemplate.gameObject;
+            }
+        }
+
 #if UNITY_EDITOR
         if (hitVFX == null)
         {

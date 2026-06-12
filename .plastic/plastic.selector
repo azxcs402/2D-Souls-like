@@ -1,4 +1,0 @@
-repository "2D Souls-like@tj_wechat_os_qy031opuz7xgzoa5amdsiuxrc@cloud.cn"
-  path "/"
-    br "/main"
-    co "/main"

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -143,6 +144,22 @@ public class Player : Entity
     [SerializeField] private string counterAttackAnimationState = "playerCounterAttack";
     [SerializeField] private string counterAttackPerformedAnimationState = "playerCounterAttack_performed";
 
+    [Header("Stamina Info")]
+    [SerializeField, Min(1f)] private float maxStamina = 200f;
+    [SerializeField, Min(0f)] private float staminaRecoveryPerSecond = 35f;
+    [SerializeField, Min(0f)] private float jumpStaminaCost = 18f;
+    [SerializeField, Min(0f)] private float jumpStaminaRecoveryDelay = .65f;
+    [SerializeField, Min(0f)] private float dashStaminaCost = 25f;
+    [SerializeField, Min(0f)] private float dashStaminaRecoveryDelay = .85f;
+    [SerializeField, Min(0f)] private float counterAttackStaminaCost = 20f;
+    [SerializeField, Min(0f)] private float counterAttackStaminaRecoveryDelay = .75f;
+    [SerializeField, Min(0f)] private float wallContactStaminaDrainPerSecond = 16f;
+    [SerializeField, Min(0f)] private float wallContactStaminaRecoveryDelay = .35f;
+    [SerializeField] private float[] basicAttackStaminaCosts = { 12f, 15f, 20f };
+    [SerializeField] private float[] airAttackStaminaCosts = { 14f, 17f, 22f };
+    [SerializeField, Min(0f)] private float attackStaminaRecoveryDelay = .7f;
+    [SerializeField, ReadOnlyField] private float currentStamina;
+
     [Header("Death Info")]
     [SerializeField, Min(0f)] private float deathGroundVisualDownOffset = .08f;
 
@@ -178,6 +195,9 @@ public class Player : Entity
     private bool dashEnemyCollisionIgnoreActive;
     private bool previousPlayerEnemyLayerIgnore;
     private Entity_Health health;
+    private float staminaRecoveryTimer;
+
+    public event Action<Player> OnStaminaChanged;
 
     // Input
     public PlayerInputSet input { get; private set; }
@@ -223,6 +243,9 @@ public class Player : Entity
     public float DashDuration => dashDuration;
     public float DashSpeed => dashDistance / dashDuration;
     public bool CanDash => dashCooldownTimer <= 0f;
+    public float DashCooldownDuration => dashCooldown;
+    public float DashCooldownRemaining => Mathf.Max(0f, dashCooldownTimer);
+    public float DashCooldownNormalized => dashCooldown <= 0f ? 0f : Mathf.Clamp01(dashCooldownTimer / dashCooldown);
     public bool WallDashAwayFromWallEnabled => wallDashAwayFromWallEnabled;
     public bool IgnoreEnemyCollisionDuringDash => ignoreEnemyCollisionDuringDash;
     public float BasicAttackMoveDuration => basicAttackMoveDuration;
@@ -230,6 +253,7 @@ public class Player : Entity
     public bool HasBasicAttackLoopRestartRequest => hasBasicAttackLoopRestartRequest
         && basicAttackLoopCooldownTimer <= 0f
         && AttackInputHeld();
+    public int PendingBasicAttackLoopRestartDirection => basicAttackLoopRestartDirection;
     public bool CanMoveDuringBasicAttack => canMoveDuringBasicAttack;
     public float BasicAttackMoveSpeedMultiplier => basicAttackMoveSpeedMultiplier;
     public float BasicAttackDashComboInputWindow => basicAttackDashComboInputWindow;
@@ -243,6 +267,8 @@ public class Player : Entity
     public float AirAttackComboGroundBlockDistance => airAttackComboGroundBlockDistance;
     public bool HasBasicAttackComboWindow => pendingBasicAttackComboIndex >= 0 && pendingBasicAttackComboTimer > 0f;
     public bool HasAirAttackComboWindow => pendingAirAttackComboIndex >= 0 && pendingAirAttackComboTimer > 0f;
+    public int PendingBasicAttackComboIndex => pendingBasicAttackComboIndex;
+    public int PendingAirAttackComboIndex => pendingAirAttackComboIndex;
     public string FallAttackStartAnimationName => fallAttackStartAnimationName;
     public string FallAttackEndAnimationName => fallAttackEndAnimationName;
     public float FallAttackAnimationSpeed => fallAttackAnimationSpeed;
@@ -259,6 +285,10 @@ public class Player : Entity
     public float CounterDuration => counterDuration;
     public string CounterAttackAnimationState => counterAttackAnimationState;
     public string CounterAttackPerformedAnimationState => counterAttackPerformedAnimationState;
+    public float MaxStamina => maxStamina;
+    public float CurrentStamina => currentStamina;
+    public int CurrentStaminaRounded => Mathf.RoundToInt(currentStamina);
+    public bool HasStamina => currentStamina > 0f;
     public float DeathGroundVisualDownOffset => deathGroundVisualDownOffset;
     public float DefaultGravityScale => defaultGravityScale;
     public bool IsDead => health != null && health.IsDead;
@@ -270,6 +300,7 @@ public class Player : Entity
         visualTransform = anim.transform;
         defaultVisualLocalPosition = visualTransform.localPosition;
         defaultGravityScale = rb != null ? rb.gravityScale : 1f;
+        currentStamina = maxStamina;
 
         input = new PlayerInputSet();
 
@@ -309,6 +340,7 @@ public class Player : Entity
     private void Start()
     {
         health = GetComponent<Entity_Health>();
+        RestoreStaminaToFull();
 
         if (IsDead)
         {
@@ -342,6 +374,9 @@ public class Player : Entity
         UpdateBasicAttackLoopCooldownTimer();
         UpdateBasicAttackComboTimer();
         UpdateAirAttackComboTimer();
+        UpdateStaminaRecoveryTimer();
+        UpdateStaminaRecovery();
+        UpdateWallContactStaminaDrain();
 
         TryEnterCounterAttackState();
 
@@ -372,7 +407,8 @@ public class Player : Entity
             || !CounterInputPressed()
             || stateMachine.CurrentState == counterAttackState
             || stateMachine.CurrentState == deadState
-            || stateMachine.CurrentState == dashState)
+            || stateMachine.CurrentState == dashState
+            || !TryConsumeCounterAttackStamina())
         {
             return false;
         }
@@ -385,6 +421,31 @@ public class Player : Entity
     public void Jump()
     {
         SetVelocity(rb.velocity.x, jumpForce);
+    }
+
+    public bool TryConsumeJumpStamina()
+    {
+        return TryConsumeStamina(jumpStaminaCost, jumpStaminaRecoveryDelay);
+    }
+
+    public bool TryConsumeDashStamina()
+    {
+        return TryConsumeStamina(dashStaminaCost, dashStaminaRecoveryDelay);
+    }
+
+    public bool TryConsumeCounterAttackStamina()
+    {
+        return TryConsumeStamina(counterAttackStaminaCost, counterAttackStaminaRecoveryDelay);
+    }
+
+    public bool TryConsumeBasicAttackStamina(int attackIndex)
+    {
+        return TryConsumeStamina(GetBasicAttackStaminaCost(attackIndex), attackStaminaRecoveryDelay);
+    }
+
+    public bool TryConsumeAirAttackStamina(int attackIndex)
+    {
+        return TryConsumeStamina(GetAirAttackStaminaCost(attackIndex), attackStaminaRecoveryDelay);
     }
 
     public bool JumpInputPressed()
@@ -468,6 +529,18 @@ public class Player : Entity
         return Mathf.Max(.01f, basicAttackAnimationSpeeds[attackIndex]);
     }
 
+    public float GetBasicAttackStaminaCost(int attackIndex)
+    {
+        if (basicAttackStaminaCosts == null
+            || attackIndex < 0
+            || attackIndex >= basicAttackStaminaCosts.Length)
+        {
+            return 0f;
+        }
+
+        return Mathf.Max(0f, basicAttackStaminaCosts[attackIndex]);
+    }
+
     public float GetAirAttackAnimationSpeed(int attackIndex)
     {
         if (airAttackAnimationSpeeds == null
@@ -478,6 +551,18 @@ public class Player : Entity
         }
 
         return Mathf.Max(.01f, airAttackAnimationSpeeds[attackIndex]);
+    }
+
+    public float GetAirAttackStaminaCost(int attackIndex)
+    {
+        if (airAttackStaminaCosts == null
+            || attackIndex < 0
+            || attackIndex >= airAttackStaminaCosts.Length)
+        {
+            return 0f;
+        }
+
+        return Mathf.Max(0f, airAttackStaminaCosts[attackIndex]);
     }
 
     public Vector2 GetBasicAttackMoveDistance(int attackIndex)
@@ -1042,6 +1127,69 @@ public class Player : Entity
         canWallHold = false;
     }
 
+    public void RestoreStaminaToFull()
+    {
+        currentStamina = maxStamina;
+        staminaRecoveryTimer = 0f;
+        NotifyStaminaChanged();
+    }
+
+    public bool IsInWallContactState()
+    {
+        return stateMachine?.CurrentState == wallSlideState
+            || stateMachine?.CurrentState == wallHoldState;
+    }
+
+    private bool TryConsumeStamina(float amount, float recoveryDelay)
+    {
+        amount = Mathf.Max(0f, amount);
+        recoveryDelay = Mathf.Max(0f, recoveryDelay);
+
+        if (amount <= 0f)
+        {
+            return true;
+        }
+
+        if (currentStamina < amount)
+        {
+            return false;
+        }
+
+        SetCurrentStamina(currentStamina - amount);
+        staminaRecoveryTimer = recoveryDelay;
+        return true;
+    }
+
+    private void DrainStamina(float amount, float recoveryDelay)
+    {
+        amount = Mathf.Max(0f, amount);
+        recoveryDelay = Mathf.Max(0f, recoveryDelay);
+        if (amount <= 0f || currentStamina <= 0f)
+        {
+            return;
+        }
+
+        SetCurrentStamina(Mathf.Max(0f, currentStamina - amount));
+        staminaRecoveryTimer = recoveryDelay;
+    }
+
+    private void SetCurrentStamina(float value)
+    {
+        float clampedValue = Mathf.Clamp(value, 0f, maxStamina);
+        if (Mathf.Approximately(clampedValue, currentStamina))
+        {
+            return;
+        }
+
+        currentStamina = clampedValue;
+        NotifyStaminaChanged();
+    }
+
+    private void NotifyStaminaChanged()
+    {
+        OnStaminaChanged?.Invoke(this);
+    }
+
     public void LockWallSlideAfterNoInputDrop()
     {
         IsWallSlideDropLocked = true;
@@ -1201,6 +1349,18 @@ public class Player : Entity
         dashDistance = Mathf.Max(0f, dashDistance);
         dashDuration = Mathf.Max(.01f, dashDuration);
         dashCooldown = Mathf.Max(0f, dashCooldown);
+        maxStamina = Mathf.Max(1f, maxStamina);
+        staminaRecoveryPerSecond = Mathf.Max(0f, staminaRecoveryPerSecond);
+        jumpStaminaCost = Mathf.Max(0f, jumpStaminaCost);
+        jumpStaminaRecoveryDelay = Mathf.Max(0f, jumpStaminaRecoveryDelay);
+        dashStaminaCost = Mathf.Max(0f, dashStaminaCost);
+        dashStaminaRecoveryDelay = Mathf.Max(0f, dashStaminaRecoveryDelay);
+        counterAttackStaminaCost = Mathf.Max(0f, counterAttackStaminaCost);
+        counterAttackStaminaRecoveryDelay = Mathf.Max(0f, counterAttackStaminaRecoveryDelay);
+        wallContactStaminaDrainPerSecond = Mathf.Max(0f, wallContactStaminaDrainPerSecond);
+        wallContactStaminaRecoveryDelay = Mathf.Max(0f, wallContactStaminaRecoveryDelay);
+        attackStaminaRecoveryDelay = Mathf.Max(0f, attackStaminaRecoveryDelay);
+        currentStamina = Mathf.Clamp(currentStamina <= 0f ? maxStamina : currentStamina, 0f, maxStamina);
         basicAttackDashComboInputWindow = Mathf.Max(0f, basicAttackDashComboInputWindow);
         basicAttackDashTurnInputWindow = Mathf.Max(0f, basicAttackDashTurnInputWindow);
         basicAttackLoopCooldown = Mathf.Max(0f, basicAttackLoopCooldown);
@@ -1229,6 +1389,14 @@ public class Player : Entity
             for (int i = 0; i < basicAttackAnimationSpeeds.Length; i++)
             {
                 basicAttackAnimationSpeeds[i] = Mathf.Max(.01f, basicAttackAnimationSpeeds[i]);
+            }
+        }
+
+        if (basicAttackStaminaCosts != null)
+        {
+            for (int i = 0; i < basicAttackStaminaCosts.Length; i++)
+            {
+                basicAttackStaminaCosts[i] = Mathf.Max(0f, basicAttackStaminaCosts[i]);
             }
         }
 
@@ -1276,6 +1444,14 @@ public class Player : Entity
             for (int i = 0; i < airAttackAnimationSpeeds.Length; i++)
             {
                 airAttackAnimationSpeeds[i] = Mathf.Max(.01f, airAttackAnimationSpeeds[i]);
+            }
+        }
+
+        if (airAttackStaminaCosts != null)
+        {
+            for (int i = 0; i < airAttackStaminaCosts.Length; i++)
+            {
+                airAttackStaminaCosts[i] = Mathf.Max(0f, airAttackStaminaCosts[i]);
             }
         }
 
@@ -1361,6 +1537,44 @@ public class Player : Entity
         {
             dashCooldownTimer -= Time.deltaTime;
         }
+    }
+
+    private void UpdateStaminaRecoveryTimer()
+    {
+        if (staminaRecoveryTimer > 0f)
+        {
+            staminaRecoveryTimer -= Time.deltaTime;
+        }
+    }
+
+    private void UpdateStaminaRecovery()
+    {
+        if (staminaRecoveryPerSecond <= 0f
+            || staminaRecoveryTimer > 0f
+            || currentStamina >= maxStamina)
+        {
+            return;
+        }
+
+        SetCurrentStamina(currentStamina + staminaRecoveryPerSecond * Time.deltaTime);
+    }
+
+    private void UpdateWallContactStaminaDrain()
+    {
+        if (!IsInWallContactState() || wallContactStaminaDrainPerSecond <= 0f)
+        {
+            return;
+        }
+
+        DrainStamina(wallContactStaminaDrainPerSecond * Time.deltaTime, wallContactStaminaRecoveryDelay);
+
+        if (currentStamina > 0f || fallState == null || stateMachine?.CurrentState == fallState)
+        {
+            return;
+        }
+
+        DisableWallHoldUntilGrounded();
+        stateMachine.ChangeState(fallState);
     }
 
     private void UpdateWallJumpAirAttackWindowTimer()

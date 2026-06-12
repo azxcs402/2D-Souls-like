@@ -37,7 +37,11 @@ Desktop.ini
 # Local AI tooling / MCP artifacts
 .codex/
 .agents/
+AGENTS.md
+Packages/com.ivanmurzak.unity.mcp/
+Packages/packages-lock.json.bak
 Assets/Plugins/NuGet/
+.plastic/
 
 # Build outputs
 *.apk

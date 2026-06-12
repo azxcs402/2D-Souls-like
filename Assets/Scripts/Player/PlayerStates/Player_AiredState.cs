@@ -93,6 +93,7 @@ public class Player_AirState : EntityState
         }
 
         return !player.GroundDetected()
+            && player.HasStamina
             && player.WallDetected()
             && player.rb.velocity.y < 0
             && (!player.IsWallSlideDropLocked || !player.IsNoHorizontalInput(xInput))
@@ -108,6 +109,7 @@ public class Player_AirState : EntityState
         }
 
         return player.CanWallHold
+            && player.HasStamina
             && !player.GroundDetected()
             && player.WallDetected()
             && player.rb.velocity.y < 0
