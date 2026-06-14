@@ -317,10 +317,7 @@ public class Entity_Combat : MonoBehaviour
 
     public Vector2 GetAttackCenter(Entity_AttackData attackData)
     {
-        if (targetCheck != null)
-        {
-            return (Vector2)targetCheck.position + attackData.TargetCheckOffset;
-        }
+        Vector2 offset = attackData.TargetCheckOffset;
 
         if (owner == null)
         {
@@ -328,8 +325,13 @@ public class Entity_Combat : MonoBehaviour
         }
 
         int direction = owner != null ? owner.FacingDirection : 1;
-        Vector2 offset = attackData.TargetCheckOffset;
         offset.x *= direction;
+
+        if (targetCheck != null)
+        {
+            return (Vector2)targetCheck.position + offset;
+        }
+
         return (Vector2)transform.position + offset;
     }
 

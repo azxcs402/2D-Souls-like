@@ -13,7 +13,7 @@ public class Enemy_MoveState : Enemy_GroundedState
     {
         base.Enter();
 
-        stateTimer = skeleton != null ? skeleton.MoveDuration : .5f;
+        stateTimer = skeleton != null ? skeleton.GetRandomMoveDuration() : .5f;
         turnTimer = 0f;
 
         if (skeleton != null)

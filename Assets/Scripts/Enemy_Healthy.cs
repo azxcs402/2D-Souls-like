@@ -4,14 +4,22 @@ using UnityEngine;
 public class Enemy_Healthy : Entity_Health
 {
     private Enemy enemy;
+    private Enemy_Mage mage;
     private Enemy_Skeleton skeleton;
+    private Enemy_Slime slime;
 
     protected override void Awake()
     {
         base.Awake();
 
         enemy = GetComponent<Enemy>();
+        mage = GetComponent<Enemy_Mage>();
         skeleton = GetComponent<Enemy_Skeleton>();
+        slime = GetComponent<Enemy_Slime>();
+    }
+
+    private void Start()
+    {
         SyncEnemyHealth();
     }
 
@@ -32,6 +40,16 @@ public class Enemy_Healthy : Entity_Health
             skeleton = GetComponent<Enemy_Skeleton>();
         }
 
+        if (mage == null)
+        {
+            mage = GetComponent<Enemy_Mage>();
+        }
+
+        if (slime == null)
+        {
+            slime = GetComponent<Enemy_Slime>();
+        }
+
         if (enemy == null)
         {
             return base.TakeDamage(damage, damageSource, knockbackVelocity);
@@ -49,9 +67,20 @@ public class Enemy_Healthy : Entity_Health
         entityVFX?.PlayOnDamageVFX();
         Debug.Log($"{name} took {damage} damage from player. HP: {currentHealth}/{maxHealth}.", this);
 
+        if (mage != null && !isDead)
+        {
+            mage.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+            mage.HandleTeleportTriggerOnDamaged();
+        }
+
         if (skeleton != null && !isDead)
         {
             skeleton.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
+        if (slime != null && !isDead)
+        {
+            slime.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
         }
 
         return true;
@@ -76,14 +105,34 @@ public class Enemy_Healthy : Entity_Health
 
     protected override bool CanBeKnockedBack()
     {
+        if (mage != null)
+        {
+            return mage.CanBeKnockedBack;
+        }
+
+        if (slime != null)
+        {
+            return slime.CanSlimeBeKnockedBack;
+        }
+
         return skeleton == null || skeleton.CanSkeletonBeKnockedBack;
     }
 
     protected override void OnDamageTaken(int damage, Entity_Combat damageSource)
     {
+        if (mage != null)
+        {
+            mage.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
         if (skeleton != null)
         {
             skeleton.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
+        if (slime != null)
+        {
+            slime.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
         }
     }
 

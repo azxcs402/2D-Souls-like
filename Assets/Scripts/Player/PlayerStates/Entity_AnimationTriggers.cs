@@ -68,6 +68,21 @@ public class Entity_AnimationTriggers : MonoBehaviour
                 player.fallAttackState.AttackTrigger();
             }
         }
+        else if (entity is Enemy slimeEnemy && slimeEnemy.stateMachine.CurrentState is Enemy_SlimeAttackState slimeAttackState)
+        {
+            slimeAttackState.AttackTrigger();
+        }
+        else if (entity is Enemy_Mage mage)
+        {
+            if (mage.stateMachine.CurrentState is Enemy_MageAttackState mageAttackState)
+            {
+                mageAttackState.AttackTrigger();
+            }
+            else if (mage.stateMachine.CurrentState is Enemy_MageSpellCastState mageSpellCastState)
+            {
+                mageSpellCastState.AttackTrigger();
+            }
+        }
         else if (entity is Enemy enemy && enemy.stateMachine.CurrentState is Enemy_AttackState attackState)
         {
             attackState.AttackTrigger();
@@ -80,9 +95,32 @@ public class Entity_AnimationTriggers : MonoBehaviour
         {
             player.counterAttackState.CurrentStateTrigger();
         }
+        else if (entity is Enemy slimeEnemy && slimeEnemy.stateMachine.CurrentState is Enemy_SlimeAttackState slimeAttackState)
+        {
+            slimeAttackState.CurrentStateTrigger();
+        }
+        else if (entity is Enemy_Mage mage)
+        {
+            if (mage.stateMachine.CurrentState is Enemy_MageAttackState mageAttackState)
+            {
+                mageAttackState.CurrentStateTrigger();
+            }
+            else if (mage.stateMachine.CurrentState is Enemy_MageSpellCastState mageSpellCastState)
+            {
+                mageSpellCastState.CurrentStateTrigger();
+            }
+        }
         else if (entity is Enemy enemy && enemy.stateMachine.CurrentState is Enemy_AttackState attackState)
         {
             attackState.CurrentStateTrigger();
+        }
+    }
+
+    public void SpecialAttackTrigger()
+    {
+        if (entity is Enemy_Mage mage && mage.IsSpellCasting)
+        {
+            mage.SpecialAttack();
         }
     }
 

@@ -55,9 +55,6 @@ public class EntityState : IState
     {
         bool canContinuePendingCombo = player.HasBasicAttackComboWindow && player.AttackInputHeld();
         bool canRestartAfterLoopCooldown = player.HasBasicAttackLoopRestartRequest;
-        int nextAttackIndex = canRestartAfterLoopCooldown
-            ? 0
-            : (player.HasBasicAttackComboWindow ? player.PendingBasicAttackComboIndex : 0);
 
         if (stateMachine.CurrentState == player.basicAttackState
             || stateMachine.CurrentState == player.airAttackState
@@ -66,11 +63,6 @@ public class EntityState : IState
             || !player.GroundDetected()
             || (player.IsBasicAttackLoopCooldownActive && !canRestartAfterLoopCooldown)
             || (!player.AttackInputPressed() && !canContinuePendingCombo && !canRestartAfterLoopCooldown))
-        {
-            return false;
-        }
-
-        if (!player.TryConsumeBasicAttackStamina(nextAttackIndex))
         {
             return false;
         }
@@ -121,12 +113,6 @@ public class EntityState : IState
             return false;
         }
 
-        int nextAttackIndex = player.HasAirAttackComboWindow ? player.PendingAirAttackComboIndex : 0;
-        if (!player.TryConsumeAirAttackStamina(nextAttackIndex))
-        {
-            return false;
-        }
-
         if (hasWallJumpAirAttackWindow)
         {
             player.ClearWallJumpAirAttackWindow();
@@ -166,11 +152,12 @@ public class EntityState : IState
     {
         if (stateMachine.CurrentState == player.dashState
             || !player.CanDash
-            || !player.DashInputPressed()
-            || !player.TryConsumeDashStamina())
+            || !player.DashInputPressed())
         {
             return false;
         }
+
+        player.TryConsumeDashStamina();
 
         if (directionOverride != 0)
         {

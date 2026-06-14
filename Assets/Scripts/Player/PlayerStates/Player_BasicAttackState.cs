@@ -143,6 +143,8 @@ public class Player_BasicAttackState : EntityState
 
     private void StartAttack()
     {
+        player.TryConsumeBasicAttackStamina(comboIndex);
+
         attackTimer = 0f;
         attackDuration = GetCurrentAttackDuration();
         moveTimer = player.BasicAttackMoveDuration;

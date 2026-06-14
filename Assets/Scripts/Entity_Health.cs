@@ -8,7 +8,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
     public event Action<Entity_Health> OnHealthChanged;
 
     [Header("Health")]
-    [SerializeField, Range(1, 20)] protected int maxHealth = 3;
+    [SerializeField, Range(1, 20)] protected int maxHealth = 10;
     [SerializeField] protected bool canTakeDamage = true;
 
     [Header("Knockback")]
@@ -137,6 +137,13 @@ public class Entity_Health : MonoBehaviour, IDamagable
         isDead = false;
         Debug.Log($"{name} revived with {currentHealth}/{maxHealth} HP.", this);
         UpdateHealthBar();
+
+        if (TryGetComponent<Player>(out Player player))
+        {
+            player.SetDead(false);
+            player.SetDeathGroundVisualOffset(false);
+            player.RestoreAliveColliderProfile();
+        }
     }
 
     public void SetMiniHealthBarVisible(bool visible)

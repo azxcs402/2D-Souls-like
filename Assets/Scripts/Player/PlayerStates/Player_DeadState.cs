@@ -39,7 +39,9 @@ public class Player_DeadState : EntityState
         player.SetCounterAttackPerformed(false);
         player.ResetFallAttackTrigger();
         player.SetDead(false);
+        player.RestoreAliveColliderProfile();
         player.SetDeathGroundVisualOffset(false);
+        SnapToGroundIfPossible();
 
         if (!waitingForGround)
         {
@@ -98,6 +100,7 @@ public class Player_DeadState : EntityState
         if (hasPlayedDeathAnimation)
         {
             player.SetVelocity(0f, 0f);
+            SnapToGroundIfPossible();
         }
     }
 
@@ -124,9 +127,25 @@ public class Player_DeadState : EntityState
         player.SetYVelocity(0f);
         player.SetVelocity(0f, 0f);
         player.rb.gravityScale = 0f;
+        player.ApplyDeathColliderProfile();
         player.SetDead(true);
+        SnapToGroundIfPossible();
         player.anim.speed = 1f;
         player.anim.Play($"Base Layer.{DeathAnimationName}", 0, 0f);
         player.anim.Update(0f);
+        player.SetDeathGroundVisualOffset(true);
+        SnapToGroundIfPossible();
+        player.SetDeathGroundVisualOffset(true);
+    }
+
+    private void SnapToGroundIfPossible()
+    {
+        if (player == null || player.rb == null)
+        {
+            return;
+        }
+
+        float checkDistance = Mathf.Max(1f, player.FallAttackGroundSearchDistance);
+        player.SnapActiveColliderBottomToGround(checkDistance);
     }
 }

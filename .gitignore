@@ -42,6 +42,7 @@ Packages/com.ivanmurzak.unity.mcp/
 Packages/packages-lock.json.bak
 Assets/Plugins/NuGet/
 .plastic/
+unity_sync.log
 
 # Build outputs
 *.apk

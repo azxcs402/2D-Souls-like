@@ -24,7 +24,7 @@ public static class SceneUIAndVFXBootstrapper
     private const string DashIconSpriteName = "BG 6_282";
     private const string OnHitVFXPrefabPath = "Assets/Prefabs/VFX/OnHitVFX.prefab";
     private const string OnHitVFXTemplateName = "OnHitVFX";
-    private const string StaminaTextObjectName = "UI_PlayerStaminaText";
+    private const string StaminaBarObjectName = "UI_PlayerStaminaBar";
 
     static SceneUIAndVFXBootstrapper()
     {
@@ -88,7 +88,7 @@ public static class SceneUIAndVFXBootstrapper
 
         bool changed = createdCanvas;
         changed |= EnsurePlayerHealthBar(canvasObject.transform as RectTransform, uiLayer, heartSprite, barSprite);
-        changed |= EnsurePlayerStaminaText(canvasObject.transform as RectTransform, uiLayer);
+        changed |= EnsurePlayerStaminaBar(canvasObject.transform as RectTransform, uiLayer, barSprite);
 
         if (createdCanvas)
         {
@@ -150,46 +150,55 @@ public static class SceneUIAndVFXBootstrapper
         return true;
     }
 
-    private static bool EnsurePlayerStaminaText(RectTransform canvasRect, int uiLayer)
+    private static bool EnsurePlayerStaminaBar(RectTransform canvasRect, int uiLayer, Sprite barSprite)
     {
         if (canvasRect == null)
         {
             return false;
         }
 
-        Transform existingTextTransform = canvasRect.Find(StaminaTextObjectName);
-        if (existingTextTransform != null)
+        Transform existingBarTransform = canvasRect.Find(StaminaBarObjectName);
+        if (existingBarTransform != null)
         {
-            Text existingText = existingTextTransform.GetComponent<Text>();
-            UI_PlayerStaminaText existingStaminaText = GetOrAddComponent<UI_PlayerStaminaText>(existingTextTransform.gameObject);
-            if (existingText != null)
+            Slider existingSlider = existingBarTransform.GetComponent<Slider>();
+            UI_PlayerStaminaBar existingStaminaBar = GetOrAddComponent<UI_PlayerStaminaBar>(existingBarTransform.gameObject);
+            if (existingSlider != null)
             {
-                existingStaminaText.Configure(existingText);
+                existingStaminaBar.Configure(existingSlider);
             }
 
             return false;
         }
 
-        GameObject staminaObject = CreateGameObject(StaminaTextObjectName, uiLayer, typeof(RectTransform), typeof(Text), typeof(UI_PlayerStaminaText));
+        DestroyChildIfExists(canvasRect, "UI_PlayerStaminaText");
+
+        GameObject staminaObject = CreateGameObject(StaminaBarObjectName, uiLayer, typeof(RectTransform), typeof(Slider), typeof(UI_PlayerStaminaBar));
         staminaObject.transform.SetParent(canvasRect, false);
 
         RectTransform staminaRect = staminaObject.GetComponent<RectTransform>();
         staminaRect.anchorMin = new Vector2(0f, 1f);
         staminaRect.anchorMax = new Vector2(0f, 1f);
         staminaRect.pivot = new Vector2(0f, 1f);
-        staminaRect.anchoredPosition = new Vector2(38f, -86f);
-        staminaRect.sizeDelta = new Vector2(280f, 28f);
+        staminaRect.anchoredPosition = new Vector2(35f, -92f);
+        staminaRect.sizeDelta = new Vector2(220f, 44f);
 
-        Text staminaText = staminaObject.GetComponent<Text>();
-        staminaText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        staminaText.fontSize = 24;
-        staminaText.alignment = TextAnchor.MiddleLeft;
-        staminaText.color = new Color(.9f, .92f, .82f, 1f);
-        staminaText.raycastTarget = false;
+        CreateImage("Bar Background", staminaRect, uiLayer, null, new Color(0f, 0f, 0f, .45f), new Vector2(0f, .5f), new Vector2(1f, .5f), new Vector2(-64f, 18f), new Vector2(30f, 0f), Image.Type.Simple);
+        RectTransform fillArea = CreateRect("Fill Area", staminaRect, uiLayer, new Vector2(0f, .5f), new Vector2(1f, .5f), new Vector2(-70f, 12f), new Vector2(30f, 0f));
+        Image fillImage = CreateImage("Fill", fillArea, uiLayer, null, new Color(.25f, .82f, .42f, 1f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, Image.Type.Simple);
+        Image borderImage = CreateImage("Border", staminaRect, uiLayer, barSprite, Color.white, new Vector2(0f, .5f), new Vector2(1f, .5f), new Vector2(-54f, 24f), new Vector2(26f, 0f), Image.Type.Sliced);
+        borderImage.pixelsPerUnitMultiplier = 12.5f;
 
-        UI_PlayerStaminaText staminaTextComponent = staminaObject.GetComponent<UI_PlayerStaminaText>();
-        staminaTextComponent.Configure(staminaText);
-        EditorUtility.SetDirty(staminaTextComponent);
+        Slider slider = staminaObject.GetComponent<Slider>();
+        slider.transition = Selectable.Transition.None;
+        slider.interactable = false;
+        slider.targetGraphic = null;
+        slider.fillRect = fillImage.rectTransform;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.wholeNumbers = false;
+
+        UI_PlayerStaminaBar staminaBarComponent = staminaObject.GetComponent<UI_PlayerStaminaBar>();
+        staminaBarComponent.Configure(slider);
+        EditorUtility.SetDirty(staminaBarComponent);
         return true;
     }
 

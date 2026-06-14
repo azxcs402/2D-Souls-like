@@ -162,6 +162,8 @@ public class Player_AirAttackState : EntityState
 
     private void StartAttack()
     {
+        player.TryConsumeAirAttackStamina(comboIndex);
+
         attackTimer = 0f;
         attackDuration = GetCurrentAttackDuration();
         moveTimer = player.AirAttackMoveDuration;

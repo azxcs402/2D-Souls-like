@@ -141,30 +141,47 @@ public class Player : Entity
 
     [Header("Counter Attack Info")]
     [SerializeField, Min(0f)] private float counterDuration = .35f;
+    [SerializeField, Min(.01f)] private float counterAttackTargetCheckRadiusMultiplier = 1.35f;
     [SerializeField] private string counterAttackAnimationState = "playerCounterAttack";
     [SerializeField] private string counterAttackPerformedAnimationState = "playerCounterAttack_performed";
 
     [Header("Stamina Info")]
     [SerializeField, Min(1f)] private float maxStamina = 200f;
-    [SerializeField, Min(0f)] private float staminaRecoveryPerSecond = 35f;
-    [SerializeField, Min(0f)] private float jumpStaminaCost = 18f;
-    [SerializeField, Min(0f)] private float jumpStaminaRecoveryDelay = .65f;
+    [SerializeField, Min(0f)] private float staminaRecoveryPerSecond = 45f;
+    [SerializeField, Min(0f)] private float staminaEmptyRecoveryDelay = 1f;
+    [SerializeField, Min(0f)] private float jumpStaminaCost = 20f;
+    [SerializeField, Min(0f)] private float jumpStaminaRecoveryDelay = .15f;
+    [SerializeField, Min(0f)] private float nonCombatJumpStaminaCost = 16f;
+    [SerializeField, Min(0f)] private float nonCombatJumpStaminaRecoveryDelay = 0f;
+    [SerializeField, Min(0f)] private float wallJumpStaminaCost = 20f;
+    [SerializeField, Min(0f)] private float wallJumpStaminaRecoveryDelay = .15f;
+    [SerializeField, Min(0f)] private float nonCombatWallJumpStaminaCost = 16f;
+    [SerializeField, Min(0f)] private float nonCombatWallJumpStaminaRecoveryDelay = 0f;
     [SerializeField, Min(0f)] private float dashStaminaCost = 25f;
-    [SerializeField, Min(0f)] private float dashStaminaRecoveryDelay = .85f;
-    [SerializeField, Min(0f)] private float counterAttackStaminaCost = 20f;
-    [SerializeField, Min(0f)] private float counterAttackStaminaRecoveryDelay = .75f;
-    [SerializeField, Min(0f)] private float wallContactStaminaDrainPerSecond = 16f;
-    [SerializeField, Min(0f)] private float wallContactStaminaRecoveryDelay = .35f;
-    [SerializeField] private float[] basicAttackStaminaCosts = { 12f, 15f, 20f };
-    [SerializeField] private float[] airAttackStaminaCosts = { 14f, 17f, 22f };
-    [SerializeField, Min(0f)] private float attackStaminaRecoveryDelay = .7f;
+    [SerializeField, Min(0f)] private float dashStaminaRecoveryDelay = .25f;
+    [SerializeField, Min(0f)] private float nonCombatDashStaminaCost = 21f;
+    [SerializeField, Min(0f)] private float nonCombatDashStaminaRecoveryDelay = 0f;
+    [SerializeField, Min(0f)] private float counterAttackStaminaCost = 15f;
+    [SerializeField, Min(0f)] private float counterAttackSuccessStaminaCost = 20f;
+    [SerializeField, Min(0f)] private float counterAttackStaminaRecoveryDelay = .6f;
+    [SerializeField, Min(0f)] private float wallHoldStaminaDrainPerSecond = 14f;
+    [SerializeField, Min(0f)] private float wallSlideStaminaDrainPerSecond = 8f;
+    [SerializeField, Min(0f)] private float wallContactStaminaRecoveryDelay = .45f;
+    [SerializeField] private float[] basicAttackStaminaCosts = { 24f, 28f, 36f };
+    [SerializeField] private float[] airAttackStaminaCosts = { 28f, 32f, 40f };
+    [SerializeField, Min(0f)] private float attackStaminaRecoveryDelay = .45f;
     [SerializeField, ReadOnlyField] private float currentStamina;
 
     [Header("Death Info")]
     [SerializeField, Min(0f)] private float deathGroundVisualDownOffset = .08f;
+    [SerializeField, Min(0f)] private float deathGroundVisualBottomPadding = .02f;
+    [SerializeField] private CapsuleCollider2D deathCollider;
 
     private Transform visualTransform;
     private Vector3 defaultVisualLocalPosition;
+    private Vector2 defaultColliderSize;
+    private Vector2 defaultColliderOffset;
+    private CapsuleDirection2D defaultColliderDirection;
     private float defaultGravityScale;
     private bool applyWallSlideVisualOffset;
     private bool applyDeathGroundVisualOffset;
@@ -283,14 +300,24 @@ public class Player : Entity
     public float FallAttackEndAnimationLandingOffset => fallAttackEndAnimationLandingOffset;
     public Entity_AttackData FallAttackData => fallAttackData;
     public float CounterDuration => counterDuration;
+    public float CounterAttackTargetCheckRadiusMultiplier => counterAttackTargetCheckRadiusMultiplier;
     public string CounterAttackAnimationState => counterAttackAnimationState;
     public string CounterAttackPerformedAnimationState => counterAttackPerformedAnimationState;
     public float MaxStamina => maxStamina;
     public float CurrentStamina => currentStamina;
     public int CurrentStaminaRounded => Mathf.RoundToInt(currentStamina);
     public bool HasStamina => currentStamina > 0f;
+    public bool IsCombatStaminaContext()
+    {
+        return stateMachine?.CurrentState == basicAttackState
+            || stateMachine?.CurrentState == airAttackState
+            || stateMachine?.CurrentState == fallAttackState
+            || stateMachine?.CurrentState == counterAttackState;
+    }
     public float DeathGroundVisualDownOffset => deathGroundVisualDownOffset;
+    public float DeathGroundVisualBottomPadding => deathGroundVisualBottomPadding;
     public float DefaultGravityScale => defaultGravityScale;
+    public CapsuleCollider2D DeathCollider => deathCollider;
     public bool IsDead => health != null && health.IsDead;
 
     protected override void Awake()
@@ -299,6 +326,14 @@ public class Player : Entity
 
         visualTransform = anim.transform;
         defaultVisualLocalPosition = visualTransform.localPosition;
+        if (cd != null)
+        {
+            defaultColliderSize = cd.size;
+            defaultColliderOffset = cd.offset;
+            defaultColliderDirection = cd.direction;
+        }
+        CacheDeathColliderReference();
+        RestoreAliveColliderProfile();
         defaultGravityScale = rb != null ? rb.gravityScale : 1f;
         currentStamina = maxStamina;
 
@@ -407,12 +442,12 @@ public class Player : Entity
             || !CounterInputPressed()
             || stateMachine.CurrentState == counterAttackState
             || stateMachine.CurrentState == deadState
-            || stateMachine.CurrentState == dashState
-            || !TryConsumeCounterAttackStamina())
+            || stateMachine.CurrentState == dashState)
         {
             return false;
         }
 
+        TryConsumeCounterAttackStamina();
         stateMachine.ChangeState(counterAttackState);
         return true;
     }
@@ -425,27 +460,84 @@ public class Player : Entity
 
     public bool TryConsumeJumpStamina()
     {
-        return TryConsumeStamina(jumpStaminaCost, jumpStaminaRecoveryDelay);
+        if (IsCombatStaminaContext())
+        {
+            ConsumeStamina(jumpStaminaCost, jumpStaminaRecoveryDelay);
+        }
+        else
+        {
+            ConsumeStamina(nonCombatJumpStaminaCost, nonCombatJumpStaminaRecoveryDelay);
+        }
+
+        return true;
+    }
+
+    public bool TryConsumeWallJumpStamina()
+    {
+        if (IsCombatStaminaContext())
+        {
+            ConsumeStamina(wallJumpStaminaCost, wallJumpStaminaRecoveryDelay);
+        }
+        else
+        {
+            ConsumeStamina(nonCombatWallJumpStaminaCost, nonCombatWallJumpStaminaRecoveryDelay);
+        }
+
+        return true;
     }
 
     public bool TryConsumeDashStamina()
     {
-        return TryConsumeStamina(dashStaminaCost, dashStaminaRecoveryDelay);
+        if (IsCombatStaminaContext())
+        {
+            ConsumeStamina(dashStaminaCost, dashStaminaRecoveryDelay);
+        }
+        else
+        {
+            ConsumeStamina(nonCombatDashStaminaCost, nonCombatDashStaminaRecoveryDelay);
+        }
+
+        return true;
     }
 
     public bool TryConsumeCounterAttackStamina()
     {
-        return TryConsumeStamina(counterAttackStaminaCost, counterAttackStaminaRecoveryDelay);
+        ConsumeStamina(counterAttackStaminaCost, counterAttackStaminaRecoveryDelay);
+        return true;
+    }
+
+    public bool TryConsumeCounterAttackSuccessStamina()
+    {
+        ConsumeStamina(counterAttackSuccessStaminaCost, counterAttackStaminaRecoveryDelay);
+        return true;
     }
 
     public bool TryConsumeBasicAttackStamina(int attackIndex)
     {
-        return TryConsumeStamina(GetBasicAttackStaminaCost(attackIndex), attackStaminaRecoveryDelay);
+        ConsumeStamina(GetBasicAttackStaminaCost(attackIndex), attackStaminaRecoveryDelay);
+        return true;
     }
 
     public bool TryConsumeAirAttackStamina(int attackIndex)
     {
-        return TryConsumeStamina(GetAirAttackStaminaCost(attackIndex), attackStaminaRecoveryDelay);
+        ConsumeStamina(GetAirAttackStaminaCost(attackIndex), attackStaminaRecoveryDelay);
+        return true;
+    }
+
+    public bool TryGetGroundDistanceFromColliderCenter(float checkDistance, out float groundDistance)
+    {
+        CapsuleCollider2D activeCollider = GetActiveCollider();
+        Vector2 origin = activeCollider != null ? (Vector2)activeCollider.bounds.center : (Vector2)transform.position;
+
+        RaycastHit2D hit = Physics2D.Raycast(
+            origin,
+            Vector2.down,
+            checkDistance,
+            whatIsGround
+        );
+
+        groundDistance = hit.collider != null ? hit.distance : 0f;
+        return hit.collider != null;
     }
 
     public bool JumpInputPressed()
@@ -1140,24 +1232,28 @@ public class Player : Entity
             || stateMachine?.CurrentState == wallHoldState;
     }
 
-    private bool TryConsumeStamina(float amount, float recoveryDelay)
+    private void ConsumeStamina(float amount, float recoveryDelay)
     {
         amount = Mathf.Max(0f, amount);
         recoveryDelay = Mathf.Max(0f, recoveryDelay);
 
         if (amount <= 0f)
         {
-            return true;
+            return;
         }
 
-        if (currentStamina < amount)
+        float remainingStamina = Mathf.Max(0f, currentStamina - amount);
+        SetCurrentStamina(remainingStamina);
+        if (remainingStamina <= 0f)
         {
-            return false;
+            staminaRecoveryTimer = staminaEmptyRecoveryDelay;
+            return;
         }
 
-        SetCurrentStamina(currentStamina - amount);
-        staminaRecoveryTimer = recoveryDelay;
-        return true;
+        if (recoveryDelay > 0f)
+        {
+            staminaRecoveryTimer = recoveryDelay;
+        }
     }
 
     private void DrainStamina(float amount, float recoveryDelay)
@@ -1169,8 +1265,18 @@ public class Player : Entity
             return;
         }
 
-        SetCurrentStamina(Mathf.Max(0f, currentStamina - amount));
-        staminaRecoveryTimer = recoveryDelay;
+        float remainingStamina = Mathf.Max(0f, currentStamina - amount);
+        SetCurrentStamina(remainingStamina);
+        if (remainingStamina <= 0f)
+        {
+            staminaRecoveryTimer = staminaEmptyRecoveryDelay;
+            return;
+        }
+
+        if (recoveryDelay > 0f)
+        {
+            staminaRecoveryTimer = recoveryDelay;
+        }
     }
 
     private void SetCurrentStamina(float value)
@@ -1310,6 +1416,127 @@ public class Player : Entity
     {
         applyDeathGroundVisualOffset = active;
         UpdateVisualPosition();
+
+        if (active && deathCollider == null)
+        {
+            AlignDeathVisualToGround();
+        }
+    }
+
+    public void ApplyDeathColliderProfile()
+    {
+        if (cd == null)
+        {
+            return;
+        }
+
+        CacheDeathColliderReference();
+
+        if (deathCollider != null)
+        {
+            cd.enabled = false;
+            deathCollider.enabled = true;
+            return;
+        }
+
+        cd.enabled = true;
+        cd.direction = CapsuleDirection2D.Horizontal;
+        cd.size = new Vector2(defaultColliderSize.y, defaultColliderSize.x);
+        cd.offset = defaultColliderOffset;
+    }
+
+    public bool TryGetActiveColliderBounds(out Bounds bounds)
+    {
+        CapsuleCollider2D activeCollider = GetActiveCollider();
+        if (activeCollider == null)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = activeCollider.bounds;
+        return true;
+    }
+
+    public bool SnapActiveColliderBottomToGround(float checkDistance)
+    {
+        if (rb == null)
+        {
+            return false;
+        }
+
+        CapsuleCollider2D activeCollider = GetActiveCollider();
+        if (activeCollider == null)
+        {
+            return false;
+        }
+
+        Bounds bounds = activeCollider.bounds;
+        float rayDistance = Mathf.Max(.01f, checkDistance + bounds.extents.y);
+        float inset = Mathf.Min(bounds.extents.x * .35f, .2f);
+        float leftX = bounds.min.x + inset;
+        float rightX = bounds.max.x - inset;
+        float originY = bounds.center.y;
+        float bestGroundY = float.NegativeInfinity;
+        bool foundGround = false;
+
+        TryUpdateBestGroundY(new Vector2(leftX, originY), rayDistance, ref bestGroundY, ref foundGround);
+        TryUpdateBestGroundY(new Vector2(bounds.center.x, originY), rayDistance, ref bestGroundY, ref foundGround);
+        TryUpdateBestGroundY(new Vector2(rightX, originY), rayDistance, ref bestGroundY, ref foundGround);
+
+        if (!foundGround)
+        {
+            return false;
+        }
+
+        float moveY = bestGroundY - bounds.min.y;
+        if (Mathf.Abs(moveY) <= 0.0001f)
+        {
+            return true;
+        }
+
+        rb.position += Vector2.up * moveY;
+        Physics2D.SyncTransforms();
+        return true;
+    }
+
+    private void TryUpdateBestGroundY(Vector2 origin, float distance, ref float bestGroundY, ref bool foundGround)
+    {
+        RaycastHit2D hit = Physics2D.Raycast(
+            origin,
+            Vector2.down,
+            distance,
+            whatIsGround
+        );
+
+        if (hit.collider == null)
+        {
+            return;
+        }
+
+        if (!foundGround || hit.point.y > bestGroundY)
+        {
+            bestGroundY = hit.point.y;
+            foundGround = true;
+        }
+    }
+
+    public void RestoreAliveColliderProfile()
+    {
+        if (cd == null)
+        {
+            return;
+        }
+
+        if (deathCollider != null)
+        {
+            deathCollider.enabled = false;
+        }
+
+        cd.enabled = true;
+        cd.direction = defaultColliderDirection;
+        cd.size = defaultColliderSize;
+        cd.offset = defaultColliderOffset;
     }
 
     public void TriggerFallAttack()
@@ -1332,6 +1559,7 @@ public class Player : Entity
     {
         base.OnValidate();
 
+        CacheDeathColliderReference();
         moveSpeed = Mathf.Max(0f, moveSpeed);
         airMoveSpeedMultiplier = Mathf.Max(0f, airMoveSpeedMultiplier);
         jumpForce = Mathf.Max(0f, jumpForce);
@@ -1351,15 +1579,28 @@ public class Player : Entity
         dashCooldown = Mathf.Max(0f, dashCooldown);
         maxStamina = Mathf.Max(1f, maxStamina);
         staminaRecoveryPerSecond = Mathf.Max(0f, staminaRecoveryPerSecond);
+        staminaEmptyRecoveryDelay = Mathf.Max(0f, staminaEmptyRecoveryDelay);
         jumpStaminaCost = Mathf.Max(0f, jumpStaminaCost);
         jumpStaminaRecoveryDelay = Mathf.Max(0f, jumpStaminaRecoveryDelay);
+        nonCombatJumpStaminaCost = Mathf.Max(0f, nonCombatJumpStaminaCost);
+        nonCombatJumpStaminaRecoveryDelay = Mathf.Max(0f, nonCombatJumpStaminaRecoveryDelay);
+        wallJumpStaminaCost = Mathf.Max(0f, wallJumpStaminaCost);
+        wallJumpStaminaRecoveryDelay = Mathf.Max(0f, wallJumpStaminaRecoveryDelay);
+        nonCombatWallJumpStaminaCost = Mathf.Max(0f, nonCombatWallJumpStaminaCost);
+        nonCombatWallJumpStaminaRecoveryDelay = Mathf.Max(0f, nonCombatWallJumpStaminaRecoveryDelay);
         dashStaminaCost = Mathf.Max(0f, dashStaminaCost);
         dashStaminaRecoveryDelay = Mathf.Max(0f, dashStaminaRecoveryDelay);
+        nonCombatDashStaminaCost = Mathf.Max(0f, nonCombatDashStaminaCost);
+        nonCombatDashStaminaRecoveryDelay = Mathf.Max(0f, nonCombatDashStaminaRecoveryDelay);
         counterAttackStaminaCost = Mathf.Max(0f, counterAttackStaminaCost);
+        counterAttackSuccessStaminaCost = Mathf.Max(0f, counterAttackSuccessStaminaCost);
         counterAttackStaminaRecoveryDelay = Mathf.Max(0f, counterAttackStaminaRecoveryDelay);
-        wallContactStaminaDrainPerSecond = Mathf.Max(0f, wallContactStaminaDrainPerSecond);
+        wallHoldStaminaDrainPerSecond = Mathf.Max(0f, wallHoldStaminaDrainPerSecond);
+        wallSlideStaminaDrainPerSecond = Mathf.Max(0f, wallSlideStaminaDrainPerSecond);
         wallContactStaminaRecoveryDelay = Mathf.Max(0f, wallContactStaminaRecoveryDelay);
         attackStaminaRecoveryDelay = Mathf.Max(0f, attackStaminaRecoveryDelay);
+        deathGroundVisualDownOffset = Mathf.Max(0f, deathGroundVisualDownOffset);
+        deathGroundVisualBottomPadding = Mathf.Max(0f, deathGroundVisualBottomPadding);
         currentStamina = Mathf.Clamp(currentStamina <= 0f ? maxStamina : currentStamina, 0f, maxStamina);
         basicAttackDashComboInputWindow = Mathf.Max(0f, basicAttackDashComboInputWindow);
         basicAttackDashTurnInputWindow = Mathf.Max(0f, basicAttackDashTurnInputWindow);
@@ -1374,6 +1615,7 @@ public class Player : Entity
         fallAttackEndAnimationMinSpeed = Mathf.Max(0f, fallAttackEndAnimationMinSpeed);
         fallAttackEndAnimationMaxSpeed = Mathf.Max(fallAttackEndAnimationMinSpeed + .01f, fallAttackEndAnimationMaxSpeed);
         counterDuration = Mathf.Max(0f, counterDuration);
+        counterAttackTargetCheckRadiusMultiplier = Mathf.Max(.01f, counterAttackTargetCheckRadiusMultiplier);
         if (string.IsNullOrWhiteSpace(counterAttackAnimationState))
         {
             counterAttackAnimationState = "playerCounterAttack";
@@ -1523,12 +1765,100 @@ public class Player : Entity
             targetPosition += Vector3.right * wallSlideVisualOffset;
         }
 
-        if (applyDeathGroundVisualOffset)
+        if (applyDeathGroundVisualOffset && deathCollider == null)
         {
             targetPosition += Vector3.down * deathGroundVisualDownOffset;
         }
 
         visualTransform.localPosition = targetPosition;
+    }
+
+    private void AlignDeathVisualToGround()
+    {
+        CapsuleCollider2D activeCollider = GetActiveCollider();
+        if (visualTransform == null || activeCollider == null)
+        {
+            return;
+        }
+
+        if (!TryGetVisualBounds(out Bounds visualBounds))
+        {
+            return;
+        }
+
+        float targetBottomY = activeCollider.bounds.min.y + deathGroundVisualBottomPadding;
+        float offsetY = targetBottomY - visualBounds.min.y;
+
+        if (Mathf.Abs(offsetY) <= 0.0001f)
+        {
+            return;
+        }
+
+        visualTransform.position += Vector3.up * offsetY;
+    }
+
+    private bool TryGetVisualBounds(out Bounds bounds)
+    {
+        bounds = default;
+
+        if (visualTransform == null)
+        {
+            return false;
+        }
+
+        Renderer[] renderers = visualTransform.GetComponentsInChildren<Renderer>(true);
+        bool hasBounds = false;
+
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer == null || !renderer.enabled)
+            {
+                continue;
+            }
+
+            if (!hasBounds)
+            {
+                bounds = renderer.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        return hasBounds;
+    }
+
+    private void CacheDeathColliderReference()
+    {
+        if (deathCollider != null)
+        {
+            return;
+        }
+
+        if (transform == null)
+        {
+            return;
+        }
+
+        Transform child = transform.Find("DeathCollider");
+        if (child == null)
+        {
+            return;
+        }
+
+        deathCollider = child.GetComponent<CapsuleCollider2D>();
+    }
+
+    private CapsuleCollider2D GetActiveCollider()
+    {
+        if (deathCollider != null && deathCollider.enabled)
+        {
+            return deathCollider;
+        }
+
+        return cd;
     }
 
     private void UpdateDashCooldownTimer()
@@ -1561,12 +1891,21 @@ public class Player : Entity
 
     private void UpdateWallContactStaminaDrain()
     {
-        if (!IsInWallContactState() || wallContactStaminaDrainPerSecond <= 0f)
+        if (!IsInWallContactState())
         {
             return;
         }
 
-        DrainStamina(wallContactStaminaDrainPerSecond * Time.deltaTime, wallContactStaminaRecoveryDelay);
+        float drainPerSecond = stateMachine?.CurrentState == wallHoldState
+            ? wallHoldStaminaDrainPerSecond
+            : wallSlideStaminaDrainPerSecond;
+
+        if (drainPerSecond <= 0f)
+        {
+            return;
+        }
+
+        DrainStamina(drainPerSecond * Time.deltaTime, wallContactStaminaRecoveryDelay);
 
         if (currentStamina > 0f || fallState == null || stateMachine?.CurrentState == fallState)
         {

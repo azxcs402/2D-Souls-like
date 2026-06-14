@@ -13,7 +13,7 @@ public class Enemy_IdleState : Enemy_GroundedState
     {
         base.Enter();
 
-        stateTimer = skeleton != null ? skeleton.IdleDuration : .5f;
+        stateTimer = skeleton != null ? skeleton.GetRandomIdleDuration() : .5f;
         hasResolvedIdleEndTurn = false;
 
         if (skeleton != null)

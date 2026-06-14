@@ -44,6 +44,7 @@ public class Player_WallSlideState : EntityState
 
         if (CanWallJump())
         {
+            player.TryConsumeWallJumpStamina();
             stateMachine.ChangeState(player.wallJumpState);
             return;
         }
@@ -84,7 +85,7 @@ public class Player_WallSlideState : EntityState
         bool jumpRequested = player.JumpInputPressed()
             || (player.IsInputAwayFromWall(xInput) && player.JumpInputHeld());
 
-        return jumpRequested && player.TryConsumeJumpStamina();
+        return jumpRequested;
     }
 
     private void HandleAwayInput()
