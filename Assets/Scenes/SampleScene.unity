@@ -7217,7 +7217,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3722198934559894678, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5387783568402869796, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
       propertyPath: m_Sprite
@@ -7264,8 +7264,12 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8109070804690320873, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
-      propertyPath: m_AnchorMax.y
+      propertyPath: m_AnchorMax.x
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8109070804690320873, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8351486700953399016, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
       propertyPath: maxHealth
@@ -9046,11 +9050,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 765384801099666234, guid: f4f5364682aa9214d8c395c4d3ebb0fb, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3344165115431177832, guid: f4f5364682aa9214d8c395c4d3ebb0fb, type: 3}
+      propertyPath: m_Value
+      value: 45
       objectReference: {fileID: 0}
     - target: {fileID: 5310286778967409221, guid: f4f5364682aa9214d8c395c4d3ebb0fb, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5394936004186018116, guid: f4f5364682aa9214d8c395c4d3ebb0fb, type: 3}
       propertyPath: enableCombatPreview
@@ -9179,7 +9187,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3722198934559894678, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5387783568402869796, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: m_Sprite
@@ -9239,7 +9247,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8109070804690320873, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8351486700953399016, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: enableCombatPreview
