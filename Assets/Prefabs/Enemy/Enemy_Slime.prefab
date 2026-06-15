@@ -139,7 +139,7 @@ MonoBehaviour:
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 8908980238229560491}
   secondaryWallCheck: {fileID: 4535049385879726967}
-  maxHealth: 3
+  maxHealth: 45
   canTakeDamage: 1
   questTargetId: enemy_slime
   battleMoveSpeed: 3
@@ -265,7 +265,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 1
+  damage: 17
   showCombatDebugLogs: 1
   targetCheck: {fileID: 2832818383850018919}
   targetCheckRadius: 1.1
@@ -279,6 +279,7 @@ MonoBehaviour:
   showPreviewAttackData: 0
   previewAnimationClip: {fileID: 7400000, guid: 16d5f907777414f4d807b58ee3ec0e3a, type: 2}
   previewNormalizedTime: 0.38888887
+  autoEnsureHealthComponent: 1
 --- !u!114 &8428578993940170063
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -291,7 +292,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 3
+  maxHealth: 45
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 3344165115431177832}
@@ -311,6 +312,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca13a2ddb4168de43a9bf206c5ecd321, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  imageEchoInterval: 0.05
+  imageEchoLifetime: 0.3
+  imageEchoStartAlpha: 0.55
+  imageEchoTint: {r: 1, g: 1, b: 1, a: 1}
   onDamageVFXMaterial: {fileID: 2100000, guid: 563fe6dd3c2361c40872b0e734970b4c, type: 2}
   onDamageVFXDuration: 0.15
   hitVFXColor: {r: 1, g: 1, b: 1, a: 1}
@@ -497,7 +502,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 0}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 3
+  m_MaxValue: 45
   m_WholeNumbers: 1
   m_Value: 0
   m_OnValueChanged:

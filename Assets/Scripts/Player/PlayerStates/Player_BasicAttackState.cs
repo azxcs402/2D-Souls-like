@@ -101,6 +101,7 @@ public class Player_BasicAttackState : EntityState
         }
 
         damageTriggered = true;
+        player.SetCombatDamage(player.GetBasicAttackDamage(comboIndex));
         player.GetComponent<Entity_Combat>()?.AttackTrigger(player.GetBasicAttackData(comboIndex));
     }
 

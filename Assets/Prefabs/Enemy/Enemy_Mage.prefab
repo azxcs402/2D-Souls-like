@@ -211,18 +211,20 @@ MonoBehaviour:
   groundCheckDistance: 0.08
   whatIsGround:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 64
   wallCheckDistance: 0.03
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 4799666280697504519}
   secondaryWallCheck: {fileID: 565028296081151195}
-  maxHealth: 5
+  maxHealth: 20
   canTakeDamage: 1
   questTargetId: enemy_mage
   battleMoveSpeed: 4
   attackDistance: 1.3
   spellCastDistance: 4.5
   attackCooldown: 0.5
+  spellAttackCooldown: 5
+  showBattleRangesInScene: 0
   canChasePlayer: 1
   battleTimeDuration: 5
   minRetreatDistance: 1
@@ -231,6 +233,19 @@ MonoBehaviour:
   retreatCooldown: 4
   retreatMaxDistance: 8
   retreatSpeed: 15
+  teleportAreaAnchor: {fileID: 0}
+  teleportAreaSize: {x: 7, y: 3}
+  teleportMaxPlacementAttempts: 18
+  teleportGroundSearchHeight: 2
+  teleportGroundSearchDistance: 8
+  teleportImageEchoCount: 6
+  teleportImageEchoLifetime: 0.3
+  teleportPostDelay: 0.06
+  onHitTeleportInitialChance: 5
+  onHitTeleportChanceIncrement: 5
+  rangeTeleportInitialChance: 6
+  rangeTeleportChanceIncrement: 2
+  rangeTeleportCheckInterval: 1
   stunnedDuration: 1
   stunnedVelocity: {x: 7, y: 7}
   canBeStunned: 0
@@ -253,6 +268,12 @@ MonoBehaviour:
   spellStartPosition: {fileID: 8178551421349774122}
   amountToCast: 3
   spellCastCooldown: 0.3
+  projectileHoverArrivalDuration: 0.22
+  projectileHoverAreaAnchor: {fileID: 0}
+  projectileHoverAreaSize: {x: 4, y: 1.8}
+  projectileHoverAreaOffset: {x: 0, y: 2.2}
+  projectileHoverMinSeparation: 0.72
+  projectileHoverMaxPlacementAttempts: 24
   behindCollisionCheck: {fileID: 8731610343475063690}
   hasRecoveryAnimation: 1
   canBeKnockedBack: 1
@@ -348,7 +369,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 1
+  damage: 20
   showCombatDebugLogs: 1
   targetCheck: {fileID: 2191256382543718347}
   targetCheckRadius: 1.1
@@ -362,6 +383,7 @@ MonoBehaviour:
   showPreviewAttackData: 0
   previewAnimationClip: {fileID: 7400000, guid: 16d5f907777414f4d807b58ee3ec0e3a, type: 2}
   previewNormalizedTime: 0.38888887
+  autoEnsureHealthComponent: 1
 --- !u!114 &5602630418003098339
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -374,7 +396,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 5
+  maxHealth: 65
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1679848339229094340}
@@ -394,6 +416,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca13a2ddb4168de43a9bf206c5ecd321, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  imageEchoInterval: 0.05
+  imageEchoLifetime: 0.3
+  imageEchoStartAlpha: 0.55
+  imageEchoTint: {r: 1, g: 1, b: 1, a: 1}
   onDamageVFXMaterial: {fileID: 2100000, guid: 563fe6dd3c2361c40872b0e734970b4c, type: 2}
   onDamageVFXDuration: 0.15
   hitVFXColor: {r: 1, g: 1, b: 1, a: 1}
@@ -624,7 +650,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1597358124939153940, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_MaxValue
-      value: 5
+      value: 65
       objectReference: {fileID: 0}
     - target: {fileID: 3127985493702693387, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_Name

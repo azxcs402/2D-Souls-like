@@ -44,6 +44,8 @@ public class Enemy_SlimeAttackState : EnemyState
             slime.FaceDirection(attackDirection);
         }
 
+        slime.SetFacingLocked(true);
+
         attackDuration = GetAttackClipLength();
         stateTimer = attackDuration;
 
@@ -98,6 +100,7 @@ public class Enemy_SlimeAttackState : EnemyState
         base.Exit();
 
         damageWindowActive = false;
+        slime?.SetFacingLocked(false);
         slime?.ForceDisableCounterWindow();
         slime?.SetAnimation(false, false, false);
         slime?.SetAttackAnimationSpeed(1f);

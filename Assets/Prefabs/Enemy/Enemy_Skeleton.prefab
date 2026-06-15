@@ -213,10 +213,12 @@ MonoBehaviour:
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 4799666280697504519}
   secondaryWallCheck: {fileID: 565028296081151195}
-  maxHealth: 10
+  maxHealth: 65
   canTakeDamage: 1
-  idleDuration: 1.2
-  moveDuration: 2
+  idleDurationMin: 2
+  idleDurationMax: 4
+  moveDurationMin: 4
+  moveDurationMax: 8
   patrolTurnChance: 0.5
   useEdgeCheck: 1
   edgeCheckForwardOffset: 0.1
@@ -247,7 +249,7 @@ MonoBehaviour:
   skeletonAttackMoveXDelay: 0
   skeletonAttackMoveYDelay: 0
   skeletonTurnDelay: 0.15
-  skeletonContactDamage: 1
+  skeletonContactDamage: 25
   canSkeletonBeKnockedBack: 1
   canSkeletonBeKnockedBackDuringAttack: 0
   stunnedMoveDistance: {x: 0, y: 0.5}
@@ -336,7 +338,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 1
+  damage: 25
   showCombatDebugLogs: 1
   targetCheck: {fileID: 2191256382543718347}
   targetCheckRadius: 1.1
@@ -350,6 +352,7 @@ MonoBehaviour:
   showPreviewAttackData: 0
   previewAnimationClip: {fileID: 7400000, guid: 16d5f907777414f4d807b58ee3ec0e3a, type: 2}
   previewNormalizedTime: 0.38888887
+  autoEnsureHealthComponent: 1
 --- !u!114 &5602630418003098339
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -362,7 +365,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 3
+  maxHealth: 65
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1679848339229094340}
@@ -382,6 +385,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca13a2ddb4168de43a9bf206c5ecd321, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  imageEchoInterval: 0.05
+  imageEchoLifetime: 0.3
+  imageEchoStartAlpha: 0.55
+  imageEchoTint: {r: 1, g: 1, b: 1, a: 1}
   onDamageVFXMaterial: {fileID: 2100000, guid: 563fe6dd3c2361c40872b0e734970b4c, type: 2}
   onDamageVFXDuration: 0.15
   hitVFXColor: {r: 1, g: 1, b: 1, a: 1}
@@ -463,6 +470,10 @@ PrefabInstance:
     - target: {fileID: 1597358124939153940, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_Value
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1597358124939153940, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
+      propertyPath: m_MaxValue
+      value: 65
       objectReference: {fileID: 0}
     - target: {fileID: 3127985493702693387, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_Name

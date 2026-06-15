@@ -7,7 +7,7 @@ public class Entity_Combat : MonoBehaviour
     private static int nextAttackId = 1;
 
     [Header("Damage")]
-    [SerializeField, Range(1, 20)] private int damage = 1;
+    [SerializeField, Min(1)] private int damage = 1;
     [SerializeField] private bool showCombatDebugLogs = true;
 
     [Header("Target detection")]
@@ -24,6 +24,9 @@ public class Entity_Combat : MonoBehaviour
     [SerializeField] private AnimationClip previewAnimationClip;
     [SerializeField, Range(0f, 1f)] private float previewNormalizedTime;
 
+    [Header("Setup")]
+    [SerializeField] private bool autoEnsureHealthComponent = true;
+
     public int Damage => damage;
     public Transform TargetCheck => targetCheck;
     public float TargetCheckRadius => targetCheckRadius;
@@ -36,6 +39,11 @@ public class Entity_Combat : MonoBehaviour
     public AnimationClip PreviewAnimationClip => previewAnimationClip;
     public float PreviewNormalizedTime => previewNormalizedTime;
 
+    public void SetDamage(int value)
+    {
+        damage = Mathf.Max(1, value);
+    }
+
     private Entity owner;
     private Entity_VFX vfx;
     private readonly Dictionary<Entity_Combat, int> receivedAttackIdsByAttacker = new Dictionary<Entity_Combat, int>();
@@ -45,7 +53,10 @@ public class Entity_Combat : MonoBehaviour
         owner = GetComponent<Entity>();
         EnsureVfxComponent();
         vfx = GetComponent<Entity_VFX>();
-        EnsureHealthComponent();
+        if (autoEnsureHealthComponent)
+        {
+            EnsureHealthComponent();
+        }
         EnsureTargetCheck();
         AutoAssignTargetLayerIfEmpty();
     }
@@ -53,7 +64,10 @@ public class Entity_Combat : MonoBehaviour
     private void Reset()
     {
         EnsureVfxComponent();
-        EnsureHealthComponent();
+        if (autoEnsureHealthComponent)
+        {
+            EnsureHealthComponent();
+        }
         EnsureTargetCheck();
         AutoAssignTargetLayerIfEmpty();
     }
@@ -66,6 +80,10 @@ public class Entity_Combat : MonoBehaviour
         if (!Application.isPlaying)
         {
             EnsureVfxComponent();
+            if (autoEnsureHealthComponent)
+            {
+                EnsureHealthComponent();
+            }
             EnsureTargetCheck();
             AutoAssignTargetLayerIfEmpty();
         }

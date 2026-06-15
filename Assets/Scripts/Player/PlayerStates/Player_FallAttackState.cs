@@ -136,6 +136,7 @@ public class Player_FallAttackState : EntityState
         }
 
         damageTriggered = true;
+        player.SetCombatDamage(player.FallAttackDamage);
         player.GetComponent<Entity_Combat>()?.AttackTrigger(player.FallAttackData);
     }
 

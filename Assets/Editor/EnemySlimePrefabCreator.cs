@@ -131,13 +131,35 @@ public static class EnemySlimePrefabCreator
         SetIfExists(so, "patrolTurnDelay", 0.15f);
         SetIfExists(so, "moveSpeed", 1.4f);
         SetIfExists(so, "moveAnimSpeedMultiplier", 1f);
+        SetIfExists(so, "frontSightDistance", 4f);
+        SetIfExists(so, "backSightDistance", 2f);
+        SetIfExists(so, "chaseVerticalDistance", 3f);
+        SetIfExists(so, "maxSeeThroughWallDistance", .5f);
+        SetIfExists(so, "wallThicknessSampleDistance", .05f);
+        SetIfExists(so, "loseSightDuration", 3f);
+        SetIfExists(so, "showDetectionGizmos", true);
         SetIfExists(so, "hasRecoveryAnimation", true);
         SetIfExists(so, "canBeKnockedBack", true);
         SetIfExists(so, "amountOfSlimesToCreate", 2);
         SetIfExists(so, "newSlimeVelocity", new Vector2(4f, 3f));
+        SetIfExists(so, "splitOnDeath", true);
+        SetIfExists(so, "splitGeneration", 0);
+        SetIfExists(so, "maxSplitGenerations", 1);
+        SetIfExists(so, "splitChildScaleMultiplier", .7f);
+        SetIfExists(so, "splitChildHealthMultiplier", .55f);
+        SetIfExists(so, "splitChildDamageMultiplier", .55f);
+        SetIfExists(so, "splitSpawnHorizontalOffset", .55f);
+        SetIfExists(so, "splitSpawnVerticalOffset", .2f);
+
+        int playerLayer = LayerMask.NameToLayer("Player");
+        if (playerLayer >= 0)
+        {
+            SetIfExists(so, "whatIsPlayer", 1 << playerLayer);
+        }
 
         Transform playerCheck = FindChild(slime.transform.root, "TargetCheck") ?? FindChild(slime.transform.root, "PlayerCheck");
         SetIfExists(so, "playerCheck", playerCheck);
+        SetIfExists(so, "playerCheckDistance", 10f);
 
         Transform primaryWallCheck = FindChild(slime.transform.root, "PrimaryWallCheck");
         Transform secondaryWallCheck = FindChild(slime.transform.root, "SecondaryWallCheck");

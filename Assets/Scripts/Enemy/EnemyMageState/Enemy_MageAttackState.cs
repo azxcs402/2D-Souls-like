@@ -38,6 +38,8 @@ public class Enemy_MageAttackState : Enemy_MageGroundedState
             mage.FaceDirection(attackDirection);
         }
 
+        mage?.SetFacingLocked(true);
+
         attackDuration = GetAttackClipLength();
         stateTimer = attackDuration;
 
@@ -112,6 +114,7 @@ public class Enemy_MageAttackState : Enemy_MageGroundedState
         base.Exit();
 
         mage?.DisableCounterWindow();
+        mage?.SetFacingLocked(false);
 
         if (mage != null && mage.anim != null)
         {

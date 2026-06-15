@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2385305088597801933
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3264820721899666613}
+  m_Layer: 0
+  m_Name: TargetCheck
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3264820721899666613
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2385305088597801933}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5285510823393787667}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4729596122828837229
 GameObject:
   m_ObjectHideFlags: 0
@@ -118,6 +149,8 @@ GameObject:
   - component: {fileID: 6185998959358163839}
   - component: {fileID: 6910203080990270239}
   - component: {fileID: 4418727717915040996}
+  - component: {fileID: 8857319921047934112}
+  - component: {fileID: 5692172565615809128}
   m_Layer: 0
   m_Name: Enemy_Mage_Projectile
   m_TagString: Untagged
@@ -139,6 +172,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3346299860543688808}
+  - {fileID: 3264820721899666613}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6185998959358163839
@@ -153,11 +187,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b0417b49e9d80a43a8e69f80b1edabf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  arcHeight: 2
+  arrivalDuration: 0.22
+  hoverDuration: 1
+  homingDuration: 0.5
+  flightSpeed: 10
+  hoverDriftRadius: 0.18
+  hoverDriftChangeInterval: 0.18
+  hoverDriftMoveSpeed: 1.6
   whatCanCollideWith:
     serializedVersion: 2
     m_Bits: 192
   impactKnockback: {x: 4, y: 2}
+  destroyDelayAfterImpact: 2
 --- !u!58 &6910203080990270239
 CircleCollider2D:
   m_ObjectHideFlags: 0
@@ -220,3 +261,50 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
+--- !u!114 &8857319921047934112
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8283638665200491288}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  damage: 10
+  showCombatDebugLogs: 0
+  targetCheck: {fileID: 3264820721899666613}
+  targetCheckRadius: 0.6
+  whatIsTarget:
+    serializedVersion: 2
+    m_Bits: 128
+  showTargetCheckGizmos: 0
+  alwaysShowTargetCheckGizmos: 0
+  enableCombatPreview: 0
+  showPreviewTargetCheckObject: 0
+  showPreviewAttackData: 0
+  previewAnimationClip: {fileID: 0}
+  previewNormalizedTime: 0
+  autoEnsureHealthComponent: 0
+--- !u!114 &5692172565615809128
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8283638665200491288}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca13a2ddb4168de43a9bf206c5ecd321, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  imageEchoInterval: 0.05
+  imageEchoLifetime: 0.3
+  imageEchoStartAlpha: 0.55
+  imageEchoTint: {r: 1, g: 1, b: 1, a: 1}
+  onDamageVFXMaterial: {fileID: 2100000, guid: 563fe6dd3c2361c40872b0e734970b4c, type: 2}
+  onDamageVFXDuration: 0.15
+  hitVFXColor: {r: 1, g: 1, b: 1, a: 1}
+  hitVFX: {fileID: 3005762267262333926, guid: 801e6f300e7f8f04dacf033bad7eae71, type: 3}

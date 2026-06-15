@@ -120,6 +120,7 @@ public class Player_AirAttackState : EntityState
         }
 
         damageTriggered = true;
+        player.SetCombatDamage(player.GetAirAttackDamage(comboIndex));
         player.GetComponent<Entity_Combat>()?.AttackTrigger(player.GetAirAttackData(comboIndex));
     }
 

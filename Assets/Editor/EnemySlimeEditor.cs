@@ -47,12 +47,15 @@ public class EnemySlimeEditor : Editor
             new SearchableField("moveAnimSpeedMultiplier", "Move Anim Speed Multiplier", "animation speed")
         ),
         new SearchableSection(
-            "Target Detection",
-            "Player detection mask, check transform, and sight distances.",
+            "Vision Info",
+            "Player detection mask, front/back sight, and sight occlusion.",
+            new SearchableField("showDetectionGizmos", "Show Detection Gizmos", "gizmos"),
             new SearchableField("whatIsPlayer", "What Is Player", "player mask"),
-            new SearchableField("playerCheck", "Player Check", "player check"),
-            new SearchableField("playerCheckDistance", "Player Check Distance", "distance"),
+            new SearchableField("frontSightDistance", "Front Sight Distance", "front sight"),
+            new SearchableField("backSightDistance", "Back Sight Distance", "back sight"),
             new SearchableField("chaseVerticalDistance", "Chase Vertical Distance", "vertical"),
+            new SearchableField("maxSeeThroughWallDistance", "Max See Through Wall Distance", "wall occlusion"),
+            new SearchableField("wallThicknessSampleDistance", "Wall Thickness Sample Distance", "wall sampling"),
             new SearchableField("loseSightDuration", "Lose Sight Duration", "lose sight")
         ),
         new SearchableSection(
@@ -64,6 +67,17 @@ public class EnemySlimeEditor : Editor
             new SearchableField("hasRecoveryAnimation", "Has Recovery Animation", "recovery"),
             new SearchableField("canBeKnockedBack", "Can Be Knocked Back", "knockback"),
             new SearchableField("slimeSpriteFacesLeftByDefault", "Slime Sprite Faces Left By Default", "flip direction")
+        ),
+        new SearchableSection(
+            "Split Info",
+            "Recursive split control and child tuning.",
+            new SearchableField("splitOnDeath", "Split On Death", "split"),
+            new SearchableField("maxSplitGenerations", "Max Split Generations", "generation"),
+            new SearchableField("splitChildScaleMultiplier", "Split Child Scale Multiplier", "scale"),
+            new SearchableField("splitChildHealthMultiplier", "Split Child Health Multiplier", "health"),
+            new SearchableField("splitChildDamageMultiplier", "Split Child Damage Multiplier", "damage"),
+            new SearchableField("splitSpawnHorizontalOffset", "Split Spawn Horizontal Offset", "offset"),
+            new SearchableField("splitSpawnVerticalOffset", "Split Spawn Vertical Offset", "offset")
         ),
         new SearchableSection(
             "Stunned Collider",
@@ -112,15 +126,16 @@ public class EnemySlimeEditor : Editor
             ref showOnlyMatches,
             SearchPrefsKey,
             "Enemy Slime Inspector Search",
-            new[] { "Battle", "Stun", "Patrol", "Target", "Spawn", "Attack", "Death" }
+            new[] { "Battle", "Stun", "Patrol", "Vision", "Spawn", "Split", "Attack", "Death" }
         );
         SearchableInspectorDrawer.DrawQuickFindButtons(
             SetSearch,
             "battle",
             "stun",
             "patrol",
-            "target",
+            "vision",
             "spawn",
+            "split",
             "attack",
             "death"
         );

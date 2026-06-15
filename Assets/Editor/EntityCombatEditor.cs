@@ -78,7 +78,7 @@ public class EntityCombatEditor : Editor
                 "Max Health",
                 maxHealthProperty.intValue,
                 1,
-                20
+                200
             );
         }
 

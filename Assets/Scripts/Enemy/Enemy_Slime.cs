@@ -41,12 +41,19 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     [SerializeField, Min(.01f)] private float moveSpeed = 1.4f;
     [SerializeField, Range(0f, 2f)] private float moveAnimSpeedMultiplier = 1f;
 
-    [Header("Player Detection")]
+    [Header("Vision Info")]
     [SerializeField] private LayerMask whatIsPlayer;
+    [SerializeField, Min(.01f)] private float frontSightDistance = 4f;
+    [SerializeField, Min(.01f)] private float backSightDistance = 2f;
+    [SerializeField, Min(0f)] private float chaseVerticalDistance = 3f;
+    [SerializeField, Min(0f)] private float maxSeeThroughWallDistance = .5f;
+    [SerializeField, Min(.01f)] private float wallThicknessSampleDistance = .05f;
+    [SerializeField, Min(0f)] private float loseSightDuration = 3f;
+    [SerializeField] private bool showDetectionGizmos = true;
+
+    [Header("Legacy Target Anchor")]
     [SerializeField] private Transform playerCheck;
     [SerializeField, Min(.01f)] private float playerCheckDistance = 10f;
-    [SerializeField, Min(0f)] private float chaseVerticalDistance = 3f;
-    [SerializeField, Min(0f)] private float loseSightDuration = 3f;
 
     [Header("Slime Info")]
     [SerializeField] private GameObject slimeToCreatePrefab;
@@ -55,6 +62,16 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     [SerializeField] private bool hasRecoveryAnimation = true;
     [SerializeField] private bool canBeKnockedBack = true;
     [SerializeField] private bool slimeSpriteFacesLeftByDefault = true;
+
+    [Header("Split Info")]
+    [SerializeField] private bool splitOnDeath = true;
+    [SerializeField, Min(0)] private int splitGeneration = 0;
+    [SerializeField, Min(0)] private int maxSplitGenerations = 1;
+    [SerializeField, Min(.1f)] private float splitChildScaleMultiplier = .7f;
+    [SerializeField, Min(.01f)] private float splitChildHealthMultiplier = .55f;
+    [SerializeField, Min(.01f)] private float splitChildDamageMultiplier = .55f;
+    [SerializeField, Min(0f)] private float splitSpawnHorizontalOffset = .55f;
+    [SerializeField, Min(0f)] private float splitSpawnVerticalOffset = .2f;
 
     [Header("Stunned Collider")]
     [SerializeField] private CapsuleCollider2D stunnedCollider;
@@ -104,10 +121,15 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     public float MoveSpeed => moveSpeed;
     public float MoveAnimSpeedMultiplier => moveAnimSpeedMultiplier;
     public LayerMask WhatIsPlayer => whatIsPlayer;
+    public float FrontSightDistance => frontSightDistance;
+    public float BackSightDistance => backSightDistance;
+    public float ChaseVerticalDistance => chaseVerticalDistance;
+    public float MaxSeeThroughWallDistance => maxSeeThroughWallDistance;
+    public float WallThicknessSampleDistance => wallThicknessSampleDistance;
+    public float LoseSightDuration => loseSightDuration;
+    public bool ShowDetectionGizmos => showDetectionGizmos;
     public Transform PlayerCheck => playerCheck;
     public float PlayerCheckDistance => playerCheckDistance;
-    public float ChaseVerticalDistance => chaseVerticalDistance;
-    public float LoseSightDuration => loseSightDuration;
     public GameObject SlimeToCreatePrefab => slimeToCreatePrefab;
     public int AmountOfSlimesToCreate => amountOfSlimesToCreate;
     public Vector2 NewSlimeVelocity => newSlimeVelocity;
@@ -125,6 +147,10 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     public float DeadDropThroughDelay => deadDropThroughDelay;
     public float DeadDisappearDelay => deadDisappearDelay;
     public float DeadFallAngle => deadFallAngle;
+    public bool SplitOnDeath => splitOnDeath;
+    public int SplitGeneration => splitGeneration;
+    public int MaxSplitGenerations => maxSplitGenerations;
+    public bool CanSplitOnDeath => splitOnDeath && splitGeneration < maxSplitGenerations;
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
@@ -307,7 +333,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
 
         if (playerTarget == null)
         {
-            playerTarget = PlayerDetected();
+            playerTarget = GetPlayerReference();
         }
 
         if (playerTarget != null)
@@ -456,26 +482,6 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         return true;
     }
 
-    public Transform PlayerDetected()
-    {
-        if (whatIsPlayer.value == 0)
-        {
-            return null;
-        }
-
-        Transform origin = playerCheck != null ? playerCheck : transform;
-        float distance = Mathf.Max(.01f, playerCheckDistance);
-        RaycastHit2D hit = Physics2D.Raycast(origin.position, Vector2.right * FacingDirection, distance, whatIsPlayer);
-
-        if (hit.collider == null)
-        {
-            return null;
-        }
-
-        Player player = hit.collider.GetComponentInParent<Player>();
-        return player != null ? player.transform : hit.collider.transform;
-    }
-
     public Transform GetPlayerReference()
     {
         if (playerTarget != null)
@@ -483,18 +489,27 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
             return playerTarget;
         }
 
-        return PlayerDetected();
+        return FindAnyPlayerReference();
     }
 
-    public void ApplySpawnVelocity()
+    public void ApplySpawnVelocity(int horizontalDirectionSign = 0)
     {
         if (rb == null)
         {
             return;
         }
 
+        float xDirection = horizontalDirectionSign == 0
+            ? Random.Range(-1f, 1f)
+            : Mathf.Sign(horizontalDirectionSign);
+
+        if (Mathf.Approximately(xDirection, 0f))
+        {
+            xDirection = horizontalDirectionSign < 0 ? -1f : 1f;
+        }
+
         Vector2 velocity = new Vector2(
-            newSlimeVelocity.x * Random.Range(-1f, 1f),
+            newSlimeVelocity.x * xDirection * Random.Range(.85f, 1.1f),
             newSlimeVelocity.y * Random.Range(1f, 2f)
         );
         rb.velocity = velocity;
@@ -502,19 +517,33 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
 
     public void CreateSlimeOnDeath()
     {
-        if (slimeToCreatePrefab == null || amountOfSlimesToCreate <= 0)
+        if (!CanSplitOnDeath || amountOfSlimesToCreate <= 0)
         {
             return;
         }
 
+        GameObject prefabToSpawn = slimeToCreatePrefab != null ? slimeToCreatePrefab : gameObject;
+        int childGeneration = splitGeneration + 1;
+        bool childCanSplitFurther = childGeneration < maxSplitGenerations;
+        float splitSeparation = GetSplitSpawnSeparation();
+
         for (int i = 0; i < amountOfSlimesToCreate; i++)
         {
-            GameObject newSlime = Instantiate(slimeToCreatePrefab, transform.position, Quaternion.identity);
+            int horizontalDirection = i % 2 == 0 ? -1 : 1;
+            Vector3 spawnOffset = new Vector3(
+                horizontalDirection * splitSeparation,
+                splitSpawnVerticalOffset,
+                0f
+            );
+
+            GameObject newSlime = Instantiate(prefabToSpawn, transform.position + spawnOffset, Quaternion.identity);
             Enemy_Slime slime = newSlime.GetComponent<Enemy_Slime>();
 
             if (slime != null)
             {
-                slime.ApplySpawnVelocity();
+                slime.ConfigureSplitChild(childGeneration, childCanSplitFurther);
+                slime.ApplySpawnVelocity(horizontalDirection);
+                slime.FaceDirection(horizontalDirection);
 
                 if (playerTarget != null)
                 {
@@ -550,10 +579,20 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         patrolTurnDelay = Mathf.Max(0f, patrolTurnDelay);
         moveSpeed = Mathf.Max(.01f, moveSpeed);
         moveAnimSpeedMultiplier = Mathf.Clamp(moveAnimSpeedMultiplier, 0f, 2f);
-        playerCheckDistance = Mathf.Max(.01f, playerCheckDistance);
+        frontSightDistance = Mathf.Max(.01f, frontSightDistance);
+        backSightDistance = Mathf.Max(.01f, backSightDistance);
         chaseVerticalDistance = Mathf.Max(0f, chaseVerticalDistance);
+        maxSeeThroughWallDistance = Mathf.Max(0f, maxSeeThroughWallDistance);
+        wallThicknessSampleDistance = Mathf.Max(.01f, wallThicknessSampleDistance);
         loseSightDuration = Mathf.Max(0f, loseSightDuration);
         amountOfSlimesToCreate = Mathf.Max(0, amountOfSlimesToCreate);
+        splitGeneration = Mathf.Max(0, splitGeneration);
+        maxSplitGenerations = Mathf.Max(0, maxSplitGenerations);
+        splitChildScaleMultiplier = Mathf.Max(.1f, splitChildScaleMultiplier);
+        splitChildHealthMultiplier = Mathf.Max(.01f, splitChildHealthMultiplier);
+        splitChildDamageMultiplier = Mathf.Max(.01f, splitChildDamageMultiplier);
+        splitSpawnHorizontalOffset = Mathf.Max(0f, splitSpawnHorizontalOffset);
+        splitSpawnVerticalOffset = Mathf.Max(0f, splitSpawnVerticalOffset);
         deadFallSpeed = Mathf.Max(0f, deadFallSpeed);
         deadSlideSpeed = Mathf.Max(0f, deadSlideSpeed);
         deadSlideAcceleration = Mathf.Max(0f, deadSlideAcceleration);
@@ -561,23 +600,38 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         deadDisappearDelay = Mathf.Max(0f, deadDisappearDelay);
         deadFallAngle = Mathf.Clamp(deadFallAngle, 0f, 180f);
         battleAnimSpeedMultiplier = CalculateBattleAnimSpeedMultiplier();
+
+        if (whatIsPlayer.value == 0)
+        {
+            int playerLayer = LayerMask.NameToLayer("Player");
+            if (playerLayer >= 0)
+            {
+                whatIsPlayer = 1 << playerLayer;
+            }
+        }
     }
 
     private void UpdatePlayerPerception()
     {
-        Transform detectedPlayer = PlayerDetected();
+        Transform detectedPlayer = TryDetectPlayer(out int targetDirection);
 
         if (detectedPlayer != null)
         {
             playerTarget = detectedPlayer;
+            playerTargetDirection = targetDirection != 0 ? targetDirection : GetPlayerDirection();
             playerVisible = true;
-            playerTargetDirection = GetPlayerDirection();
             lastTimeSeenPlayer = Time.time;
             isAlerted = true;
+            shouldReturnToPatrol = false;
         }
         else
         {
             playerVisible = false;
+        }
+
+        if (playerTarget == null)
+        {
+            playerTarget = FindAnyPlayerReference();
         }
 
         if (playerTarget == null)
@@ -596,6 +650,203 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         {
             StopChasingPlayer();
         }
+    }
+
+    private Transform TryDetectPlayer(out int targetDirection)
+    {
+        targetDirection = 0;
+
+        if (whatIsPlayer.value == 0)
+        {
+            return null;
+        }
+
+        Player player = playerTarget != null
+            ? playerTarget.GetComponentInParent<Player>()
+            : FindAnyPlayerReference();
+
+        if (player == null)
+        {
+            return null;
+        }
+
+        Bounds enemyBounds = GetColliderBounds();
+        Bounds playerBounds = GetPlayerBounds(player);
+        Vector2 enemyCenter = enemyBounds.center;
+        Vector2 playerCenter = playerBounds.center;
+        Vector2 enemyToPlayer = playerCenter - enemyCenter;
+        float horizontalDistance = Mathf.Abs(enemyToPlayer.x);
+        float verticalDistance = Mathf.Abs(enemyToPlayer.y);
+        int playerDirection = GetPlayerDirection(player.transform.position);
+        bool playerInFront = playerDirection == facingDirection;
+        float sightDistance = playerInFront ? frontSightDistance : backSightDistance;
+
+        if (horizontalDistance > sightDistance)
+        {
+            return null;
+        }
+
+        if (verticalDistance > chaseVerticalDistance)
+        {
+            return null;
+        }
+
+        if (WallBlocksHorizontalSight(playerBounds))
+        {
+            return null;
+        }
+
+        targetDirection = playerDirection;
+        return player.transform;
+    }
+
+    private Transform FindAnyPlayerReference()
+    {
+        Player[] players = FindObjectsOfType<Player>(true);
+        for (int i = 0; i < players.Length; i++)
+        {
+            Player candidate = players[i];
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            if (IsInPlayerLayer(candidate.gameObject))
+            {
+                return candidate.transform;
+            }
+        }
+
+        return players.Length > 0 && players[0] != null ? players[0].transform : null;
+    }
+
+    private bool IsInPlayerLayer(GameObject candidate)
+    {
+        if (candidate == null)
+        {
+            return false;
+        }
+
+        if (whatIsPlayer.value == 0)
+        {
+            return true;
+        }
+
+        int layerMask = 1 << candidate.layer;
+        return (whatIsPlayer.value & layerMask) != 0;
+    }
+
+    private bool WallBlocksHorizontalSight(Bounds playerBounds)
+    {
+        Bounds enemyBounds = GetColliderBounds();
+        int direction = playerBounds.center.x >= enemyBounds.center.x ? 1 : -1;
+        float startX = direction > 0 ? enemyBounds.max.x + .02f : enemyBounds.min.x - .02f;
+        float targetX = direction > 0 ? playerBounds.min.x : playerBounds.max.x;
+        float distance = Mathf.Abs(targetX - startX);
+
+        if (distance <= .01f)
+        {
+            return false;
+        }
+
+        Vector2 rayDirection = Vector2.right * direction;
+        float upperY = enemyBounds.max.y - Mathf.Min(.12f, enemyBounds.extents.y * .25f);
+        Vector2 middleOrigin = new Vector2(startX, enemyBounds.center.y);
+        Vector2 upperOrigin = new Vector2(startX, upperY);
+
+        return GroundSegmentExceedsSeeThroughLimit(middleOrigin, rayDirection, distance)
+            || GroundSegmentExceedsSeeThroughLimit(upperOrigin, rayDirection, distance);
+    }
+
+    private bool GroundSegmentExceedsSeeThroughLimit(Vector2 origin, Vector2 direction, float distance)
+    {
+        if (maxSeeThroughWallDistance <= 0f)
+        {
+            RaycastHit2D hit = Physics2D.Raycast(origin, direction, distance, whatIsGround);
+            return hit.collider != null && !hit.collider.transform.IsChildOf(transform);
+        }
+
+        float currentGroundDistance = 0f;
+        float sampleStep = Mathf.Max(.01f, wallThicknessSampleDistance);
+        int segmentCount = Mathf.CeilToInt(distance / sampleStep);
+
+        for (int i = 0; i < segmentCount; i++)
+        {
+            float segmentStart = i * sampleStep;
+            float segmentEnd = Mathf.Min(distance, segmentStart + sampleStep);
+            float segmentLength = segmentEnd - segmentStart;
+            float sampleDistance = segmentStart + segmentLength * .5f;
+            Vector2 samplePoint = origin + direction.normalized * sampleDistance;
+
+            if (GroundOccupiesSightSample(samplePoint))
+            {
+                currentGroundDistance += segmentLength;
+
+                if (currentGroundDistance > maxSeeThroughWallDistance)
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                currentGroundDistance = 0f;
+            }
+        }
+
+        return false;
+    }
+
+    private bool GroundOccupiesSightSample(Vector2 samplePoint)
+    {
+        Collider2D[] hits = Physics2D.OverlapPointAll(samplePoint, whatIsGround);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider2D hit = hits[i];
+            if (hit != null && !hit.transform.IsChildOf(transform))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!showDetectionGizmos)
+        {
+            return;
+        }
+
+        DrawDetectionGizmos();
+    }
+
+    protected override void OnDrawGizmosSelected()
+    {
+        base.OnDrawGizmosSelected();
+
+        if (!showDetectionGizmos)
+        {
+            return;
+        }
+
+        DrawDetectionGizmos();
+    }
+
+    private void DrawDetectionGizmos()
+    {
+        Bounds enemyBounds = GetColliderBounds();
+        float totalWidth = Mathf.Max(.1f, frontSightDistance + backSightDistance);
+        float totalHeight = Mathf.Max(.1f, chaseVerticalDistance * 2f);
+        float centerOffset = (frontSightDistance - backSightDistance) * .5f * facingDirection;
+        Vector3 center = enemyBounds.center + new Vector3(centerOffset, 0f, 0f);
+        Vector3 size = new Vector3(totalWidth, totalHeight, 0f);
+
+        Gizmos.color = new Color(1f, .85f, .1f, .12f);
+        Gizmos.DrawCube(center, size);
+
+        Gizmos.color = new Color(1f, .85f, .1f, 1f);
+        Gizmos.DrawWireCube(center, size);
     }
 
     private void NormalizeAnimationStateNames()
@@ -633,12 +884,20 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
 
     private int GetPlayerDirection()
     {
-        if (playerTarget == null)
+        return playerTarget != null
+            ? GetPlayerDirection(playerTarget.position)
+            : FacingDirection;
+    }
+
+    private int GetPlayerDirection(Vector2 playerPosition)
+    {
+        float xDelta = playerPosition.x - transform.position.x;
+        if (Mathf.Abs(xDelta) <= .01f)
         {
             return FacingDirection;
         }
 
-        return playerTarget.position.x >= transform.position.x ? 1 : -1;
+        return xDelta >= 0f ? 1 : -1;
     }
 
     private float CalculateBattleAnimSpeedMultiplier()
@@ -649,6 +908,52 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         }
 
         return Mathf.Max(.01f, battleMoveSpeed / moveSpeed);
+    }
+
+    private float GetSplitSpawnSeparation()
+    {
+        Bounds colliderBounds = GetColliderBounds();
+        float parentHalfWidth = Mathf.Max(.1f, colliderBounds.extents.x);
+        float childHalfWidth = parentHalfWidth * Mathf.Max(.1f, splitChildScaleMultiplier);
+        float extraOffset = Mathf.Max(0f, splitSpawnHorizontalOffset);
+
+        return parentHalfWidth + childHalfWidth + extraOffset;
+    }
+
+    public void ConfigureSplitChild(int generation, bool canSplitFurther)
+    {
+        splitGeneration = Mathf.Max(0, generation);
+        splitOnDeath = canSplitFurther;
+
+        float scaleMultiplier = Mathf.Max(.1f, splitChildScaleMultiplier);
+        transform.localScale = Vector3.Scale(transform.localScale, new Vector3(scaleMultiplier, scaleMultiplier, 1f));
+
+        maxHealth = Mathf.Max(1, Mathf.RoundToInt(maxHealth * Mathf.Max(.01f, splitChildHealthMultiplier)));
+        currentHealth = maxHealth;
+        isDead = false;
+
+        Entity_Combat combat = GetComponent<Entity_Combat>();
+        if (combat != null)
+        {
+            combat.SetDamage(Mathf.Max(1, Mathf.RoundToInt(combat.Damage * Mathf.Max(.01f, splitChildDamageMultiplier))));
+        }
+
+        Enemy_Healthy healthy = GetComponent<Enemy_Healthy>();
+        if (healthy != null)
+        {
+            healthy.RefreshFromEnemy();
+        }
+
+        if (anim != null)
+        {
+            anim.enabled = true;
+            anim.speed = 1f;
+        }
+
+        if (stateMachine != null && stateMachine.CurrentState == null && idleState != null)
+        {
+            stateMachine.Initialize(idleState);
+        }
     }
 
     private void ApplySlimeVisualFacingCorrection()
@@ -697,11 +1002,21 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         }
 
         Player playerComponent = playerTarget.GetComponentInParent<Player>();
-        if (playerComponent != null && playerComponent.cd != null)
+        return GetPlayerBounds(playerComponent);
+    }
+
+    private Bounds GetPlayerBounds(Player player)
+    {
+        if (player != null && player.cd != null)
         {
-            return playerComponent.cd.bounds;
+            return player.cd.bounds;
         }
 
-        return new Bounds(playerTarget.position, Vector3.one);
+        if (player != null)
+        {
+            return new Bounds(player.transform.position, Vector3.one);
+        }
+
+        return new Bounds(transform.position, Vector3.one);
     }
 }

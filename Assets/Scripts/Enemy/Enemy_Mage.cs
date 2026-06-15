@@ -618,7 +618,7 @@ public class Enemy_Mage : Enemy, ICounterable, IEnemyBattleResponder
         EnsureGroundMaskAssigned();
         NormalizeAnimationStateNames();
 
-        maxHealth = Mathf.Clamp(maxHealth, 1, 20);
+        maxHealth = Mathf.Max(1, maxHealth);
         battleMoveSpeed = Mathf.Max(.1f, battleMoveSpeed);
         attackDistance = Mathf.Max(.1f, attackDistance);
         attackCooldown = Mathf.Max(0f, attackCooldown);

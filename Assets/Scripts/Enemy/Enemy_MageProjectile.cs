@@ -41,6 +41,7 @@ public class Enemy_MageProjectile : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         col = GetComponent<Collider2D>();
         anim = GetComponentInChildren<Animator>(true);
+        combat = GetComponent<Entity_Combat>();
     }
 
     private void OnValidate()
@@ -78,7 +79,7 @@ public class Enemy_MageProjectile : MonoBehaviour
     {
         this.owner = owner;
         this.target = target;
-        this.combat = combat;
+        this.combat = GetComponent<Entity_Combat>() ?? combat;
         this.hoverReservationId = hoverReservationId;
         this.hoverLocalOffset = hoverLocalOffset;
         hasImpacted = false;

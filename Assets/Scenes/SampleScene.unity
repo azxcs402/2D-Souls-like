@@ -447,7 +447,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 0}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 3
+  m_MaxValue: 100
   m_WholeNumbers: 1
   m_Value: 0
   m_OnValueChanged:
@@ -6547,6 +6547,7 @@ MonoBehaviour:
   - targetCheckOffset: {x: -0.05, y: 0}
     targetCheckRadius: 1
     knockbackForce: {x: 4, y: 3}
+  basicAttackDamages: 0c0000000e00000012000000
   basicAttackComboInputLeftWindows:
   - 10
   - 10
@@ -6591,6 +6592,7 @@ MonoBehaviour:
   - targetCheckOffset: {x: -0.05, y: 0}
     targetCheckRadius: 1
     knockbackForce: {x: 4, y: 3}
+  airAttackDamages: 0a0000000c00000010000000
   airAttackComboInputLeftWindows:
   - 10
   - 10
@@ -6628,6 +6630,7 @@ MonoBehaviour:
     targetCheckOffset: {x: 1.5, y: -0.15}
     targetCheckRadius: 1
     knockbackForce: {x: 5, y: 3}
+  fallAttackDamage: 20
   counterDuration: 0.35
   counterAttackTargetCheckRadiusMultiplier: 1.35
   counterAttackAnimationState: playerCounterAttack
@@ -6734,7 +6737,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 1
+  damage: 12
   showCombatDebugLogs: 1
   targetCheck: {fileID: 1470048454}
   targetCheckRadius: 0.95
@@ -6748,6 +6751,7 @@ MonoBehaviour:
   showPreviewAttackData: 1
   previewAnimationClip: {fileID: 7400000, guid: 5e5a8ed224d2579408bbcdb2a57f2bbc, type: 2}
   previewNormalizedTime: 0.8181819
+  autoEnsureHealthComponent: 1
 --- !u!114 &960879544
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6760,7 +6764,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 19fb24da1284353468189311810935d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 3
+  maxHealth: 100
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1478446082}
@@ -7176,6 +7180,10 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 330371695069417393, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
+      propertyPath: maxHealth
+      value: 65
+      objectReference: {fileID: 0}
+    - target: {fileID: 330371695069417393, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
       propertyPath: canBeStunned
       value: 1
       objectReference: {fileID: 0}
@@ -7258,6 +7266,10 @@ PrefabInstance:
     - target: {fileID: 8109070804690320873, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8351486700953399016, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
+      propertyPath: maxHealth
+      value: 65
       objectReference: {fileID: 0}
     - target: {fileID: 8351486700953399016, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
       propertyPath: targetCheckRadius

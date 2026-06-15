@@ -8,7 +8,7 @@ public abstract class Enemy : Entity
     private static readonly int AttackAnimHash = Animator.StringToHash("attack");
 
     [Header("Enemy Info")]
-    [SerializeField, Range(1, 20)] protected int maxHealth = 3;
+    [SerializeField, Min(1)] protected int maxHealth = 3;
     [SerializeField] protected bool canTakeDamage = true;
 
     public StateMachine stateMachine { get; protected set; }

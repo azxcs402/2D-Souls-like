@@ -8,6 +8,7 @@ using Object = UnityEngine.Object;
 [InitializeOnLoad]
 public static class SceneUIAndVFXBootstrapper
 {
+    private const string MainMenuSceneName = "MainMenu";
     private const string PlayerHudName = "PlayerHUD";
     private const string UiInGamePath = "Canvas/UI_InGame";
     private const string SkillBarName = "UI_SkillBarParent";
@@ -51,6 +52,16 @@ public static class SceneUIAndVFXBootstrapper
             return;
         }
 
+        if (IsMainMenuScene(activeScene))
+        {
+            if (RemovePlayerHudIfExists())
+            {
+                EditorSceneManager.MarkSceneDirty(activeScene);
+            }
+
+            return;
+        }
+
         bool changed = false;
         changed |= EnsurePlayerHud();
         changed |= EnsureDashSkillSlot();
@@ -60,6 +71,23 @@ public static class SceneUIAndVFXBootstrapper
         {
             EditorSceneManager.MarkSceneDirty(activeScene);
         }
+    }
+
+    private static bool IsMainMenuScene(Scene activeScene)
+    {
+        return activeScene.name == MainMenuSceneName;
+    }
+
+    private static bool RemovePlayerHudIfExists()
+    {
+        GameObject playerHud = GameObject.Find(PlayerHudName);
+        if (playerHud == null)
+        {
+            return false;
+        }
+
+        Undo.DestroyObjectImmediate(playerHud);
+        return true;
     }
 
     private static bool EnsurePlayerHud()

@@ -8,7 +8,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
     public event Action<Entity_Health> OnHealthChanged;
 
     [Header("Health")]
-    [SerializeField, Range(1, 20)] protected int maxHealth = 10;
+    [SerializeField, Min(1)] protected int maxHealth = 10;
     [SerializeField] protected bool canTakeDamage = true;
 
     [Header("Knockback")]

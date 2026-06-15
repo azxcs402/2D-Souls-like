@@ -49,10 +49,9 @@ public class Enemy_SlimeBattleState : EnemyState
             return;
         }
 
-        Transform detectedPlayer = slime.PlayerDetected();
-        if (detectedPlayer != null)
+        if (slime.PlayerVisible && slime.PlayerTarget != null)
         {
-            player = detectedPlayer;
+            player = slime.PlayerTarget;
             lastTimeSeenPlayer = Time.time;
         }
 

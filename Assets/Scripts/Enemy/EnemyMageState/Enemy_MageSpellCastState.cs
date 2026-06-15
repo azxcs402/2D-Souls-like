@@ -29,6 +29,7 @@ public class Enemy_MageSpellCastState : EnemyState
             mage.SetBattleAnimation(false, 0f);
             mage.SetAttackAnimationSpeed(1f);
             enemy.SetVelocity(0f, rb != null ? rb.velocity.y : 0f);
+            mage.SetFacingLocked(true);
             PlaySpellCastAnimation();
         }
     }
@@ -104,6 +105,8 @@ public class Enemy_MageSpellCastState : EnemyState
             mage.anim.SetBool("spellCast_performed", false);
             mage.SetSpellCastPerformed(false);
         }
+
+        mage?.SetFacingLocked(false);
     }
 
     public void AttackTrigger()

@@ -83,6 +83,7 @@ public class Player : Entity
         new Entity_AttackData(new Vector2(.7f, 0f), .65f, new Vector2(5f, 2.5f)),
         new Entity_AttackData(new Vector2(.8f, 0f), .7f, new Vector2(7f, 3f))
     };
+    [SerializeField] private int[] basicAttackDamages = { 12, 14, 18 };
     [SerializeField] private float[] basicAttackComboInputLeftWindows = { 10f, 10f, 10f };
     [SerializeField] private float[] basicAttackComboInputRightWindows = { 0f, 0f, 0f };
     [SerializeField] private float[] basicAttackTurnInputLeftWindows = { 10f, 10f, 10f };
@@ -114,6 +115,7 @@ public class Player : Entity
         new Entity_AttackData(new Vector2(.7f, 0f), .65f, new Vector2(5f, 1.5f)),
         new Entity_AttackData(new Vector2(.8f, 0f), .7f, new Vector2(7f, 2f))
     };
+    [SerializeField] private int[] airAttackDamages = { 10, 12, 16 };
     [SerializeField] private float[] airAttackComboInputLeftWindows = { 10f, 10f, 10f };
     [SerializeField] private float[] airAttackComboInputRightWindows = { 0f, 0f, 0f };
     [SerializeField] private float[] airAttackTurnInputLeftWindows = { 10f, 10f, 10f };
@@ -138,6 +140,7 @@ public class Player : Entity
     [SerializeField] private float fallAttackEndAnimationMaxSpeed = 8f;
     [SerializeField] private float fallAttackEndAnimationLandingOffset = .15f;
     [SerializeField] private Entity_AttackData fallAttackData = new Entity_AttackData(new Vector2(.6f, -.2f), .7f, new Vector2(6f, 3f));
+    [SerializeField] private int fallAttackDamage = 20;
 
     [Header("Counter Attack Info")]
     [SerializeField, Min(0f)] private float counterDuration = .35f;
@@ -212,6 +215,7 @@ public class Player : Entity
     private bool dashEnemyCollisionIgnoreActive;
     private bool previousPlayerEnemyLayerIgnore;
     private Entity_Health health;
+    private Entity_Combat combat;
     private float staminaRecoveryTimer;
 
     public event Action<Player> OnStaminaChanged;
@@ -299,6 +303,7 @@ public class Player : Entity
     public float FallAttackEndAnimationMaxSpeed => fallAttackEndAnimationMaxSpeed;
     public float FallAttackEndAnimationLandingOffset => fallAttackEndAnimationLandingOffset;
     public Entity_AttackData FallAttackData => fallAttackData;
+    public int FallAttackDamage => Mathf.Max(1, fallAttackDamage);
     public float CounterDuration => counterDuration;
     public float CounterAttackTargetCheckRadiusMultiplier => counterAttackTargetCheckRadiusMultiplier;
     public string CounterAttackAnimationState => counterAttackAnimationState;
@@ -312,7 +317,8 @@ public class Player : Entity
         return stateMachine?.CurrentState == basicAttackState
             || stateMachine?.CurrentState == airAttackState
             || stateMachine?.CurrentState == fallAttackState
-            || stateMachine?.CurrentState == counterAttackState;
+            || stateMachine?.CurrentState == counterAttackState
+            || (combat != null && combat.HasTarget());
     }
     public float DeathGroundVisualDownOffset => deathGroundVisualDownOffset;
     public float DeathGroundVisualBottomPadding => deathGroundVisualBottomPadding;
@@ -336,6 +342,8 @@ public class Player : Entity
         RestoreAliveColliderProfile();
         defaultGravityScale = rb != null ? rb.gravityScale : 1f;
         currentStamina = maxStamina;
+        combat = GetComponent<Entity_Combat>();
+        combat?.SetDamage(GetBasicAttackDamage(0));
 
         input = new PlayerInputSet();
 
@@ -376,6 +384,7 @@ public class Player : Entity
     {
         health = GetComponent<Entity_Health>();
         RestoreStaminaToFull();
+        combat?.SetDamage(GetBasicAttackDamage(0));
 
         if (IsDead)
         {
@@ -717,6 +726,18 @@ public class Player : Entity
         return basicAttackData[attackIndex];
     }
 
+    public int GetBasicAttackDamage(int attackIndex)
+    {
+        if (basicAttackDamages == null
+            || attackIndex < 0
+            || attackIndex >= basicAttackDamages.Length)
+        {
+            return 12;
+        }
+
+        return Mathf.Max(1, basicAttackDamages[attackIndex]);
+    }
+
     public Entity_AttackData GetAirAttackData(int attackIndex)
     {
         if (airAttackData == null
@@ -727,6 +748,24 @@ public class Player : Entity
         }
 
         return airAttackData[attackIndex];
+    }
+
+    public int GetAirAttackDamage(int attackIndex)
+    {
+        if (airAttackDamages == null
+            || attackIndex < 0
+            || attackIndex >= airAttackDamages.Length)
+        {
+            return 10;
+        }
+
+        return Mathf.Max(1, airAttackDamages[attackIndex]);
+    }
+
+    public void SetCombatDamage(int damage)
+    {
+        combat ??= GetComponent<Entity_Combat>();
+        combat?.SetDamage(damage);
     }
 
     public float GetBasicAttackComboInputLeftWindow(int attackIndex)
