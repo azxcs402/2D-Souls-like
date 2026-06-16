@@ -459,7 +459,11 @@ public static class MainMenuSceneGenerator
         else
         {
             text.text = value;
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (text.font == null)
+            {
+                text.font = Font.CreateDynamicFontFromOSFont("Arial", 16);
+            }
             text.fontSize = size;
             text.fontStyle = style;
             text.alignment = alignment;
@@ -741,7 +745,11 @@ public static class MainMenuSceneGenerator
 
         Text text = textObject.GetComponent<Text>();
         text.text = value;
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (text.font == null)
+        {
+            text.font = Font.CreateDynamicFontFromOSFont("Arial", 16);
+        }
         text.fontSize = size;
         text.fontStyle = style;
         text.alignment = alignment;

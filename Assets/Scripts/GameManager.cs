@@ -534,6 +534,6 @@ public class GameManager : MonoBehaviour
             return font;
         }
 
-        return Resources.GetBuiltinResource<Font>("Arial.ttf");
+        return Font.CreateDynamicFontFromOSFont("Arial", 16);
     }
 }

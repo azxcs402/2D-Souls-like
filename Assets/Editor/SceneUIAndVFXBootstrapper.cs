@@ -10,7 +10,7 @@ public static class SceneUIAndVFXBootstrapper
 {
     private const string MainMenuSceneName = "MainMenu";
     private const string PlayerHudName = "PlayerHUD";
-    private const string UiInGamePath = "Canvas/UI_InGame";
+    private const string UiInGameName = "UI_InGame";
     private const string SkillBarName = "UI_SkillBarParent";
     private const string DashSkillSlotName = "UI_SkillSlot";
     private const string LegacySkillBarName = "SkillBar";
@@ -23,9 +23,12 @@ public static class SceneUIAndVFXBootstrapper
     private const string SkillBackdropSpriteName = "Cell01_0";
     private const string DashIconAssetPath = "Assets/Graphics/UI/AlexSkillUI/BG 6.png";
     private const string DashIconSpriteName = "BG 6_282";
+    private const string HealingPotionIconAssetPath = "Assets/Graphics/UI/AlexSkillUI/BG 6.png";
+    private const string HealingPotionIconSpriteName = "BG 6_148";
     private const string OnHitVFXPrefabPath = "Assets/Prefabs/VFX/OnHitVFX.prefab";
     private const string OnHitVFXTemplateName = "OnHitVFX";
     private const string StaminaBarObjectName = "UI_PlayerStaminaBar";
+    private const string HealingPotionObjectName = "UI_HealingPotionSlot";
 
     static SceneUIAndVFXBootstrapper()
     {
@@ -39,10 +42,26 @@ public static class SceneUIAndVFXBootstrapper
         EnsureSceneObjects();
     }
 
+    [MenuItem("Tools/Scene Setup/Create Healing Potion Slot")]
+    public static void CreateHealingPotionSlotFromMenu()
+    {
+        if (EditorApplication.isPlaying || EditorApplication.isCompiling || EditorApplication.isUpdating)
+        {
+            EditorApplication.delayCall += CreateHealingPotionSlotFromMenu;
+            return;
+        }
+
+        if (EnsureHealingPotionSkillSlot())
+        {
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        }
+    }
+
     private static void EnsureSceneObjects()
     {
         if (EditorApplication.isPlaying || EditorApplication.isCompiling || EditorApplication.isUpdating)
         {
+            EditorApplication.delayCall += EnsureSceneObjects;
             return;
         }
 
@@ -65,6 +84,8 @@ public static class SceneUIAndVFXBootstrapper
         bool changed = false;
         changed |= EnsurePlayerHud();
         changed |= EnsureDashSkillSlot();
+        changed |= EnsureHealingPotionSkillSlot();
+        changed |= EnsureHealingPotionWorldIcon();
         changed |= EnsureEnemyOnHitVFXTemplates();
 
         if (changed)
@@ -96,6 +117,7 @@ public static class SceneUIAndVFXBootstrapper
         Sprite barSprite = LoadSprite(BarSpriteName);
         int uiLayer = LayerMask.NameToLayer("UI");
         bool createdCanvas = false;
+        bool changed = createdCanvas;
         GameObject canvasObject = GameObject.Find(PlayerHudName);
         if (canvasObject == null)
         {
@@ -114,13 +136,138 @@ public static class SceneUIAndVFXBootstrapper
 
         GetOrAddComponent<GraphicRaycaster>(canvasObject);
 
-        bool changed = createdCanvas;
+        RectTransform canvasRect = canvasObject.transform as RectTransform;
+        if (canvasRect != null)
+        {
+            Vector2 zero = Vector2.zero;
+            Vector2 one = Vector2.one;
+            Vector2 center = new Vector2(0.5f, 0.5f);
+
+            if (canvasRect.anchorMin != zero)
+            {
+                canvasRect.anchorMin = zero;
+                changed = true;
+            }
+
+            if (canvasRect.anchorMax != one)
+            {
+                canvasRect.anchorMax = one;
+                changed = true;
+            }
+
+            if (canvasRect.offsetMin != zero)
+            {
+                canvasRect.offsetMin = zero;
+                changed = true;
+            }
+
+            if (canvasRect.offsetMax != zero)
+            {
+                canvasRect.offsetMax = zero;
+                changed = true;
+            }
+
+            if (canvasRect.pivot != center)
+            {
+                canvasRect.pivot = center;
+                changed = true;
+            }
+
+            if (canvasRect.anchoredPosition != zero)
+            {
+                canvasRect.anchoredPosition = zero;
+                changed = true;
+            }
+
+            if (canvasRect.localScale != Vector3.one)
+            {
+                canvasRect.localScale = Vector3.one;
+                changed = true;
+            }
+        }
+
         changed |= EnsurePlayerHealthBar(canvasObject.transform as RectTransform, uiLayer, heartSprite, barSprite);
         changed |= EnsurePlayerStaminaBar(canvasObject.transform as RectTransform, uiLayer, barSprite);
 
         if (createdCanvas)
         {
             Selection.activeGameObject = canvasObject;
+        }
+
+        return changed;
+    }
+
+    private static bool EnsureUiInGame()
+    {
+        GameObject playerHud = GameObject.Find(PlayerHudName);
+        if (playerHud == null)
+        {
+            return false;
+        }
+
+        GameObject uiInGame = GameObject.Find(UiInGameName);
+        if (uiInGame == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        Transform targetParent = playerHud.transform;
+        if (uiInGame.transform.parent != targetParent)
+        {
+            Undo.SetTransformParent(uiInGame.transform, targetParent, "Move UI_InGame Under PlayerHUD");
+            changed = true;
+        }
+
+        RectTransform uiRect = uiInGame.GetComponent<RectTransform>();
+        if (uiRect != null)
+        {
+            Vector2 stretchMin = Vector2.zero;
+            Vector2 stretchMax = Vector2.one;
+            Vector2 zero = Vector2.zero;
+            Vector2 centerPivot = new Vector2(0.5f, 0.5f);
+
+            if (uiRect.anchorMin != stretchMin)
+            {
+                uiRect.anchorMin = stretchMin;
+                changed = true;
+            }
+
+            if (uiRect.anchorMax != stretchMax)
+            {
+                uiRect.anchorMax = stretchMax;
+                changed = true;
+            }
+
+            if (uiRect.offsetMin != zero)
+            {
+                uiRect.offsetMin = zero;
+                changed = true;
+            }
+
+            if (uiRect.offsetMax != zero)
+            {
+                uiRect.offsetMax = zero;
+                changed = true;
+            }
+
+            if (uiRect.pivot != centerPivot)
+            {
+                uiRect.pivot = centerPivot;
+                changed = true;
+            }
+
+            if (uiRect.anchoredPosition != zero)
+            {
+                uiRect.anchoredPosition = zero;
+                changed = true;
+            }
+
+            if (uiRect.localScale != Vector3.one)
+            {
+                uiRect.localScale = Vector3.one;
+                changed = true;
+            }
         }
 
         return changed;
@@ -232,23 +379,24 @@ public static class SceneUIAndVFXBootstrapper
 
     private static bool EnsureDashSkillSlot()
     {
-        GameObject uiInGame = GameObject.Find(UiInGamePath);
-        if (uiInGame == null)
+        GameObject playerHud = GameObject.Find(PlayerHudName);
+        if (playerHud == null)
         {
             return false;
         }
 
-        RectTransform uiInGameRect = uiInGame.GetComponent<RectTransform>();
-        if (uiInGameRect == null)
-        {
-            return false;
-        }
-
-        Transform skillBarTransform = uiInGame.transform.Find(SkillBarName);
+        Transform skillBarTransform = FindSkillBarTransform();
         if (skillBarTransform == null)
         {
             return false;
         }
+
+        if (skillBarTransform.parent != playerHud.transform)
+        {
+            Undo.SetTransformParent(skillBarTransform, playerHud.transform, "Move UI_SkillBarParent Under PlayerHUD");
+        }
+
+        bool changed = EnsureSkillBarLayout(skillBarTransform as RectTransform);
 
         GameObject skillBarObject = skillBarTransform.gameObject;
         Transform existingSlot = skillBarObject.transform.Find(DashSkillSlotName);
@@ -268,7 +416,526 @@ public static class SceneUIAndVFXBootstrapper
         }
 
         dashSkillSlot.Configure(cooldownImage);
-        return false;
+        return changed;
+    }
+
+    private static bool EnsureHealingPotionSkillSlot()
+    {
+        GameObject playerHud = GameObject.Find(PlayerHudName);
+        if (playerHud == null)
+        {
+            return false;
+        }
+
+        Transform skillBarTransform = FindSkillBarTransform();
+        if (skillBarTransform == null)
+        {
+            return false;
+        }
+
+        if (skillBarTransform.parent != playerHud.transform)
+        {
+            Undo.SetTransformParent(skillBarTransform, playerHud.transform, "Move UI_SkillBarParent Under PlayerHUD");
+        }
+
+        bool changed = false;
+        changed |= EnsureSkillBarLayout(skillBarTransform as RectTransform);
+
+        Sprite potionSprite = LoadSprite(HealingPotionIconAssetPath, HealingPotionIconSpriteName);
+
+        GameObject potionObject = null;
+        Transform existingPotion = skillBarTransform.Find(HealingPotionObjectName);
+        if (existingPotion == null)
+        {
+            existingPotion = skillBarTransform.Find("UI生命药水");
+        }
+        if (existingPotion != null)
+        {
+            if (existingPotion.name != HealingPotionObjectName)
+            {
+                existingPotion.name = HealingPotionObjectName;
+                changed = true;
+            }
+
+            potionObject = existingPotion.gameObject;
+        }
+
+        if (potionObject == null)
+        {
+            potionObject = CreateGameObject(
+                HealingPotionObjectName,
+                LayerMask.NameToLayer("UI"),
+                typeof(RectTransform),
+                typeof(Image),
+                typeof(UI_PlayerHealingPotion)
+            );
+            potionObject.transform.SetParent(skillBarTransform, false);
+
+            RectTransform potionRect = potionObject.GetComponent<RectTransform>();
+            potionRect.anchorMin = new Vector2(0.5f, 0f);
+            potionRect.anchorMax = new Vector2(0.5f, 0f);
+            potionRect.pivot = new Vector2(0.5f, 0f);
+            potionRect.anchoredPosition = new Vector2(-108f, 0f);
+            potionRect.sizeDelta = new Vector2(96f, 96f);
+            changed = true;
+        }
+
+        potionObject.SetActive(true);
+        GameObjectUtility.RemoveMonoBehavioursWithMissingScript(potionObject);
+
+        RectTransform potionRectTransform = potionObject.GetComponent<RectTransform>();
+        Image potionImage = GetOrAddComponent<Image>(potionObject);
+        if (potionSprite != null && potionImage.sprite != potionSprite)
+        {
+            potionImage.sprite = potionSprite;
+            changed = true;
+        }
+
+        if (potionImage.color != Color.white)
+        {
+            potionImage.color = Color.white;
+            changed = true;
+        }
+
+        if (potionImage.type != Image.Type.Simple)
+        {
+            potionImage.type = Image.Type.Simple;
+            changed = true;
+        }
+
+        if (potionImage.raycastTarget)
+        {
+            potionImage.raycastTarget = false;
+            changed = true;
+        }
+
+        RectTransform cooldownRect = GetOrCreateRect(
+            "CooldownImage",
+            potionRectTransform,
+            LayerMask.NameToLayer("UI")
+        );
+        if (cooldownRect.anchorMin != Vector2.zero)
+        {
+            cooldownRect.anchorMin = Vector2.zero;
+            changed = true;
+        }
+
+        if (cooldownRect.anchorMax != Vector2.one)
+        {
+            cooldownRect.anchorMax = Vector2.one;
+            changed = true;
+        }
+
+        if (cooldownRect.offsetMin != Vector2.zero)
+        {
+            cooldownRect.offsetMin = Vector2.zero;
+            changed = true;
+        }
+
+        if (cooldownRect.offsetMax != Vector2.zero)
+        {
+            cooldownRect.offsetMax = Vector2.zero;
+            changed = true;
+        }
+
+        Vector2 cooldownAnchoredPosition = new Vector2(0f, -0.70000076f);
+        if (cooldownRect.anchoredPosition != cooldownAnchoredPosition)
+        {
+            cooldownRect.anchoredPosition = cooldownAnchoredPosition;
+            changed = true;
+        }
+
+        Image cooldownImage = GetOrAddComponent<Image>(cooldownRect.gameObject);
+        Color cooldownColor = new Color(0f, 0f, 0f, 0.627451f);
+        if (potionSprite != null && cooldownImage.sprite != potionSprite)
+        {
+            cooldownImage.sprite = potionSprite;
+            changed = true;
+        }
+
+        if (cooldownImage.color != cooldownColor)
+        {
+            cooldownImage.color = cooldownColor;
+            changed = true;
+        }
+
+        if (cooldownImage.type != Image.Type.Filled)
+        {
+            cooldownImage.type = Image.Type.Filled;
+            changed = true;
+        }
+
+        if (cooldownImage.fillMethod != Image.FillMethod.Radial360)
+        {
+            cooldownImage.fillMethod = Image.FillMethod.Radial360;
+            changed = true;
+        }
+
+        if (!Mathf.Approximately(cooldownImage.fillAmount, 0f))
+        {
+            cooldownImage.fillAmount = 0f;
+            changed = true;
+        }
+
+        if (cooldownImage.fillClockwise)
+        {
+            cooldownImage.fillClockwise = false;
+            changed = true;
+        }
+
+        if (cooldownImage.fillOrigin != 2)
+        {
+            cooldownImage.fillOrigin = 2;
+            changed = true;
+        }
+
+        if (cooldownImage.raycastTarget)
+        {
+            cooldownImage.raycastTarget = false;
+            changed = true;
+        }
+
+        Transform existingCountTransform = potionObject.transform.Find("CountText");
+        bool countRectWasCreated = existingCountTransform == null;
+        RectTransform countRect = GetOrCreateRect(
+            "CountText",
+            potionRectTransform,
+            LayerMask.NameToLayer("UI")
+        );
+        Vector2 countAnchorMin = new Vector2(0.5f, 0f);
+        Vector2 countAnchorMax = new Vector2(0.5f, 0f);
+        Vector2 countPivot = new Vector2(0.5f, 1f);
+        Vector2 countSize = new Vector2(48f, 20f);
+        if (countRectWasCreated && countRect.anchorMin != countAnchorMin)
+        {
+            countRect.anchorMin = countAnchorMin;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countRect.anchorMax != countAnchorMax)
+        {
+            countRect.anchorMax = countAnchorMax;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countRect.offsetMin != Vector2.zero)
+        {
+            countRect.offsetMin = Vector2.zero;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countRect.offsetMax != Vector2.zero)
+        {
+            countRect.offsetMax = Vector2.zero;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countRect.pivot != countPivot)
+        {
+            countRect.pivot = countPivot;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countRect.sizeDelta != countSize)
+        {
+            countRect.sizeDelta = countSize;
+            changed = true;
+        }
+
+        Text countText = GetOrAddComponent<Text>(countRect.gameObject);
+        Font uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (uiFont == null)
+        {
+            uiFont = Font.CreateDynamicFontFromOSFont("Arial", 16);
+        }
+        if (countRectWasCreated && countText.font != uiFont)
+        {
+            countText.font = uiFont;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countText.fontSize != 18)
+        {
+            countText.fontSize = 18;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countText.alignment != TextAnchor.MiddleCenter)
+        {
+            countText.alignment = TextAnchor.MiddleCenter;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countText.fontStyle != FontStyle.Bold)
+        {
+            countText.fontStyle = FontStyle.Bold;
+            changed = true;
+        }
+
+        Color countColor = new Color(1f, 0.95f, 0.3f, 1f);
+        if (countRectWasCreated && countText.color != countColor)
+        {
+            countText.color = countColor;
+            changed = true;
+        }
+
+        if (countText.raycastTarget)
+        {
+            countText.raycastTarget = false;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countText.supportRichText)
+        {
+            countText.supportRichText = false;
+            changed = true;
+        }
+
+        if (countRectWasCreated && countText.resizeTextForBestFit)
+        {
+            countText.resizeTextForBestFit = false;
+            changed = true;
+        }
+
+        countText.transform.SetAsLastSibling();
+
+        if (countText.text != "5/5")
+        {
+            countText.text = "5/5";
+            changed = true;
+        }
+
+        Player player = Object.FindObjectOfType<Player>();
+        UI_PlayerHealingPotion potionComponent = GetOrAddComponent<UI_PlayerHealingPotion>(potionObject);
+        SerializedObject potionSo = new SerializedObject(potionComponent);
+        SerializedProperty potionPlayerProperty = potionSo.FindProperty("player");
+        SerializedProperty potionPlayerHealthProperty = potionSo.FindProperty("playerHealth");
+        SerializedProperty potionImageProperty = potionSo.FindProperty("potionImage");
+        SerializedProperty potionCooldownProperty = potionSo.FindProperty("cooldownImage");
+        SerializedProperty potionCountProperty = potionSo.FindProperty("countText");
+        SerializedProperty potionCountOffsetProperty = potionSo.FindProperty("countTextOffset");
+
+        if (potionPlayerProperty != null && potionPlayerProperty.objectReferenceValue != player)
+        {
+            potionPlayerProperty.objectReferenceValue = player;
+            changed = true;
+        }
+
+        if (player != null)
+        {
+            Entity_Health playerHealth = player.GetComponent<Entity_Health>();
+            if (potionPlayerHealthProperty != null && potionPlayerHealthProperty.objectReferenceValue != playerHealth)
+            {
+                potionPlayerHealthProperty.objectReferenceValue = playerHealth;
+                changed = true;
+            }
+        }
+
+        if (potionImageProperty != null && potionImageProperty.objectReferenceValue != potionImage)
+        {
+            potionImageProperty.objectReferenceValue = potionImage;
+            changed = true;
+        }
+
+        if (potionCooldownProperty != null && potionCooldownProperty.objectReferenceValue != cooldownImage)
+        {
+            potionCooldownProperty.objectReferenceValue = cooldownImage;
+            changed = true;
+        }
+
+        if (potionCountProperty != null && potionCountProperty.objectReferenceValue != countText)
+        {
+            potionCountProperty.objectReferenceValue = countText;
+            changed = true;
+        }
+
+        if (potionCountOffsetProperty != null && potionCountOffsetProperty.vector2Value != countRect.anchoredPosition)
+        {
+            potionCountOffsetProperty.vector2Value = countRect.anchoredPosition;
+            changed = true;
+        }
+
+        potionSo.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(potionObject);
+        EditorUtility.SetDirty(potionComponent);
+
+        potionComponent.Configure(potionImage, cooldownImage, countText);
+
+        if (player != null)
+        {
+            SerializedObject playerSo = new SerializedObject(player);
+            SerializedProperty spriteProperty = playerSo.FindProperty("healingPotionWorldIconSprite");
+            if (spriteProperty != null && potionSprite != null && spriteProperty.objectReferenceValue != potionSprite)
+            {
+                spriteProperty.objectReferenceValue = potionSprite;
+                playerSo.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(player);
+                changed = true;
+            }
+        }
+
+        if (player != null)
+        {
+            changed |= EnsureHealingPotionWorldIcon(player, potionSprite);
+        }
+
+        Selection.activeGameObject = potionObject;
+        EditorUtility.SetDirty(skillBarTransform.gameObject);
+        return changed;
+    }
+
+    private static Transform FindSkillBarTransform()
+    {
+        GameObject skillBar = GameObject.Find(SkillBarName);
+        if (skillBar != null)
+        {
+            return skillBar.transform;
+        }
+
+        GameObject playerHud = GameObject.Find(PlayerHudName);
+        if (playerHud != null)
+        {
+            Transform child = playerHud.transform.Find(SkillBarName);
+            if (child != null)
+            {
+                return child;
+            }
+        }
+
+        GameObject rootCanvas = GameObject.Find("Canvas");
+        if (rootCanvas != null)
+        {
+            Transform child = rootCanvas.transform.Find(SkillBarName);
+            if (child != null)
+            {
+                return child;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool EnsureSkillBarLayout(RectTransform skillBarRect)
+    {
+        if (skillBarRect == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        Vector2 anchor = new Vector2(0.5f, 0f);
+        Vector2 pivot = new Vector2(0.5f, 0f);
+        Vector2 targetPosition = new Vector2(529f, 155.6f);
+
+        if (skillBarRect.anchorMin != anchor)
+        {
+            skillBarRect.anchorMin = anchor;
+            changed = true;
+        }
+
+        if (skillBarRect.anchorMax != anchor)
+        {
+            skillBarRect.anchorMax = anchor;
+            changed = true;
+        }
+
+        if (skillBarRect.pivot != pivot)
+        {
+            skillBarRect.pivot = pivot;
+            changed = true;
+        }
+
+        if (skillBarRect.anchoredPosition != targetPosition)
+        {
+            skillBarRect.anchoredPosition = targetPosition;
+            changed = true;
+        }
+
+        if (skillBarRect.localScale != Vector3.one)
+        {
+            skillBarRect.localScale = Vector3.one;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool EnsureHealingPotionWorldIcon()
+    {
+        Player player = Object.FindObjectOfType<Player>();
+        Sprite potionSprite = LoadSprite(HealingPotionIconAssetPath, HealingPotionIconSpriteName);
+        return player != null && EnsureHealingPotionWorldIcon(player, potionSprite);
+    }
+
+    private static bool EnsureHealingPotionWorldIcon(Player player, Sprite potionSprite)
+    {
+        if (player == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        Transform iconTransform = player.transform.Find("HealingPotionWorldIcon");
+        GameObject iconObject = iconTransform != null ? iconTransform.gameObject : null;
+        if (iconObject == null)
+        {
+            iconObject = CreateGameObject(
+                "HealingPotionWorldIcon",
+                player.gameObject.layer,
+                typeof(SpriteRenderer),
+                typeof(PlayerHealingPotionWorldIcon)
+            );
+            iconObject.transform.SetParent(player.transform, false);
+            iconObject.transform.localPosition = new Vector3(0f, 1.85f, 0f);
+            changed = true;
+        }
+
+        iconObject.SetActive(true);
+
+        SpriteRenderer spriteRenderer = GetOrAddComponent<SpriteRenderer>(iconObject);
+        if (potionSprite != null && spriteRenderer.sprite != potionSprite)
+        {
+            spriteRenderer.sprite = potionSprite;
+            changed = true;
+        }
+
+        if (!string.Equals(spriteRenderer.sortingLayerName, "Player", System.StringComparison.Ordinal))
+        {
+            spriteRenderer.sortingLayerName = "Player";
+            changed = true;
+        }
+
+        if (spriteRenderer.sortingOrder != 250)
+        {
+            spriteRenderer.sortingOrder = 250;
+            changed = true;
+        }
+
+        PlayerHealingPotionWorldIcon iconComponent = GetOrAddComponent<PlayerHealingPotionWorldIcon>(iconObject);
+        SerializedObject iconSo = new SerializedObject(iconComponent);
+        SerializedProperty playerProperty = iconSo.FindProperty("player");
+        SerializedProperty rendererProperty = iconSo.FindProperty("spriteRenderer");
+        if (playerProperty != null && playerProperty.objectReferenceValue != player)
+        {
+            playerProperty.objectReferenceValue = player;
+            changed = true;
+        }
+
+        if (rendererProperty != null && rendererProperty.objectReferenceValue != spriteRenderer)
+        {
+            rendererProperty.objectReferenceValue = spriteRenderer;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            iconSo.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(iconObject);
+            EditorUtility.SetDirty(iconComponent);
+            EditorUtility.SetDirty(player);
+        }
+
+        return changed;
     }
 
     private static bool EnsureEnemyOnHitVFXTemplates()

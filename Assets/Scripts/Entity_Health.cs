@@ -6,6 +6,7 @@ using UnityEngine.UI;
 public class Entity_Health : MonoBehaviour, IDamagable
 {
     public event Action<Entity_Health> OnHealthChanged;
+    public event Action<Entity_Health, int, Component> OnDamaged;
     public event Action<Entity_Health> OnDied;
 
     [Header("Health")]
@@ -93,6 +94,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
         currentHealth = Mathf.Max(0, currentHealth - damage);
         ApplyKnockback(knockbackVelocity);
         OnDamageTaken(damage, damageSource as Entity_Combat);
+        OnDamaged?.Invoke(this, damage, damageSource);
         UpdateHealthBar();
 
         if (currentHealth <= 0)

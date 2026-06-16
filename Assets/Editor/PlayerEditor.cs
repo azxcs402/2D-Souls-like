@@ -145,6 +145,17 @@ public class PlayerEditor : Editor
             new SearchableField("currentStamina", "Current Stamina", "current stamina", true)
         ),
         new SearchableSection(
+            "Healing Potion Info",
+            "Healing potion count, heal amount, use duration, and move speed penalty.",
+            new SearchableField("maxHealingPotionCount", "Max Healing Potion Count", "healing potion count"),
+            new SearchableField("currentHealingPotionCount", "Current Healing Potion Count", "healing potion count"),
+            new SearchableField("healingPotionHealAmount", "Healing Potion Heal Amount", "healing potion heal"),
+            new SearchableField("healingPotionUseDuration", "Healing Potion Use Duration", "healing potion duration use time"),
+            new SearchableField("healingPotionMoveSpeedMultiplier", "Healing Potion Move Speed Multiplier", "healing potion speed"),
+            new SearchableField("healingPotionWorldIconSprite", "Healing Potion World Icon Sprite", "healing potion icon"),
+            new SearchableField("healingPotionWorldIconOffset", "Healing Potion World Icon Offset", "healing potion icon offset")
+        ),
+        new SearchableSection(
             "Death Info",
             "Death collider and how the body settles on the ground.",
             new SearchableField("deathGroundVisualDownOffset", "Death Ground Visual Down Offset", "death visual"),
@@ -168,9 +179,9 @@ public class PlayerEditor : Editor
             ref showOnlyMatches,
             SearchPrefsKey,
             "Player Inspector Search",
-            new[] { "Move", "Jump", "Dash", "Basic Attack", "Air Attack", "Fall Attack", "Stamina", "Death" }
+            new[] { "Move", "Jump", "Dash", "Basic Attack", "Air Attack", "Fall Attack", "Stamina", "Healing Potion", "Death" }
         );
-        SearchableInspectorDrawer.DrawQuickFindButtons(SetSearch, "move", "jump", "dash", "basic attack", "air attack", "fall attack", "stamina", "death");
+        SearchableInspectorDrawer.DrawQuickFindButtons(SetSearch, "move", "jump", "dash", "basic attack", "air attack", "fall attack", "stamina", "healing potion", "death");
 
         EditorGUILayout.Space();
         SearchableInspectorDrawer.DrawSections(serializedObject, Sections, searchQuery, showOnlyMatches);

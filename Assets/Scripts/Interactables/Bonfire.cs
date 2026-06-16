@@ -88,6 +88,12 @@ public class Bonfire : MonoBehaviour, ISaveable
         promptFontSize = Mathf.Max(1, promptFontSize);
         ignitePulseScale = Mathf.Max(1f, ignitePulseScale);
         ignitePulseDuration = Mathf.Max(0.01f, ignitePulseDuration);
+
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
         EnsurePromptVisual();
         TryLoadDefaultFrames();
         ApplyLitVisuals();
@@ -551,7 +557,7 @@ public class Bonfire : MonoBehaviour, ISaveable
             return font;
         }
 
-        return Resources.GetBuiltinResource<Font>("Arial.ttf");
+        return Font.CreateDynamicFontFromOSFont("Arial", 16);
     }
 
     private void OnDisable()

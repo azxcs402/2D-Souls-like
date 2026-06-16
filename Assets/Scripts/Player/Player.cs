@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
@@ -181,6 +182,15 @@ public class Player : Entity
     [SerializeField, Min(0f)] private float attackStaminaRecoveryDelay = .45f;
     [SerializeField, ReadOnlyField] private float currentStamina;
 
+    [Header("Healing Potion Info")]
+    [SerializeField, Min(0)] private int maxHealingPotionCount = 5;
+    [SerializeField, Min(0)] private int currentHealingPotionCount = 5;
+    [SerializeField, Min(0f)] private float healingPotionHealAmount = 35f;
+    [SerializeField, Min(0.01f)] private float healingPotionUseDuration = 2.5f;
+    [SerializeField, Range(.1f, 1f)] private float healingPotionMoveSpeedMultiplier = .45f;
+    [SerializeField] private Sprite healingPotionWorldIconSprite;
+    [SerializeField] private Vector3 healingPotionWorldIconOffset = new Vector3(0f, 1.85f, 0f);
+
     [Header("Death Info")]
     [SerializeField, Min(0f)] private float deathGroundVisualDownOffset = .08f;
     [SerializeField, Min(0f)] private float deathGroundVisualBottomPadding = .02f;
@@ -225,13 +235,18 @@ public class Player : Entity
     private Entity_Health health;
     private Entity_Combat combat;
     private float staminaRecoveryTimer;
+    private float healingPotionUseTimer;
+    private bool healingPotionInUse;
     private Vector3 lastGroundedSafePosition;
     private bool hasLastGroundedSafePosition;
     private bool hazardRecoveryActive;
     private Vector3 pendingHazardRecoveryPosition;
     private bool hasPendingHazardRecoveryPosition;
+    private GameObject healingPotionWorldIconObject;
+    private PlayerHealingPotionWorldIcon healingPotionWorldIcon;
 
     public event Action<Player> OnStaminaChanged;
+    public event Action<Player> OnHealingPotionChanged;
 
     // Input
     public PlayerInputSet input { get; private set; }
@@ -258,8 +273,9 @@ public class Player : Entity
     public Vector2 moveInput { get; private set; }
     private bool wasDownInputHeldLastFrame;
     private bool downInputPressedThisFrame;
-    public float MoveSpeed => moveSpeed;
-    public float AirMoveSpeed => moveSpeed * airMoveSpeedMultiplier;
+    private bool healingPotionPressedThisFrame;
+    public float MoveSpeed => moveSpeed * HealingPotionMoveSpeedMultiplier;
+    public float AirMoveSpeed => moveSpeed * airMoveSpeedMultiplier * HealingPotionMoveSpeedMultiplier;
     public float JumpHeadClearanceHeight => jumpHeadClearanceHeight;
     public float JumpHeadClearanceWidthMultiplier => jumpHeadClearanceWidthMultiplier;
     public float JumpHeadClearanceBottomOffset => jumpHeadClearanceBottomOffset;
@@ -325,6 +341,38 @@ public class Player : Entity
     public float CounterAttackTargetCheckRadiusMultiplier => counterAttackTargetCheckRadiusMultiplier;
     public string CounterAttackAnimationState => counterAttackAnimationState;
     public string CounterAttackPerformedAnimationState => counterAttackPerformedAnimationState;
+    public int MaxHealingPotionCount => maxHealingPotionCount;
+    public int CurrentHealingPotionCount => currentHealingPotionCount;
+    public float HealingPotionHealAmount => healingPotionHealAmount;
+    public float HealingPotionUseDuration => healingPotionUseDuration;
+    public float HealingPotionUseRemaining => Mathf.Max(0f, healingPotionUseTimer);
+    public float HealingPotionUseNormalized => healingPotionUseDuration <= 0f ? 0f : Mathf.Clamp01(healingPotionUseTimer / healingPotionUseDuration);
+    public float HealingPotionMoveSpeedMultiplier => healingPotionInUse ? healingPotionMoveSpeedMultiplier : 1f;
+    public bool IsHealingPotionInUse => healingPotionInUse;
+    public bool CanUseHealingPotion => currentHealingPotionCount > 0
+        && !healingPotionInUse
+        && !IsDead
+        && !hazardRecoveryActive;
+    public Sprite HealingPotionWorldIconSprite => healingPotionWorldIconSprite;
+    public Vector3 HealingPotionWorldIconOffset => healingPotionWorldIconOffset;
+    public void SetHealingPotionWorldIconSprite(Sprite sprite)
+    {
+        if (sprite == null)
+        {
+            return;
+        }
+
+        if (healingPotionWorldIconSprite == sprite)
+        {
+            return;
+        }
+
+        healingPotionWorldIconSprite = sprite;
+        if (healingPotionWorldIcon != null)
+        {
+            healingPotionWorldIcon.SetSprite(sprite);
+        }
+    }
     public float MaxStamina => maxStamina;
     public float CurrentStamina => currentStamina;
     public int CurrentStaminaRounded => Mathf.RoundToInt(currentStamina);
@@ -363,6 +411,9 @@ public class Player : Entity
         defaultBodyConstraints = rb != null ? rb.constraints : RigidbodyConstraints2D.FreezeRotation;
         defaultGravityScale = rb != null ? rb.gravityScale : 1f;
         currentStamina = maxStamina;
+        currentHealingPotionCount = Mathf.Clamp(currentHealingPotionCount, 0, Mathf.Max(0, maxHealingPotionCount));
+        healingPotionUseTimer = 0f;
+        healingPotionInUse = false;
         combat = GetComponent<Entity_Combat>();
         combat?.SetDamage(GetBasicAttackDamage(0));
 
@@ -393,17 +444,32 @@ public class Player : Entity
     private void OnEnable()
     {
         input?.Enable();
+        if (input != null)
+        {
+            input.Player.UsePotion.started += HandleUsePotionPerformed;
+            input.Player.UsePotion.performed += HandleUsePotionPerformed;
+        }
     }
 
     private void OnDisable()
     {
         EndDashEnemyCollisionIgnore();
+        if (input != null)
+        {
+            input.Player.UsePotion.started -= HandleUsePotionPerformed;
+            input.Player.UsePotion.performed -= HandleUsePotionPerformed;
+        }
         input?.Disable();
     }
 
     private void Start()
     {
         health = GetComponent<Entity_Health>();
+        if (health != null)
+        {
+            health.OnDamaged += HandleHealthDamaged;
+        }
+
         RestoreStaminaToFull();
         combat?.SetDamage(GetBasicAttackDamage(0));
 
@@ -418,6 +484,22 @@ public class Player : Entity
         }
 
         UpdateLastGroundedSafePosition();
+        EnsureHealingPotionWorldIcon();
+    }
+
+    private void OnDestroy()
+    {
+        if (health != null)
+        {
+            health.OnDamaged -= HandleHealthDamaged;
+        }
+
+        if (healingPotionWorldIconObject != null)
+        {
+            Destroy(healingPotionWorldIconObject);
+            healingPotionWorldIconObject = null;
+            healingPotionWorldIcon = null;
+        }
     }
 
     private void Update()
@@ -442,6 +524,11 @@ public class Player : Entity
 
         moveInput = input.Player.Movement.ReadValue<Vector2>();
         UpdateDownInputPressedThisFrame();
+        if (HealingPotionInputPressed())
+        {
+            TryUseHealingPotion();
+        }
+        UpdateHealingPotionUseState();
         UpdateDashCooldownTimer();
         UpdateWallJumpAirAttackWindowTimer();
         UpdateBasicAttackLoopCooldownTimer();
@@ -631,6 +718,20 @@ public class Player : Entity
     public bool CounterInputPressed()
     {
         return Keyboard.current != null && Keyboard.current.qKey.wasPressedThisFrame;
+    }
+
+    public bool HealingPotionInputPressed()
+    {
+        bool pressed = healingPotionPressedThisFrame
+            || (input != null && (input.Player.UsePotion.triggered || input.Player.UsePotion.WasPressedThisFrame()));
+
+        if (!pressed)
+        {
+            return false;
+        }
+
+        healingPotionPressedThisFrame = false;
+        return true;
     }
 
     public bool DownInputHeld()
@@ -1351,6 +1452,15 @@ public class Player : Entity
         health?.Revive();
     }
 
+    public void RestoreHealingPotionsToFull()
+    {
+        int clampedMax = Mathf.Max(0, maxHealingPotionCount);
+        currentHealingPotionCount = clampedMax;
+        healingPotionUseTimer = 0f;
+        healingPotionInUse = false;
+        NotifyHealingPotionChanged();
+    }
+
     public void ResetForBonfire()
     {
         EndHazardRecovery();
@@ -1377,12 +1487,22 @@ public class Player : Entity
         ClearAirAttackComboAfterDash();
         EndDashEnemyCollisionIgnore();
         RestoreStaminaToFull();
+        RestoreHealingPotionsToFull();
     }
 
     public bool IsInWallContactState()
     {
         return stateMachine?.CurrentState == wallSlideState
             || stateMachine?.CurrentState == wallHoldState;
+    }
+
+    private bool IsInCombatActionState()
+    {
+        return stateMachine?.CurrentState == basicAttackState
+            || stateMachine?.CurrentState == airAttackState
+            || stateMachine?.CurrentState == fallAttackState
+            || stateMachine?.CurrentState == dashState
+            || stateMachine?.CurrentState == counterAttackState;
     }
 
     public bool TryGetLastGroundedSafePosition(out Vector3 safePosition)
@@ -1400,6 +1520,7 @@ public class Player : Entity
     public void BeginHazardRecovery()
     {
         hazardRecoveryActive = true;
+        CancelHealingPotion();
 
         if (rb != null)
         {
@@ -1483,6 +1604,186 @@ public class Player : Entity
                 stateMachine.ChangeState(fallState);
             }
         }
+    }
+
+    public bool TryUseHealingPotion()
+    {
+        if (!CanUseHealingPotion)
+        {
+            return false;
+        }
+
+        healingPotionInUse = true;
+        healingPotionUseTimer = Mathf.Max(.01f, healingPotionUseDuration);
+        NotifyHealingPotionChanged();
+        EnsureHealingPotionWorldIcon();
+        if (healingPotionWorldIcon != null)
+        {
+            healingPotionWorldIcon.SetVisible(true);
+        }
+        return true;
+    }
+
+    public void CancelHealingPotion()
+    {
+        if (!healingPotionInUse && healingPotionUseTimer <= 0f)
+        {
+            return;
+        }
+
+        healingPotionInUse = false;
+        healingPotionUseTimer = 0f;
+        NotifyHealingPotionChanged();
+
+        if (healingPotionWorldIcon != null)
+        {
+            healingPotionWorldIcon.SetVisible(false);
+        }
+    }
+
+    private void CompleteHealingPotion()
+    {
+        if (!healingPotionInUse)
+        {
+            return;
+        }
+
+        healingPotionInUse = false;
+        healingPotionUseTimer = 0f;
+        currentHealingPotionCount = Mathf.Clamp(currentHealingPotionCount - 1, 0, Mathf.Max(0, maxHealingPotionCount));
+
+        Entity_Health playerHealth = health ?? GetComponent<Entity_Health>();
+        health = playerHealth;
+        if (playerHealth != null)
+        {
+            playerHealth.Heal(Mathf.RoundToInt(healingPotionHealAmount));
+        }
+
+        if (healingPotionWorldIcon != null)
+        {
+            healingPotionWorldIcon.SetVisible(false);
+        }
+
+        NotifyHealingPotionChanged();
+    }
+
+    private void UpdateHealingPotionUseState()
+    {
+        if (!healingPotionInUse)
+        {
+            if (healingPotionWorldIcon != null)
+            {
+                healingPotionWorldIcon.SetVisible(false);
+            }
+
+            return;
+        }
+
+        if (ShouldInterruptHealingPotion())
+        {
+            CancelHealingPotion();
+            return;
+        }
+
+        healingPotionUseTimer -= Time.deltaTime;
+        if (healingPotionUseTimer <= 0f)
+        {
+            CompleteHealingPotion();
+            return;
+        }
+
+        if (healingPotionWorldIcon != null)
+        {
+            healingPotionWorldIcon.SetVisible(true);
+        }
+    }
+
+    private bool ShouldInterruptHealingPotion()
+    {
+        return AttackInputPressed()
+            || AttackInputHeld()
+            || JumpInputPressed()
+            || DashInputPressed()
+            || CounterInputPressed();
+    }
+
+    private void HandleHealthDamaged(Entity_Health damagedHealth, int damage, Component damageSource)
+    {
+        if (damagedHealth != health || !healingPotionInUse)
+        {
+            return;
+        }
+
+        CancelHealingPotion();
+    }
+
+    private void HandleUsePotionPerformed(InputAction.CallbackContext context)
+    {
+        if (context.phase != InputActionPhase.Started && context.phase != InputActionPhase.Performed)
+        {
+            return;
+        }
+
+        healingPotionPressedThisFrame = true;
+        TryUseHealingPotion();
+    }
+
+    private void NotifyHealingPotionChanged()
+    {
+        OnHealingPotionChanged?.Invoke(this);
+    }
+
+    private void EnsureHealingPotionWorldIcon()
+    {
+        if (healingPotionWorldIconObject != null)
+        {
+            return;
+        }
+
+        Transform existingIcon = transform.Find("HealingPotionWorldIcon");
+        if (existingIcon != null)
+        {
+            healingPotionWorldIconObject = existingIcon.gameObject;
+            healingPotionWorldIcon = healingPotionWorldIconObject.GetComponent<PlayerHealingPotionWorldIcon>();
+            if (healingPotionWorldIcon == null)
+            {
+                healingPotionWorldIcon = healingPotionWorldIconObject.AddComponent<PlayerHealingPotionWorldIcon>();
+            }
+
+            SpriteRenderer existingRenderer = healingPotionWorldIconObject.GetComponent<SpriteRenderer>();
+            if (existingRenderer == null)
+            {
+                existingRenderer = healingPotionWorldIconObject.AddComponent<SpriteRenderer>();
+            }
+
+            if (healingPotionWorldIconSprite != null)
+            {
+                existingRenderer.sprite = healingPotionWorldIconSprite;
+            }
+
+            healingPotionWorldIcon.Configure(this, existingRenderer);
+            healingPotionWorldIconObject.SetActive(true);
+            healingPotionWorldIcon.SetVisible(false);
+            return;
+        }
+
+        if (healingPotionWorldIconSprite == null)
+        {
+            return;
+        }
+
+        healingPotionWorldIconObject = new GameObject("HealingPotionWorldIcon");
+        healingPotionWorldIconObject.transform.SetParent(transform, false);
+        healingPotionWorldIcon = healingPotionWorldIconObject.AddComponent<PlayerHealingPotionWorldIcon>();
+        SpriteRenderer spriteRenderer = healingPotionWorldIconObject.AddComponent<SpriteRenderer>();
+        spriteRenderer.sprite = healingPotionWorldIconSprite;
+        spriteRenderer.sortingLayerName = "Player";
+        spriteRenderer.sortingOrder = 250;
+        healingPotionWorldIconObject.transform.localPosition = healingPotionWorldIconOffset;
+
+        healingPotionWorldIcon.Configure(this, spriteRenderer);
+        healingPotionWorldIconObject.SetActive(true);
+        healingPotionWorldIcon.SetVisible(false);
     }
 
     private void UpdateLastGroundedSafePosition()
@@ -1645,6 +1946,7 @@ public class Player : Entity
             return;
         }
 
+        CancelHealingPotion();
         SetDeadPlayerBodyLayer();
 
         if (stateMachine.CurrentState == deadState)
@@ -1966,6 +2268,11 @@ public class Player : Entity
         wallHoldStaminaDrainPerSecond = Mathf.Max(0f, wallHoldStaminaDrainPerSecond);
         wallSlideStaminaDrainPerSecond = Mathf.Max(0f, wallSlideStaminaDrainPerSecond);
         wallContactStaminaRecoveryDelay = Mathf.Max(0f, wallContactStaminaRecoveryDelay);
+        maxHealingPotionCount = Mathf.Max(0, maxHealingPotionCount);
+        currentHealingPotionCount = Mathf.Clamp(currentHealingPotionCount, 0, maxHealingPotionCount);
+        healingPotionHealAmount = Mathf.Max(0f, healingPotionHealAmount);
+        healingPotionUseDuration = Mathf.Max(0.01f, healingPotionUseDuration);
+        healingPotionMoveSpeedMultiplier = Mathf.Clamp(healingPotionMoveSpeedMultiplier, .1f, 1f);
         attackStaminaRecoveryDelay = Mathf.Max(0f, attackStaminaRecoveryDelay);
         deathGroundVisualDownOffset = Mathf.Max(0f, deathGroundVisualDownOffset);
         deathGroundVisualBottomPadding = Mathf.Max(0f, deathGroundVisualBottomPadding);
@@ -2411,5 +2718,346 @@ public class Player : Entity
         }
 
         return fallbackDirection >= 0 ? 1 : -1;
+    }
+}
+
+[DisallowMultipleComponent]
+public class UI_PlayerHealingPotion : MonoBehaviour
+{
+    [SerializeField] private Player player;
+    [SerializeField] private Entity_Health playerHealth;
+    [SerializeField] private Image potionImage;
+    [SerializeField] private Image cooldownImage;
+    [SerializeField] private Text countText;
+    [SerializeField] private Vector2 countTextOffset = new Vector2(0f, -10f);
+
+    public void Configure(Image iconImage, Image cooldown, Text amountText)
+    {
+        potionImage = iconImage;
+        cooldownImage = cooldown;
+        countText = amountText;
+        EnsureVisualSetup();
+        BindToPlayer();
+        Refresh();
+    }
+
+    private void Awake()
+    {
+        if (potionImage == null)
+        {
+            potionImage = GetComponent<Image>();
+        }
+
+        if (cooldownImage == null)
+        {
+            Transform cooldownTransform = transform.Find("CooldownImage");
+            cooldownImage = cooldownTransform != null ? cooldownTransform.GetComponent<Image>() : null;
+        }
+
+        if (countText == null)
+        {
+            Transform countTransform = transform.Find("CountText");
+            countText = countTransform != null ? countTransform.GetComponent<Text>() : null;
+        }
+
+        EnsureVisualSetup();
+    }
+
+    private void OnValidate()
+    {
+        if (countText != null)
+        {
+            countTextOffset = countText.rectTransform.anchoredPosition;
+        }
+    }
+
+    private void OnEnable()
+    {
+        EnsureVisualSetup();
+        BindToPlayer();
+        Refresh();
+    }
+
+    private void OnDisable()
+    {
+        if (player != null)
+        {
+            player.OnHealingPotionChanged -= HandleHealingPotionChanged;
+        }
+
+        if (playerHealth != null)
+        {
+            playerHealth.OnHealthChanged -= HandleHealthChanged;
+        }
+    }
+
+    private void LateUpdate()
+    {
+        Refresh();
+    }
+
+    private void EnsureVisualSetup()
+    {
+        if (potionImage == null)
+        {
+            potionImage = GetComponent<Image>();
+        }
+
+        if (potionImage != null)
+        {
+            potionImage.enabled = true;
+        }
+
+        if (cooldownImage == null)
+        {
+            Transform cooldownTransform = transform.Find("CooldownImage");
+            cooldownImage = cooldownTransform != null ? cooldownTransform.GetComponent<Image>() : null;
+        }
+
+        if (cooldownImage != null)
+        {
+            cooldownImage.type = Image.Type.Filled;
+            cooldownImage.fillMethod = Image.FillMethod.Radial360;
+            cooldownImage.fillClockwise = false;
+            cooldownImage.fillOrigin = 2;
+            cooldownImage.raycastTarget = false;
+            cooldownImage.color = new Color(0f, 0f, 0f, 0.627451f);
+            if (cooldownImage.sprite == null && potionImage != null)
+            {
+                cooldownImage.sprite = potionImage.sprite;
+            }
+        }
+
+        if (countText == null)
+        {
+            Transform countTransform = transform.Find("CountText");
+            countText = countTransform != null ? countTransform.GetComponent<Text>() : null;
+        }
+
+        if (countText != null)
+        {
+            countText.enabled = true;
+            countText.raycastTarget = false;
+
+            if (countText.canvasRenderer != null)
+            {
+                countText.canvasRenderer.SetAlpha(1f);
+            }
+
+            if (countTextOffset != countText.rectTransform.anchoredPosition)
+            {
+                countTextOffset = countText.rectTransform.anchoredPosition;
+            }
+        }
+    }
+
+    private void BindToPlayer()
+    {
+        if (player == null)
+        {
+            player = FindObjectOfType<Player>();
+        }
+
+        if (player == null)
+        {
+            return;
+        }
+
+        playerHealth ??= player.GetComponent<Entity_Health>();
+
+        if (player != null && potionImage != null && potionImage.sprite != null)
+        {
+            player.SetHealingPotionWorldIconSprite(potionImage.sprite);
+        }
+        else if (player != null && player.HealingPotionWorldIconSprite != null && potionImage != null && potionImage.sprite == null)
+        {
+            potionImage.sprite = player.HealingPotionWorldIconSprite;
+        }
+
+        if (cooldownImage != null && potionImage != null)
+        {
+            cooldownImage.sprite = potionImage.sprite;
+        }
+
+        player.OnHealingPotionChanged -= HandleHealingPotionChanged;
+        player.OnHealingPotionChanged += HandleHealingPotionChanged;
+
+        if (playerHealth != null)
+        {
+            playerHealth.OnHealthChanged -= HandleHealthChanged;
+            playerHealth.OnHealthChanged += HandleHealthChanged;
+        }
+    }
+
+    private void HandleHealingPotionChanged(Player changedPlayer)
+    {
+        if (changedPlayer == player)
+        {
+            Refresh();
+        }
+    }
+
+    private void HandleHealthChanged(Entity_Health changedHealth)
+    {
+        if (changedHealth == playerHealth)
+        {
+            Refresh();
+        }
+    }
+
+    private void Refresh()
+    {
+        EnsureVisualSetup();
+        if (player == null)
+        {
+            BindToPlayer();
+        }
+
+        if (player == null)
+        {
+            potionImage.enabled = false;
+            if (cooldownImage != null)
+            {
+                cooldownImage.enabled = false;
+                cooldownImage.fillAmount = 0f;
+            }
+
+            if (countText != null)
+            {
+                countText.text = "--";
+            }
+
+            return;
+        }
+
+        potionImage.enabled = true;
+        potionImage.color = player.CurrentHealingPotionCount > 0
+            ? Color.white
+            : new Color(1f, 1f, 1f, .35f);
+        if (potionImage.sprite == null && player.HealingPotionWorldIconSprite != null)
+        {
+            potionImage.sprite = player.HealingPotionWorldIconSprite;
+        }
+
+        if (cooldownImage != null)
+        {
+            if (cooldownImage.sprite == null && potionImage != null)
+            {
+                cooldownImage.sprite = potionImage.sprite;
+            }
+
+            float fillAmount = player.IsHealingPotionInUse
+                ? Mathf.Clamp01(player.HealingPotionUseRemaining / Mathf.Max(.01f, player.HealingPotionUseDuration))
+                : 0f;
+
+            cooldownImage.fillAmount = fillAmount;
+            cooldownImage.enabled = fillAmount > 0f;
+        }
+
+        if (countText != null)
+        {
+            countText.text = $"{player.CurrentHealingPotionCount}/{player.MaxHealingPotionCount}";
+        }
+    }
+}
+
+[DisallowMultipleComponent]
+public class PlayerHealingPotionWorldIcon : MonoBehaviour
+{
+    [SerializeField] private Player player;
+    [SerializeField] private SpriteRenderer spriteRenderer;
+
+    public void Configure(Player targetPlayer, SpriteRenderer renderer)
+    {
+        player = targetPlayer;
+        spriteRenderer = renderer;
+        RefreshSprite();
+    }
+
+    public void SetVisible(bool visible)
+    {
+        if (spriteRenderer == null)
+        {
+            return;
+        }
+
+        if (visible)
+        {
+            gameObject.SetActive(true);
+        }
+
+        spriteRenderer.enabled = visible;
+    }
+
+    public void SetSprite(Sprite sprite)
+    {
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.sprite = sprite;
+        }
+    }
+
+    private void Awake()
+    {
+        if (spriteRenderer == null)
+        {
+            spriteRenderer = GetComponent<SpriteRenderer>();
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (player == null)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        if (spriteRenderer == null)
+        {
+            spriteRenderer = GetComponent<SpriteRenderer>();
+        }
+
+        if (spriteRenderer == null)
+        {
+            return;
+        }
+
+        RefreshSprite();
+
+        bool visible = player.IsHealingPotionInUse;
+        spriteRenderer.enabled = visible;
+        if (!visible)
+        {
+            return;
+        }
+
+        if (player.TryGetActiveColliderBounds(out Bounds bounds))
+        {
+            transform.position = new Vector3(
+                bounds.center.x,
+                bounds.max.y,
+                bounds.center.z
+            ) + player.HealingPotionWorldIconOffset;
+        }
+        else
+        {
+            transform.position = player.transform.position + player.HealingPotionWorldIconOffset;
+        }
+
+        transform.rotation = Quaternion.identity;
+    }
+
+    private void RefreshSprite()
+    {
+        if (spriteRenderer == null || player == null)
+        {
+            return;
+        }
+
+        if (spriteRenderer.sprite != player.HealingPotionWorldIconSprite)
+        {
+            spriteRenderer.sprite = player.HealingPotionWorldIconSprite;
+        }
     }
 }

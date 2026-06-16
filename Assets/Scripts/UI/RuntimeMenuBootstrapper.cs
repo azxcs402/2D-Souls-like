@@ -221,7 +221,11 @@ public class RuntimeMenuBootstrapper : MonoBehaviour
         go.transform.SetParent(parent, false);
         Text uiText = go.GetComponent<Text>();
         uiText.text = text;
-        uiText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        uiText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (uiText.font == null)
+        {
+            uiText.font = Font.CreateDynamicFontFromOSFont("Arial", 16);
+        }
         uiText.fontSize = fontSize;
         uiText.fontStyle = style;
         uiText.alignment = alignment;
