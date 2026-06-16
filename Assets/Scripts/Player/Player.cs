@@ -16,6 +16,7 @@ public class Player : Entity
     private static readonly int BasicAttackIndexAnimHash = Animator.StringToHash("basicAttackIndex");
     private static readonly int AirAttackIndexAnimHash = Animator.StringToHash("basicAttack_air_Index");
     private static readonly int FallAttackAnimHash = Animator.StringToHash("fallAttack");
+    private static readonly int FallAttackFinishRequestedAnimHash = Animator.StringToHash("fallAttackFinishRequested");
     private static readonly int FallAttackTriggerAnimHash = Animator.StringToHash("fallAttackTrigger");
     private static readonly int CounterAttackAnimHash = Animator.StringToHash("counterAttack");
     private static readonly int CounterAttackPerformedAnimHash = Animator.StringToHash("counterAttackPerformed");
@@ -27,6 +28,9 @@ public class Player : Entity
 
     [Header("Jump Info")]
     [SerializeField] private float jumpForce = 12f;
+    [SerializeField, Min(.01f)] private float jumpHeadClearanceHeight = 2f;
+    [SerializeField, Range(.1f, 1f)] private float jumpHeadClearanceWidthMultiplier = .9f;
+    [SerializeField, Min(0f)] private float jumpHeadClearanceBottomOffset = .02f;
 
     [Header("Wall Slide Info")]
     [SerializeField] private float wallSlideSpeed = 2f;
@@ -128,7 +132,8 @@ public class Player : Entity
 
     [Header("Fall Attack Info")]
     [SerializeField] private string fallAttackStartAnimationName = "playerFallAttack";
-    [SerializeField] private string fallAttackEndAnimationName = "playerFallAttack_performed";
+    [SerializeField] private string fallAttackPerformed1AnimationName = "playerFallAttack_performed1";
+    [SerializeField] private string fallAttackPerformed2AnimationName = "playerFallAttack_performed2";
     [SerializeField] private float fallAttackAnimationSpeed = 1f;
     [SerializeField] private float fallAttackWindupDuration = .35f;
     [SerializeField] private float fallAttackGravityMultiplier = 1f;
@@ -166,6 +171,7 @@ public class Player : Entity
     [SerializeField, Min(0f)] private float nonCombatDashStaminaRecoveryDelay = 0f;
     [SerializeField, Min(0f)] private float counterAttackStaminaCost = 15f;
     [SerializeField, Min(0f)] private float counterAttackSuccessStaminaCost = 20f;
+    [SerializeField, Min(0f)] private float projectileBlockStaminaCost = 40f;
     [SerializeField, Min(0f)] private float counterAttackStaminaRecoveryDelay = .6f;
     [SerializeField, Min(0f)] private float wallHoldStaminaDrainPerSecond = 14f;
     [SerializeField, Min(0f)] private float wallSlideStaminaDrainPerSecond = 8f;
@@ -185,6 +191,8 @@ public class Player : Entity
     private Vector2 defaultColliderSize;
     private Vector2 defaultColliderOffset;
     private CapsuleDirection2D defaultColliderDirection;
+    private RigidbodyType2D defaultBodyType;
+    private RigidbodyConstraints2D defaultBodyConstraints;
     private float defaultGravityScale;
     private bool applyWallSlideVisualOffset;
     private bool applyDeathGroundVisualOffset;
@@ -217,6 +225,11 @@ public class Player : Entity
     private Entity_Health health;
     private Entity_Combat combat;
     private float staminaRecoveryTimer;
+    private Vector3 lastGroundedSafePosition;
+    private bool hasLastGroundedSafePosition;
+    private bool hazardRecoveryActive;
+    private Vector3 pendingHazardRecoveryPosition;
+    private bool hasPendingHazardRecoveryPosition;
 
     public event Action<Player> OnStaminaChanged;
 
@@ -247,6 +260,9 @@ public class Player : Entity
     private bool downInputPressedThisFrame;
     public float MoveSpeed => moveSpeed;
     public float AirMoveSpeed => moveSpeed * airMoveSpeedMultiplier;
+    public float JumpHeadClearanceHeight => jumpHeadClearanceHeight;
+    public float JumpHeadClearanceWidthMultiplier => jumpHeadClearanceWidthMultiplier;
+    public float JumpHeadClearanceBottomOffset => jumpHeadClearanceBottomOffset;
     public float WallSlideSpeed => wallSlideSpeed;
     public float WallSlideNoInputDropTime => wallSlideNoInputDropTime;
     public bool WallHoldHasDuration => wallHoldHasDuration;
@@ -291,7 +307,8 @@ public class Player : Entity
     public int PendingBasicAttackComboIndex => pendingBasicAttackComboIndex;
     public int PendingAirAttackComboIndex => pendingAirAttackComboIndex;
     public string FallAttackStartAnimationName => fallAttackStartAnimationName;
-    public string FallAttackEndAnimationName => fallAttackEndAnimationName;
+    public string FallAttackPerformed1AnimationName => fallAttackPerformed1AnimationName;
+    public string FallAttackPerformed2AnimationName => fallAttackPerformed2AnimationName;
     public float FallAttackAnimationSpeed => fallAttackAnimationSpeed;
     public float FallAttackWindupDuration => fallAttackWindupDuration;
     public float FallAttackGravityMultiplier => fallAttackGravityMultiplier;
@@ -320,11 +337,13 @@ public class Player : Entity
             || stateMachine?.CurrentState == counterAttackState
             || (combat != null && combat.HasTarget());
     }
+    public bool IsCounterAttacking => stateMachine?.CurrentState == counterAttackState;
     public float DeathGroundVisualDownOffset => deathGroundVisualDownOffset;
     public float DeathGroundVisualBottomPadding => deathGroundVisualBottomPadding;
     public float DefaultGravityScale => defaultGravityScale;
     public CapsuleCollider2D DeathCollider => deathCollider;
     public bool IsDead => health != null && health.IsDead;
+    public bool IsHazardRecoveryActive => hazardRecoveryActive;
 
     protected override void Awake()
     {
@@ -340,6 +359,8 @@ public class Player : Entity
         }
         CacheDeathColliderReference();
         RestoreAliveColliderProfile();
+        defaultBodyType = rb != null ? rb.bodyType : RigidbodyType2D.Dynamic;
+        defaultBodyConstraints = rb != null ? rb.constraints : RigidbodyConstraints2D.FreezeRotation;
         defaultGravityScale = rb != null ? rb.gravityScale : 1f;
         currentStamina = maxStamina;
         combat = GetComponent<Entity_Combat>();
@@ -395,6 +416,8 @@ public class Player : Entity
         {
             stateMachine.Initialize(IsDead && deadState != null ? deadState : idleState);
         }
+
+        UpdateLastGroundedSafePosition();
     }
 
     private void Update()
@@ -407,6 +430,12 @@ public class Player : Entity
         if (IsDead)
         {
             stateMachine.CurrentState?.Update();
+            wasDownInputHeldLastFrame = DownInputHeld();
+            return;
+        }
+
+        if (hazardRecoveryActive)
+        {
             wasDownInputHeldLastFrame = DownInputHeld();
             return;
         }
@@ -437,7 +466,13 @@ public class Player : Entity
             return;
         }
 
+        if (hazardRecoveryActive)
+        {
+            return;
+        }
+
         stateMachine.CurrentState?.FixedUpdate();
+        UpdateLastGroundedSafePosition();
     }
 
     private void LateUpdate()
@@ -518,6 +553,22 @@ public class Player : Entity
     public bool TryConsumeCounterAttackSuccessStamina()
     {
         ConsumeStamina(counterAttackSuccessStaminaCost, counterAttackStaminaRecoveryDelay);
+        return true;
+    }
+
+    public bool TryConsumeProjectileBlockStamina()
+    {
+        if (projectileBlockStaminaCost <= 0f)
+        {
+            return true;
+        }
+
+        if (currentStamina + Mathf.Epsilon < projectileBlockStaminaCost)
+        {
+            return false;
+        }
+
+        ConsumeStamina(projectileBlockStaminaCost, counterAttackStaminaRecoveryDelay);
         return true;
     }
 
@@ -936,6 +987,21 @@ public class Player : Entity
             && !FallAttackGroundDetected();
     }
 
+    public bool CanStartJump()
+    {
+        return GroundDetected()
+            && HasJumpHeadClearance();
+    }
+
+    public bool HasJumpHeadClearance()
+    {
+        Bounds bounds = GetColliderBounds();
+        Vector2 boxSize = GetJumpHeadClearanceBoxSize(bounds);
+        Vector2 boxOrigin = GetJumpHeadClearanceBoxOrigin(bounds, boxSize);
+
+        return Physics2D.OverlapBox(boxOrigin, boxSize, 0f, whatIsGround) == null;
+    }
+
     public bool AirAttackComboGroundDetected()
     {
         return Physics2D.Raycast(
@@ -954,6 +1020,20 @@ public class Player : Entity
             fallAttackGroundCheckDistance,
             whatIsGround
         );
+    }
+
+    private Vector2 GetJumpHeadClearanceBoxSize(Bounds bounds)
+    {
+        float width = Mathf.Max(.1f, bounds.size.x * jumpHeadClearanceWidthMultiplier);
+        float height = Mathf.Max(.01f, jumpHeadClearanceHeight);
+
+        return new Vector2(width, height);
+    }
+
+    private Vector2 GetJumpHeadClearanceBoxOrigin(Bounds bounds, Vector2 boxSize)
+    {
+        float bottom = bounds.min.y + jumpHeadClearanceBottomOffset;
+        return new Vector2(bounds.center.x, bottom + boxSize.y * .5f);
     }
 
     public bool TryGetGroundDistance(float checkDistance, out float groundDistance)
@@ -1265,10 +1345,223 @@ public class Player : Entity
         NotifyStaminaChanged();
     }
 
+    public void RestoreHealthToFull()
+    {
+        health ??= GetComponent<Entity_Health>();
+        health?.Revive();
+    }
+
+    public void ResetForBonfire()
+    {
+        EndHazardRecovery();
+        canWallHold = true;
+        canFallAttack = true;
+        canAirAttack = true;
+        IsWallSlideDropLocked = false;
+        dashCooldownTimer = 0f;
+        staminaRecoveryTimer = 0f;
+        wallJumpAirAttackWindowTimer = 0f;
+        basicAttackLoopCooldownTimer = 0f;
+        hasBasicAttackLoopRestartRequest = false;
+        pendingBasicAttackComboIndex = -1;
+        pendingAirAttackComboIndex = -1;
+        pendingBasicAttackComboTimer = 0f;
+        pendingAirAttackComboTimer = 0f;
+        pendingBasicAttackTurnTimer = 0f;
+        pendingAirAttackTurnTimer = 0f;
+
+        ClearBasicAttackComboWindow();
+        ClearAirAttackComboWindow();
+        ClearWallJumpAirAttackWindow();
+        ClearBasicAttackComboAfterDash();
+        ClearAirAttackComboAfterDash();
+        EndDashEnemyCollisionIgnore();
+        RestoreStaminaToFull();
+    }
+
     public bool IsInWallContactState()
     {
         return stateMachine?.CurrentState == wallSlideState
             || stateMachine?.CurrentState == wallHoldState;
+    }
+
+    public bool TryGetLastGroundedSafePosition(out Vector3 safePosition)
+    {
+        if (hasLastGroundedSafePosition)
+        {
+            safePosition = lastGroundedSafePosition;
+            return true;
+        }
+
+        safePosition = transform.position;
+        return false;
+    }
+
+    public void BeginHazardRecovery()
+    {
+        hazardRecoveryActive = true;
+
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.simulated = false;
+        }
+    }
+
+    public void EndHazardRecovery()
+    {
+        if (rb != null)
+        {
+            rb.simulated = true;
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+        }
+
+        if (hasPendingHazardRecoveryPosition)
+        {
+            if (rb != null)
+            {
+                rb.position = pendingHazardRecoveryPosition;
+            }
+            else
+            {
+                transform.position = pendingHazardRecoveryPosition;
+            }
+
+            Physics2D.SyncTransforms();
+            SnapActiveColliderBottomToGround(.5f);
+            ResolveHazardOverlap();
+            Physics2D.SyncTransforms();
+        }
+
+        hasPendingHazardRecoveryPosition = false;
+        hazardRecoveryActive = false;
+        Physics2D.SyncTransforms();
+    }
+
+    public void RecoverFromHazard(Vector3 worldPosition)
+    {
+        pendingHazardRecoveryPosition = worldPosition;
+        hasPendingHazardRecoveryPosition = true;
+
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+        }
+
+        transform.position = worldPosition;
+
+        Physics2D.SyncTransforms();
+
+        SetAnimation(false, false);
+        SetJumpFall(false);
+        SetWallSlide(false);
+        SetDash(false);
+        SetBasicAttack(false);
+        SetBasicAttackIndex(0);
+        SetAirAttackIndex(0);
+        SetFallAttack(false);
+        SetFallAttackFinishRequested(false);
+        SetCounterAttack(false);
+        SetCounterAttackPerformed(false);
+        ResetFallAttackTrigger();
+        SetYVelocity(0f);
+
+        if (stateMachine != null)
+        {
+            if (GroundDetected())
+            {
+                if (idleState != null)
+                {
+                    stateMachine.ChangeState(idleState);
+                }
+            }
+            else if (fallState != null)
+            {
+                stateMachine.ChangeState(fallState);
+            }
+        }
+    }
+
+    private void UpdateLastGroundedSafePosition()
+    {
+        if (IsDead || hazardRecoveryActive || !GroundDetected())
+        {
+            return;
+        }
+
+        lastGroundedSafePosition = rb != null ? (Vector3)rb.position : transform.position;
+        hasLastGroundedSafePosition = true;
+    }
+
+    private void ResolveHazardOverlap()
+    {
+        if (!TryGetActiveColliderBounds(out Bounds bounds))
+        {
+            return;
+        }
+
+        const int maxAttempts = 20;
+        const float step = 0.1f;
+
+        for (int i = 0; i < maxAttempts; i++)
+        {
+            if (!IsOverlappingSpikeHazard(bounds))
+            {
+                return;
+            }
+
+            Vector2 nextPosition = rb != null
+                ? rb.position + Vector2.up * step
+                : (Vector2)transform.position + Vector2.up * step;
+
+            if (rb != null)
+            {
+                rb.position = nextPosition;
+            }
+            else
+            {
+                transform.position = nextPosition;
+            }
+
+            Physics2D.SyncTransforms();
+
+            if (!TryGetActiveColliderBounds(out bounds))
+            {
+                return;
+            }
+        }
+    }
+
+    private bool IsOverlappingSpikeHazard(Bounds bounds)
+    {
+        Vector2 size = new Vector2(
+            Mathf.Max(.05f, bounds.size.x * .9f),
+            Mathf.Max(.05f, bounds.size.y * .9f)
+        );
+
+        Collider2D[] overlaps = Physics2D.OverlapBoxAll(bounds.center, size, 0f);
+        foreach (Collider2D overlap in overlaps)
+        {
+            if (overlap == null)
+            {
+                continue;
+            }
+
+            if (overlap.transform.root == transform.root)
+            {
+                continue;
+            }
+
+            if (overlap.GetComponentInParent<SpikeHazard>() != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void ConsumeStamina(float amount, float recoveryDelay)
@@ -1436,6 +1729,11 @@ public class Player : Entity
         anim.SetBool(FallAttackAnimHash, fallAttack);
     }
 
+    public void SetFallAttackFinishRequested(bool finishRequested)
+    {
+        anim.SetBool(FallAttackFinishRequestedAnimHash, finishRequested);
+    }
+
     public void SetCounterAttack(bool counterAttack)
     {
         anim.SetBool(CounterAttackAnimHash, counterAttack);
@@ -1578,6 +1876,33 @@ public class Player : Entity
         cd.offset = defaultColliderOffset;
     }
 
+    public void RestoreAlivePhysicsProfile()
+    {
+        if (rb == null)
+        {
+            return;
+        }
+
+        rb.bodyType = defaultBodyType;
+        rb.constraints = defaultBodyConstraints;
+        rb.gravityScale = defaultGravityScale;
+        rb.velocity = Vector2.zero;
+        rb.angularVelocity = 0f;
+    }
+
+    public void LockCorpsePhysics()
+    {
+        if (rb == null)
+        {
+            return;
+        }
+
+        rb.velocity = Vector2.zero;
+        rb.angularVelocity = 0f;
+        rb.gravityScale = 0f;
+        rb.bodyType = RigidbodyType2D.Static;
+    }
+
     public void TriggerFallAttack()
     {
         anim.SetTrigger(FallAttackTriggerAnimHash);
@@ -1609,6 +1934,9 @@ public class Player : Entity
         wallSlideVisualOffset = Mathf.Max(0f, wallSlideVisualOffset);
         wallSlideNoInputDropTime = Mathf.Max(0f, wallSlideNoInputDropTime);
         wallHoldDuration = Mathf.Max(0f, wallHoldDuration);
+        jumpHeadClearanceHeight = Mathf.Max(.01f, jumpHeadClearanceHeight);
+        jumpHeadClearanceWidthMultiplier = Mathf.Clamp(jumpHeadClearanceWidthMultiplier, .1f, 1f);
+        jumpHeadClearanceBottomOffset = Mathf.Max(0f, jumpHeadClearanceBottomOffset);
         wallJumpForce.x = Mathf.Max(0f, wallJumpForce.x);
         wallJumpForce.y = Mathf.Max(0f, wallJumpForce.y);
         wallJumpDuration = Mathf.Max(0f, wallJumpDuration);
@@ -1633,6 +1961,7 @@ public class Player : Entity
         nonCombatDashStaminaRecoveryDelay = Mathf.Max(0f, nonCombatDashStaminaRecoveryDelay);
         counterAttackStaminaCost = Mathf.Max(0f, counterAttackStaminaCost);
         counterAttackSuccessStaminaCost = Mathf.Max(0f, counterAttackSuccessStaminaCost);
+        projectileBlockStaminaCost = Mathf.Max(0f, projectileBlockStaminaCost);
         counterAttackStaminaRecoveryDelay = Mathf.Max(0f, counterAttackStaminaRecoveryDelay);
         wallHoldStaminaDrainPerSecond = Mathf.Max(0f, wallHoldStaminaDrainPerSecond);
         wallSlideStaminaDrainPerSecond = Mathf.Max(0f, wallSlideStaminaDrainPerSecond);
@@ -1788,6 +2117,13 @@ public class Player : Entity
         Gizmos.DrawLine(transform.position, transform.position + Vector3.down * fallAttackGroundCheckDistance);
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(transform.position, transform.position + Vector3.down * fallAttackGroundSearchDistance);
+
+        Bounds bounds = GetColliderBounds();
+        Vector2 jumpClearanceBoxSize = GetJumpHeadClearanceBoxSize(bounds);
+        Vector2 jumpClearanceBoxOrigin = GetJumpHeadClearanceBoxOrigin(bounds, jumpClearanceBoxSize);
+
+        Gizmos.color = new Color(1f, .6f, 0f, .35f);
+        Gizmos.DrawWireCube(jumpClearanceBoxOrigin, jumpClearanceBoxSize);
     }
 
     private void UpdateVisualPosition()

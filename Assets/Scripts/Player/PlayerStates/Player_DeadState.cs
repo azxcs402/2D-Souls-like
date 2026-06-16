@@ -8,6 +8,7 @@ public class Player_DeadState : EntityState
     private bool waitingForGround;
     private bool hasPlayedDeathAnimation;
     private bool hasFrozenDeathAnimation;
+    private bool corpsePhysicsLocked;
     private float deathAnimationLength;
     private float deathAnimationTimer;
 
@@ -23,6 +24,7 @@ public class Player_DeadState : EntityState
         waitingForGround = !player.GroundContactDetected();
         hasPlayedDeathAnimation = false;
         hasFrozenDeathAnimation = false;
+        corpsePhysicsLocked = false;
         deathAnimationTimer = 0f;
         deathAnimationLength = Mathf.Max(.01f, player.GetAnimationLength(DeathAnimationName));
 
@@ -64,6 +66,14 @@ public class Player_DeadState : EntityState
                         && player.anim.GetCurrentAnimatorStateInfo(0).IsName(DeathAnimationName)
                         && player.anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1f))
                 {
+                    SnapToGroundIfPossible();
+
+                    if (!corpsePhysicsLocked)
+                    {
+                        player.LockCorpsePhysics();
+                        corpsePhysicsLocked = true;
+                    }
+
                     if (player.anim != null)
                     {
                         player.anim.Play($"Base Layer.{DeathAnimationName}", 0, DeathFreezeNormalizedTime);
@@ -97,7 +107,7 @@ public class Player_DeadState : EntityState
 
     public override void FixedUpdate()
     {
-        if (hasPlayedDeathAnimation)
+        if (hasPlayedDeathAnimation && !corpsePhysicsLocked)
         {
             player.SetVelocity(0f, 0f);
             SnapToGroundIfPossible();
@@ -130,6 +140,8 @@ public class Player_DeadState : EntityState
         player.ApplyDeathColliderProfile();
         player.SetDead(true);
         SnapToGroundIfPossible();
+        player.LockCorpsePhysics();
+        corpsePhysicsLocked = true;
         player.anim.speed = 1f;
         player.anim.Play($"Base Layer.{DeathAnimationName}", 0, 0f);
         player.anim.Update(0f);

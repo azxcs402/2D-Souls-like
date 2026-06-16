@@ -6,6 +6,7 @@ using UnityEngine.UI;
 public class Entity_Health : MonoBehaviour, IDamagable
 {
     public event Action<Entity_Health> OnHealthChanged;
+    public event Action<Entity_Health> OnDied;
 
     [Header("Health")]
     [SerializeField, Min(1)] protected int maxHealth = 10;
@@ -62,14 +63,36 @@ public class Entity_Health : MonoBehaviour, IDamagable
 
     public virtual bool TakeDamage(int damage, Entity_Combat damageSource, Vector2 knockbackVelocity)
     {
-        if (!CanTakeDamage || damage <= 0 || !CanReceiveDamageFrom(damageSource))
+        return TakeDamageInternal(damage, damageSource, knockbackVelocity);
+    }
+
+    public virtual bool TakeDamage(int damage, Component damageSource, Vector2 knockbackVelocity)
+    {
+        return TakeDamageInternal(damage, damageSource, knockbackVelocity);
+    }
+
+    private bool TakeDamageInternal(int damage, Component damageSource, Vector2 knockbackVelocity)
+    {
+        if (!CanTakeDamage || damage <= 0)
+        {
+            return false;
+        }
+
+        if (damageSource is Entity_Combat combatSource)
+        {
+            if (!CanReceiveDamageFrom(combatSource))
+            {
+                return false;
+            }
+        }
+        else if (!CanReceiveDamageFrom(damageSource))
         {
             return false;
         }
 
         currentHealth = Mathf.Max(0, currentHealth - damage);
         ApplyKnockback(knockbackVelocity);
-        OnDamageTaken(damage, damageSource);
+        OnDamageTaken(damage, damageSource as Entity_Combat);
         UpdateHealthBar();
 
         if (currentHealth <= 0)
@@ -96,6 +119,11 @@ public class Entity_Health : MonoBehaviour, IDamagable
         return damageSource != null;
     }
 
+    protected virtual bool CanReceiveDamageFrom(Component damageSource)
+    {
+        return damageSource != null;
+    }
+
     protected virtual bool CanBeKnockedBack()
     {
         return true;
@@ -114,17 +142,18 @@ public class Entity_Health : MonoBehaviour, IDamagable
     protected virtual void OnDamageTaken(int damage, Entity_Combat damageSource)
     {
         entityVFX?.PlayOnDamageVFX();
-        Debug.Log($"{name} took {damage} damage. HP: {currentHealth}/{maxHealth}.", this);
     }
 
-    protected virtual void Die(Entity_Combat damageSource)
+    protected virtual void Die(Component damageSource)
     {
         isDead = true;
-        Debug.Log($"{name} died.", this);
+        OnDied?.Invoke(this);
 
         if (TryGetComponent<Player>(out Player player))
         {
             player.EnterDeadState();
+            bool freezeTime = damageSource is SpikeHazard;
+            GameManager.instance?.BeginPlayerDeathSequence(freezeTime);
             return;
         }
 
@@ -135,14 +164,15 @@ public class Entity_Health : MonoBehaviour, IDamagable
     {
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
-        Debug.Log($"{name} revived with {currentHealth}/{maxHealth} HP.", this);
         UpdateHealthBar();
 
         if (TryGetComponent<Player>(out Player player))
         {
+            player.EndHazardRecovery();
             player.SetDead(false);
             player.SetDeathGroundVisualOffset(false);
             player.RestoreAliveColliderProfile();
+            player.RestoreAlivePhysicsProfile();
         }
     }
 

@@ -54,8 +54,9 @@ public class Player_BasicAttackState : EntityState
             return;
         }
 
-        if (player.GroundDetected() && player.JumpInputPressed())
+        if (player.CanStartJump() && player.JumpInputPressed())
         {
+            player.TryConsumeJumpStamina();
             stateMachine.ChangeState(player.jumpState);
             return;
         }

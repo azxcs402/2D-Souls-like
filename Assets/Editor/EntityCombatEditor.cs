@@ -557,7 +557,8 @@ public class CombatPreviewWindow : EditorWindow
             }
 
             if (clip.name == player.FallAttackStartAnimationName
-                || clip.name == player.FallAttackEndAnimationName)
+                || clip.name == player.FallAttackPerformed1AnimationName
+                || clip.name == player.FallAttackPerformed2AnimationName)
             {
                 attackData = player.FallAttackData;
                 label = "Fall Attack";

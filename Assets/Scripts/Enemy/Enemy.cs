@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 [RequireComponent(typeof(Rigidbody2D), typeof(CapsuleCollider2D))]
 public abstract class Enemy : Entity
@@ -7,11 +8,14 @@ public abstract class Enemy : Entity
     private static readonly int MoveAnimHash = Animator.StringToHash("move");
     private static readonly int AttackAnimHash = Animator.StringToHash("attack");
 
+    public event Action<Enemy> OnDied;
+
     [Header("Enemy Info")]
     [SerializeField, Min(1)] protected int maxHealth = 3;
     [SerializeField] protected bool canTakeDamage = true;
 
     public StateMachine stateMachine { get; protected set; }
+    public Entity_Combat Combat { get; protected set; }
     public int MaxHealth => maxHealth;
     public int CurrentHealth => currentHealth;
     public bool CanTakeDamage => canTakeDamage && !isDead;
@@ -20,6 +24,7 @@ public abstract class Enemy : Entity
 
     protected int currentHealth;
     protected bool isDead;
+    protected int defaultLayer;
 
     protected override bool UseWallChecks => true;
 
@@ -29,6 +34,8 @@ public abstract class Enemy : Entity
         base.Awake();
 
         stateMachine = new StateMachine();
+        Combat = GetComponent<Entity_Combat>();
+        defaultLayer = gameObject.layer;
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
     }
@@ -101,9 +108,9 @@ public abstract class Enemy : Entity
         if (stateMachine != null && DeadState != null)
         {
             stateMachine.ChangeState(DeadState);
-            return;
         }
 
+        OnDied?.Invoke(this);
         SetVelocity(0f, rb != null ? rb.velocity.y : 0f);
     }
 
@@ -121,6 +128,21 @@ public abstract class Enemy : Entity
     protected virtual IState GetDeadState()
     {
         return null;
+    }
+
+    public virtual void SpecialAttack()
+    {
+    }
+
+    public void MakeUntargetable(bool canBeTargeted)
+    {
+        int untargetableLayer = LayerMask.NameToLayer("Untargetable");
+        if (untargetableLayer >= 0)
+        {
+            gameObject.layer = canBeTargeted ? defaultLayer : untargetableLayer;
+        }
+
+        canTakeDamage = canBeTargeted;
     }
 
     private void EnsureCoreComponents()

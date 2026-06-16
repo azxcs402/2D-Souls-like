@@ -357,29 +357,20 @@ public class Enemy_Skeleton : Enemy, ICounterable, IEnemyBattleResponder
     public void EnableCounterWindow()
     {
         counterWindowActive = true;
-        Debug.Log($"{name} counter window ENABLED. State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}.", this);
     }
 
     public void DisableCounterWindow()
     {
         counterWindowActive = false;
-        Debug.Log($"{name} counter window DISABLED. State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}.", this);
     }
 
     public bool TryCounter()
     {
-        Debug.Log(
-            $"{name} counter attempt. CounterWindowActive={counterWindowActive}, IsDead={IsDead}, " +
-            $"State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}, " +
-            $"CanStun={(stunnedState != null)}",
-            this);
-
         if (!counterWindowActive || IsDead || stunnedState == null || stateMachine == null)
         {
             return false;
         }
 
-        Debug.Log($"{name} counter success -> entering stunned state.", this);
         stateMachine.ChangeState(stunnedState);
         return true;
     }

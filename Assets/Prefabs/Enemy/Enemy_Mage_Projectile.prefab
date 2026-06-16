@@ -151,6 +151,7 @@ GameObject:
   - component: {fileID: 4418727717915040996}
   - component: {fileID: 8857319921047934112}
   - component: {fileID: 5692172565615809128}
+  - component: {fileID: -4305211916691443432}
   m_Layer: 0
   m_Name: Enemy_Mage_Projectile
   m_TagString: Untagged
@@ -308,3 +309,23 @@ MonoBehaviour:
   onDamageVFXDuration: 0.15
   hitVFXColor: {r: 1, g: 1, b: 1, a: 1}
   hitVFX: {fileID: 3005762267262333926, guid: 801e6f300e7f8f04dacf033bad7eae71, type: 3}
+--- !u!114 &-4305211916691443432
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8283638665200491288}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d8db2a2f7b14be8b1d2dbb0e5f5f0a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHealth: 1
+  canTakeDamage: 1
+  knockbackDuration: 0.15
+  healthBar: {fileID: 0}
+  healthBarPrefab: {fileID: 0}
+  healthBarLocalOffset: {x: 0, y: 1.2, z: 0}
+  autoCreateHealthBar: 0
+  showMiniHealthBar: 0

@@ -50,6 +50,10 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     [SerializeField, Min(.01f)] private float wallThicknessSampleDistance = .05f;
     [SerializeField, Min(0f)] private float loseSightDuration = 3f;
     [SerializeField] private bool showDetectionGizmos = true;
+    [SerializeField] private bool showAttackGizmos = true;
+
+    [Header("Hearing Info")]
+    [SerializeField, Min(0f)] private float hearingDistance = 2f;
 
     [Header("Legacy Target Anchor")]
     [SerializeField] private Transform playerCheck;
@@ -66,10 +70,10 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     [Header("Split Info")]
     [SerializeField] private bool splitOnDeath = true;
     [SerializeField, Min(0)] private int splitGeneration = 0;
-    [SerializeField, Min(0)] private int maxSplitGenerations = 1;
+    [SerializeField, Range(1, 5)] private int maxSplitGenerations = 2;
     [SerializeField, Min(.1f)] private float splitChildScaleMultiplier = .7f;
-    [SerializeField, Min(.01f)] private float splitChildHealthMultiplier = .55f;
-    [SerializeField, Min(.01f)] private float splitChildDamageMultiplier = .55f;
+    [SerializeField, Min(.01f)] private float splitChildHealthMultiplier = .7f;
+    [SerializeField, Min(.01f)] private float splitChildDamageMultiplier = .7f;
     [SerializeField, Min(0f)] private float splitSpawnHorizontalOffset = .55f;
     [SerializeField, Min(0f)] private float splitSpawnVerticalOffset = .2f;
 
@@ -150,7 +154,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     public bool SplitOnDeath => splitOnDeath;
     public int SplitGeneration => splitGeneration;
     public int MaxSplitGenerations => maxSplitGenerations;
-    public bool CanSplitOnDeath => splitOnDeath && splitGeneration < maxSplitGenerations;
+    public bool CanSplitOnDeath => splitOnDeath && splitGeneration + 1 < maxSplitGenerations;
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
@@ -489,7 +493,8 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
             return playerTarget;
         }
 
-        return FindAnyPlayerReference();
+        Player player = FindAnyPlayerReference();
+        return player != null ? player.transform : null;
     }
 
     public void ApplySpawnVelocity(int horizontalDirectionSign = 0)
@@ -524,7 +529,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
 
         GameObject prefabToSpawn = slimeToCreatePrefab != null ? slimeToCreatePrefab : gameObject;
         int childGeneration = splitGeneration + 1;
-        bool childCanSplitFurther = childGeneration < maxSplitGenerations;
+        bool childCanSplitFurther = childGeneration + 1 < maxSplitGenerations;
         float splitSeparation = GetSplitSpawnSeparation();
 
         for (int i = 0; i < amountOfSlimesToCreate; i++)
@@ -585,9 +590,10 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         maxSeeThroughWallDistance = Mathf.Max(0f, maxSeeThroughWallDistance);
         wallThicknessSampleDistance = Mathf.Max(.01f, wallThicknessSampleDistance);
         loseSightDuration = Mathf.Max(0f, loseSightDuration);
+        hearingDistance = Mathf.Max(0f, hearingDistance);
         amountOfSlimesToCreate = Mathf.Max(0, amountOfSlimesToCreate);
         splitGeneration = Mathf.Max(0, splitGeneration);
-        maxSplitGenerations = Mathf.Max(0, maxSplitGenerations);
+        maxSplitGenerations = Mathf.Clamp(maxSplitGenerations, 1, 5);
         splitChildScaleMultiplier = Mathf.Max(.1f, splitChildScaleMultiplier);
         splitChildHealthMultiplier = Mathf.Max(.01f, splitChildHealthMultiplier);
         splitChildDamageMultiplier = Mathf.Max(.01f, splitChildDamageMultiplier);
@@ -614,6 +620,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     private void UpdatePlayerPerception()
     {
         Transform detectedPlayer = TryDetectPlayer(out int targetDirection);
+        Transform perceivedPlayer = detectedPlayer;
 
         if (detectedPlayer != null)
         {
@@ -629,22 +636,49 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
             playerVisible = false;
         }
 
-        if (playerTarget == null)
+        if (perceivedPlayer == null)
         {
-            playerTarget = FindAnyPlayerReference();
+            Player fallbackPlayer = FindAnyPlayerReference();
+            perceivedPlayer = fallbackPlayer != null ? fallbackPlayer.transform : null;
         }
 
-        if (playerTarget == null)
+        if (perceivedPlayer == null)
         {
+            playerTarget = null;
             playerInAttackRange = false;
             playerWithinChaseHeight = false;
             return;
         }
 
-        float horizontalDistance = Mathf.Abs(playerTarget.position.x - transform.position.x);
-        float verticalDistance = Mathf.Abs(playerTarget.position.y - transform.position.y);
+        playerTarget = perceivedPlayer;
+
+        Bounds enemyBounds = GetColliderBounds();
+        Bounds playerBounds = GetPlayerBounds();
+        float horizontalGap = GetHorizontalGap(enemyBounds, playerBounds);
+        float verticalDistance = Mathf.Abs(playerBounds.center.y - enemyBounds.center.y);
         playerWithinChaseHeight = verticalDistance <= chaseVerticalDistance;
-        playerInAttackRange = playerWithinChaseHeight && horizontalDistance <= attackDistance;
+        playerInAttackRange = playerWithinChaseHeight && horizontalGap <= attackDistance;
+
+        bool playerWithinHearingRange = playerWithinChaseHeight && horizontalGap <= hearingDistance;
+
+        if (playerWithinHearingRange)
+        {
+            isAlerted = true;
+            shouldReturnToPatrol = false;
+            playerVisible = true;
+            lastTimeSeenPlayer = Time.time;
+            playerTargetDirection = GetPlayerDirection(playerBounds.center);
+
+            if (stateMachine != null
+                && battleState != null
+                && stateMachine.CurrentState != attackState
+                && stateMachine.CurrentState != stunnedState
+                && stateMachine.CurrentState != deadState
+                && stateMachine.CurrentState != battleState)
+            {
+                stateMachine.ChangeState(battleState);
+            }
+        }
 
         if (isAlerted && !playerVisible && lastTimeSeenPlayer > 0f && Time.time - lastTimeSeenPlayer >= loseSightDuration)
         {
@@ -679,7 +713,9 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         float verticalDistance = Mathf.Abs(enemyToPlayer.y);
         int playerDirection = GetPlayerDirection(player.transform.position);
         bool playerInFront = playerDirection == facingDirection;
-        float sightDistance = playerInFront ? frontSightDistance : backSightDistance;
+        float sightDistance = playerInFront
+            ? frontSightDistance
+            : Mathf.Max(frontSightDistance, backSightDistance);
 
         if (horizontalDistance > sightDistance)
         {
@@ -700,7 +736,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         return player.transform;
     }
 
-    private Transform FindAnyPlayerReference()
+    private Player FindAnyPlayerReference()
     {
         Player[] players = FindObjectsOfType<Player>(true);
         for (int i = 0; i < players.Length; i++)
@@ -713,11 +749,11 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
 
             if (IsInPlayerLayer(candidate.gameObject))
             {
-                return candidate.transform;
+                return candidate;
             }
         }
 
-        return players.Length > 0 && players[0] != null ? players[0].transform : null;
+        return players.Length > 0 ? players[0] : null;
     }
 
     private bool IsInPlayerLayer(GameObject candidate)
@@ -846,6 +882,25 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         Gizmos.DrawCube(center, size);
 
         Gizmos.color = new Color(1f, .85f, .1f, 1f);
+        Gizmos.DrawWireCube(center, size);
+
+        if (showAttackGizmos)
+        {
+            DrawAttackGizmos(enemyBounds);
+        }
+    }
+
+    private void DrawAttackGizmos(Bounds enemyBounds)
+    {
+        float totalWidth = Mathf.Max(.1f, enemyBounds.size.x + attackDistance * 2f);
+        float totalHeight = Mathf.Max(.1f, Mathf.Max(enemyBounds.size.y, chaseVerticalDistance * 2f));
+        Vector3 center = enemyBounds.center;
+        Vector3 size = new Vector3(totalWidth, totalHeight, 0f);
+
+        Gizmos.color = new Color(.2f, .9f, 1f, .14f);
+        Gizmos.DrawCube(center, size);
+
+        Gizmos.color = new Color(.2f, .9f, 1f, 1f);
         Gizmos.DrawWireCube(center, size);
     }
 
@@ -1018,5 +1073,15 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         }
 
         return new Bounds(transform.position, Vector3.one);
+    }
+
+    private float GetHorizontalGap(Bounds enemyBounds, Bounds playerBounds)
+    {
+        if (playerBounds.center.x >= enemyBounds.center.x)
+        {
+            return Mathf.Max(0f, playerBounds.min.x - enemyBounds.max.x);
+        }
+
+        return Mathf.Max(0f, enemyBounds.min.x - playerBounds.max.x);
     }
 }

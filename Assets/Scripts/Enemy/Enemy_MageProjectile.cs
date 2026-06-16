@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Enemy_MageProjectile : MonoBehaviour
+public class Enemy_MageProjectile : MonoBehaviour, IProjectileBreakable
 {
     [Header("Flight")]
     [SerializeField, Min(0f)] private float arrivalDuration = .22f;
@@ -17,6 +17,11 @@ public class Enemy_MageProjectile : MonoBehaviour
     [SerializeField] private LayerMask whatCanCollideWith;
     [SerializeField] private Vector2 impactKnockback = new Vector2(4f, 2f);
     [SerializeField, Min(0f)] private float destroyDelayAfterImpact = 2f;
+
+    [Header("Player Attack Break Range")]
+    [SerializeField] private CircleCollider2D breakRangeCollider;
+    [SerializeField, Min(0f)] private float breakRangeRadius = .6f;
+    [SerializeField] private Vector2 breakRangeOffset = Vector2.zero;
 
     private Enemy_Mage owner;
     private Entity_Combat combat;
@@ -42,6 +47,7 @@ public class Enemy_MageProjectile : MonoBehaviour
         col = GetComponent<Collider2D>();
         anim = GetComponentInChildren<Animator>(true);
         combat = GetComponent<Entity_Combat>();
+        EnsureBreakRange();
     }
 
     private void OnValidate()
@@ -54,6 +60,8 @@ public class Enemy_MageProjectile : MonoBehaviour
         hoverDriftChangeInterval = Mathf.Max(.01f, hoverDriftChangeInterval);
         hoverDriftMoveSpeed = Mathf.Max(0f, hoverDriftMoveSpeed);
         destroyDelayAfterImpact = Mathf.Max(0f, destroyDelayAfterImpact);
+        breakRangeRadius = Mathf.Max(0f, breakRangeRadius);
+        EnsureBreakRange();
 
         if (whatCanCollideWith == 0)
         {
@@ -124,6 +132,8 @@ public class Enemy_MageProjectile : MonoBehaviour
         {
             anim.enabled = false;
         }
+
+        ApplyBreakRangeSettings();
     }
 
     private void FixedUpdate()
@@ -167,17 +177,67 @@ public class Enemy_MageProjectile : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (hasImpacted || collision == null)
+        Impact(collision);
+    }
+
+    public void BreakProjectile()
+    {
+        Impact(null);
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseHoverReservation();
+    }
+
+    private void Impact(Collider2D collision)
+    {
+        if (hasImpacted)
         {
             return;
         }
 
-        if (((1 << collision.gameObject.layer) & whatCanCollideWith) == 0)
+        if (collision != null)
         {
-            return;
+            if (((1 << collision.gameObject.layer) & whatCanCollideWith) == 0)
+            {
+                return;
+            }
+
+            if (IsDashingPlayer(collision))
+            {
+                return;
+            }
+
+            if (TryBlockByCounterAttack(collision))
+            {
+                return;
+            }
         }
 
-        if (IsDashingPlayer(collision))
+        ResolveImpact(collision, true);
+    }
+
+    private bool TryBlockByCounterAttack(Collider2D collision)
+    {
+        Player player = collision != null ? collision.GetComponentInParent<Player>() : null;
+        if (player == null || !player.IsCounterAttacking)
+        {
+            return false;
+        }
+
+        if (!player.TryConsumeProjectileBlockStamina())
+        {
+            return false;
+        }
+
+        ResolveImpact(collision, false);
+        return true;
+    }
+
+    private void ResolveImpact(Collider2D collision, bool dealDamage)
+    {
+        if (hasImpacted)
         {
             return;
         }
@@ -185,14 +245,17 @@ public class Enemy_MageProjectile : MonoBehaviour
         hasImpacted = true;
         ReleaseHoverReservation();
 
-        Entity_Combat targetCombat = collision.GetComponentInParent<Entity_Combat>();
-        if (targetCombat != null && combat != null)
+        if (dealDamage && collision != null)
         {
-            Vector2 knockback = collision.transform.position.x >= transform.position.x
-                ? new Vector2(impactKnockback.x, impactKnockback.y)
-                : new Vector2(-impactKnockback.x, impactKnockback.y);
+            Entity_Combat targetCombat = collision.GetComponentInParent<Entity_Combat>();
+            if (targetCombat != null && combat != null)
+            {
+                Vector2 knockback = collision.transform.position.x >= transform.position.x
+                    ? new Vector2(impactKnockback.x, impactKnockback.y)
+                    : new Vector2(-impactKnockback.x, impactKnockback.y);
 
-            targetCombat.ReceiveHit(combat, knockback);
+                targetCombat.ReceiveHit(combat, knockback);
+            }
         }
 
         if (rb != null)
@@ -211,11 +274,6 @@ public class Enemy_MageProjectile : MonoBehaviour
         }
 
         Destroy(gameObject, destroyDelayAfterImpact);
-    }
-
-    private void OnDestroy()
-    {
-        ReleaseHoverReservation();
     }
 
     private Vector2 GetFlightDirection()
@@ -338,5 +396,62 @@ public class Enemy_MageProjectile : MonoBehaviour
         {
             owner.ReleaseProjectileHoverSlot(hoverReservationId);
         }
+    }
+
+    private void EnsureBreakRange()
+    {
+        if (breakRangeCollider == null)
+        {
+            Transform existing = transform.Find("ProjectileBreakRange");
+            if (existing != null)
+            {
+                breakRangeCollider = existing.GetComponent<CircleCollider2D>();
+            }
+        }
+
+        if (breakRangeCollider == null)
+        {
+            GameObject breakRangeObject = new GameObject("ProjectileBreakRange");
+            breakRangeObject.transform.SetParent(transform, false);
+            breakRangeCollider = breakRangeObject.AddComponent<CircleCollider2D>();
+        }
+
+        ApplyBreakRangeSettings();
+    }
+
+    private void ApplyBreakRangeSettings()
+    {
+        if (breakRangeCollider == null)
+        {
+            return;
+        }
+
+        int projectileBreakableLayer = LayerMask.NameToLayer("ProjectileBreakable");
+        if (projectileBreakableLayer >= 0)
+        {
+            breakRangeCollider.gameObject.layer = projectileBreakableLayer;
+        }
+
+        breakRangeCollider.isTrigger = true;
+        breakRangeCollider.radius = breakRangeRadius;
+        breakRangeCollider.offset = Vector2.zero;
+        breakRangeCollider.transform.localPosition = breakRangeOffset;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = new Color(.15f, .95f, 1f, .95f);
+        Gizmos.DrawWireSphere(GetBreakRangeWorldPosition(), Mathf.Max(0f, breakRangeRadius));
+    }
+
+    private Vector3 GetBreakRangeWorldPosition()
+    {
+        Transform breakRangeTransform = breakRangeCollider != null ? breakRangeCollider.transform : transform.Find("ProjectileBreakRange");
+        if (breakRangeTransform != null)
+        {
+            return breakRangeTransform.position;
+        }
+
+        return transform.position + (Vector3)breakRangeOffset;
     }
 }

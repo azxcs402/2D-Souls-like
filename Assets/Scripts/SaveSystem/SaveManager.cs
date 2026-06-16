@@ -82,6 +82,11 @@ public class SaveManager : MonoBehaviour
 
     public void SaveGame()
     {
+        SaveGame(true);
+    }
+
+    public void SaveGame(bool capturePlayerState)
+    {
         if (gameData == null)
         {
             gameData = new GameData();
@@ -93,8 +98,28 @@ public class SaveManager : MonoBehaviour
             saveable.SaveData(ref gameData);
         }
 
-        CapturePlayerState();
+        if (capturePlayerState)
+        {
+            CapturePlayerState();
+        }
+
         dataHandler.SaveData(gameData);
+    }
+
+    public void SaveCheckpoint(Vector3 checkpointPosition, string sceneName = null)
+    {
+        if (gameData == null)
+        {
+            gameData = new GameData();
+        }
+
+        gameData.lastScenePlayed = string.IsNullOrWhiteSpace(sceneName)
+            ? SceneManager.GetActiveScene().name
+            : sceneName;
+        gameData.lastPlayerPosition = checkpointPosition;
+        gameData.hasLastPlayerPosition = true;
+
+        SaveGame(false);
     }
 
     public void ResetGameData()

@@ -30,9 +30,9 @@ public class FileDataHandler
             using StreamWriter writer = new StreamWriter(stream);
             writer.Write(dataToSave);
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Debug.LogError($"Error saving data to file '{fullPath}': {e}");
+            // Intentionally silent: callers can decide how to surface save failures.
         }
     }
 
@@ -57,9 +57,8 @@ public class FileDataHandler
 
             return JsonUtility.FromJson<GameData>(dataToLoad);
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            Debug.LogError($"Error loading data from file '{fullPath}': {e}");
             return null;
         }
     }
