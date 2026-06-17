@@ -89,6 +89,8 @@ public class Enemy_MageStunRecoveryState : EnemyState
             enemy.rb.velocity = Vector2.zero;
             enemy.rb.angularVelocity = 0f;
         }
+
+        mage?.StartStunAttackRecovery();
     }
 
     private void PlayRecoveryAnimation()

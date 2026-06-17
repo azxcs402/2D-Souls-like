@@ -91,6 +91,7 @@ public class Enemy_ReaperStunnedState : EnemyState
         if (reaper != null)
         {
             reaper.SetStunnedAnimation(false);
+            reaper.StartStunAttackRecovery();
         }
 
         if (reaper != null && reaper.rb != null)

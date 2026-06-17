@@ -208,7 +208,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
-    public bool CanAttack => attackCooldownTimer <= 0f;
+    public bool CanAttack => attackCooldownTimer <= 0f && !IsStunAttackRecoveryActive;
     public bool CanSpellCast => spellAttackCooldownTimer <= 0f;
     public bool IsCounterWindowActive => counterWindowActive;
     public int PlayerTargetDirection => playerTargetDirection;

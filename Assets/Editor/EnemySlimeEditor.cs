@@ -28,7 +28,8 @@ public class EnemySlimeEditor : Editor
             "Stun duration, launch velocity, and stun enable toggle.",
             new SearchableField("stunnedDuration", "Stunned Duration", "stun"),
             new SearchableField("stunnedVelocity", "Stunned Velocity", "stun velocity"),
-            new SearchableField("canBeStunned", "Can Be Stunned", "stun")
+            new SearchableField("canBeStunned", "Can Be Stunned", "stun"),
+            new SearchableField("stunAttackRecoveryDelay", "Stun Attack Recovery Delay", "stun recovery")
         ),
         new SearchableSection(
             "Patrol Info",

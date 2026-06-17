@@ -77,7 +77,8 @@ public class EnemyMageEditor : Editor
             {
                 new FieldInfo("stunnedDuration", "Stunned Duration", "stun time"),
                 new FieldInfo("stunnedVelocity", "Stunned Velocity", "stun knockback"),
-                new FieldInfo("canBeStunned", "Can Be Stunned", "counter stun")
+                new FieldInfo("canBeStunned", "Can Be Stunned", "counter stun"),
+                new FieldInfo("stunAttackRecoveryDelay", "Stun Attack Recovery Delay", "stun recovery")
             }
         ),
         new Section(

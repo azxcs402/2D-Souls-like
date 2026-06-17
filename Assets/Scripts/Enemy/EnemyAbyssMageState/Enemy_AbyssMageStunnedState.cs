@@ -90,6 +90,10 @@ public class Enemy_AbyssMageStunnedState : EnemyState
         if (mage != null)
         {
             mage.SetStunnedAnimation(false);
+            if (!mage.HasRecoveryAnimation)
+            {
+                mage.StartStunAttackRecovery();
+            }
         }
 
         if (enemy.rb != null)

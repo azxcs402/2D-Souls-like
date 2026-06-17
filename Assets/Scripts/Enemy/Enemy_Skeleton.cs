@@ -116,7 +116,7 @@ public class Enemy_Skeleton : Enemy, ICounterable, IEnemyBattleResponder
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
-    public bool CanAttack => attackCooldownTimer <= 0f;
+    public bool CanAttack => attackCooldownTimer <= 0f && !IsStunAttackRecoveryActive;
     public bool PlayerVisible => playerVisible;
     public bool PlayerInAttackRange => playerInAttackRange;
     public bool PlayerWithinChaseHeight => playerWithinChaseHeight;

@@ -68,7 +68,8 @@ public class EnemySkeletonEditor : Editor
             "Stun displacement and animator parameters.",
             new SearchableField("stunnedMoveDistance", "Stunned Move Distance", "stunned"),
             new SearchableField("stunnedBoolParameter", "Stunned Bool Parameter", "stunned"),
-            new SearchableField("stunnedAnimationState", "Stunned Animation State", "stunned")
+            new SearchableField("stunnedAnimationState", "Stunned Animation State", "stunned"),
+            new SearchableField("stunAttackRecoveryDelay", "Stun Attack Recovery Delay", "stun recovery")
         ),
         new SearchableSection(
             "Death Info",

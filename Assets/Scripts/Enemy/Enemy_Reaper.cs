@@ -166,7 +166,7 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
     public int PlayerTargetDirection => playerTargetDirection;
     public Transform PlayerTarget => playerTarget;
     public Bounds PlayerBounds => GetPlayerBounds();
-    public bool CanAttack => attackCooldownTimer <= 0f;
+    public bool CanAttack => attackCooldownTimer <= 0f && !IsStunAttackRecoveryActive;
     public bool CanDoSpellCast => Time.time > lastTimeCastedSpells + spellCastStateCooldown;
     public bool IsCounterWindowActive => counterWindowActive;
     public bool IsSpellCasting => stateMachine != null && stateMachine.CurrentState == spellCastState;

@@ -128,8 +128,9 @@ MonoBehaviour:
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 1000000000000000015}
   secondaryWallCheck: {fileID: 1000000000000000015}
-  maxHealth: 70
+  maxHealth: 90
   canTakeDamage: 1
+  stunAttackRecoveryDelay: 0.6
   questTargetId: enemy_reaper
   showDetectionGizmos: 1
   battleMoveSpeed: 1.6
@@ -175,7 +176,7 @@ MonoBehaviour:
   chaseVerticalDistance: 3
   loseSightDuration: 3
   spellDamageScale:
-    phyiscal: 0.3
+    phyiscal: 0.45
     elemental: 1
     chillDuration: 3
     chillSlowMulitplier: 0.2
@@ -211,7 +212,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 10
+  damage: 18
   targetCheck: {fileID: 1000000000000000017}
   targetCheckRadius: 0.65
   whatIsTarget:
@@ -237,7 +238,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 70
+  maxHealth: 90
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1679848339229094340}
@@ -604,7 +605,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1597358124939153940, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_MaxValue
-      value: 70
+      value: 90
       objectReference: {fileID: 0}
     - target: {fileID: 3127985493702693387, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_Name

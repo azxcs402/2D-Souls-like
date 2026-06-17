@@ -1209,6 +1209,12 @@ MonoBehaviour:
   m_Script: {fileID: 722366767}
   m_Name: 
   m_EditorClassIdentifier: 
+  player: {fileID: 960879540}
+  playerHealth: {fileID: 960879544}
+  potionImage: {fileID: 400419401}
+  cooldownImage: {fileID: 1582822511}
+  countText: {fileID: 514087053}
+  countTextOffset: {x: 0, y: 30.5}
 --- !u!114 &400419401
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1259,6 +1265,12 @@ MonoBehaviour:
   m_Script: {fileID: 1482225111}
   m_Name: 
   m_EditorClassIdentifier: 
+  player: {fileID: 0}
+  playerHealth: {fileID: 0}
+  potionImage: {fileID: 0}
+  cooldownImage: {fileID: 0}
+  countText: {fileID: 0}
+  countTextOffset: {x: 0, y: -10}
 --- !u!114 &400419404
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -31580,7 +31592,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 11.959175, y: 0.5351817, z: -3.2218075}
+  m_LocalPosition: {x: -13.880825, y: 2.6851819, z: -3.2218075}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -31693,8 +31705,9 @@ MonoBehaviour:
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 1661194311}
   secondaryWallCheck: {fileID: 528269517}
-  maxHealth: 65
+  maxHealth: 60
   canTakeDamage: 1
+  stunAttackRecoveryDelay: 0.6
   questTargetId: enemy_abyss_mage
   battleMoveSpeed: 4
   attackDistance: 1.3
@@ -31805,7 +31818,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 65
+  maxHealth: 60
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1972005024}
@@ -31825,7 +31838,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 20
+  damage: 16
   targetCheck: {fileID: 1626580345}
   targetCheckRadius: 0.8
   whatIsTarget:
@@ -32389,6 +32402,8 @@ MonoBehaviour:
   m_Script: {fileID: 1089225577}
   m_Name: 
   m_EditorClassIdentifier: 
+  player: {fileID: 960879540}
+  spriteRenderer: {fileID: 744383127}
 --- !u!212 &744383127
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -32453,6 +32468,8 @@ MonoBehaviour:
   m_Script: {fileID: 1013616266}
   m_Name: 
   m_EditorClassIdentifier: 
+  player: {fileID: 0}
+  spriteRenderer: {fileID: 0}
 --- !u!114 &744383129
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -33016,10 +33033,10 @@ MonoBehaviour:
   fallAttackEndAnimationMaxSpeed: 8
   fallAttackEndAnimationLandingOffset: 0.15
   fallAttackData:
-    targetCheckOffset: {x: -0.65, y: -0.33}
-    targetCheckRadius: 1.1
+    targetCheckOffset: {x: -0.3, y: -0.17}
+    targetCheckRadius: 1.3
     knockbackForce: {x: 5, y: 3}
-  fallAttackDamage: 20
+  fallAttackDamage: 22
   counterDuration: 0.35
   counterAttackTargetCheckRadiusMultiplier: 1.35
   counterAttackAnimationState: playerCounterAttack
@@ -33075,7 +33092,7 @@ Transform:
   m_GameObject: {fileID: 960879538}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 12.16, y: 0.58, z: 0}
+  m_LocalPosition: {x: -13.68, y: 2.73, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -33140,13 +33157,13 @@ MonoBehaviour:
   targetCheckRadius: 0.95
   whatIsTarget:
     serializedVersion: 2
-    m_Bits: 256
+    m_Bits: 2304
   showTargetCheckGizmos: 1
   alwaysShowTargetCheckGizmos: 1
-  enableCombatPreview: 1
-  showPreviewTargetCheckObject: 1
-  showPreviewAttackData: 1
-  previewAnimationClip: {fileID: 7400000, guid: f244c69762a8abb4aba0cd63e54cc31b, type: 2}
+  enableCombatPreview: 0
+  showPreviewTargetCheckObject: 0
+  showPreviewAttackData: 0
+  previewAnimationClip: {fileID: 7400000, guid: 6e00acef5c95f364d82a6f84d4a979f2, type: 2}
   previewNormalizedTime: 0.8181819
   autoEnsureHealthComponent: 1
 --- !u!114 &960879544
@@ -35194,7 +35211,7 @@ Transform:
   m_GameObject: {fileID: 1439480596}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 11.959175, y: 0.5351817, z: -3.2218075}
+  m_LocalPosition: {x: -13.880825, y: 2.6851819, z: -3.2218075}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -37205,7 +37222,7 @@ RectTransform:
   m_Father: {fileID: 310794950}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -37516,7 +37533,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 0}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 65
+  m_MaxValue: 60
   m_WholeNumbers: 1
   m_Value: 0
   m_OnValueChanged:
@@ -38064,7 +38081,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c2c5f5a1b6d14e7cb0c2cf54f2d3f5a1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 20
+  damage: 16
   retriggerDelay: 1
 --- !u!19719996 &2060965022
 TilemapCollider2D:
@@ -44785,7 +44802,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 0}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 65
+  m_MaxValue: 60
   m_WholeNumbers: 1
   m_Value: 0
   m_OnValueChanged:
@@ -45610,7 +45627,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 65
+  maxHealth: 60
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1679848339799010559}
@@ -45925,7 +45942,7 @@ RectTransform:
   m_Father: {fileID: 8201382870725988839}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -45991,7 +46008,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 20
+  damage: 16
   targetCheck: {fileID: 2191256382037768944}
   targetCheckRadius: 0.8
   whatIsTarget:
@@ -46025,8 +46042,9 @@ MonoBehaviour:
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 4799666280189492796}
   secondaryWallCheck: {fileID: 565028296577665504}
-  maxHealth: 65
+  maxHealth: 60
   canTakeDamage: 1
+  stunAttackRecoveryDelay: 0.6
   questTargetId: enemy_abyss_mage
   battleMoveSpeed: 4
   attackDistance: 1.3

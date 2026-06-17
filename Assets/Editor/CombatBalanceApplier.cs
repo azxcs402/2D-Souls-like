@@ -5,10 +5,13 @@ using System.Reflection;
 
 public static class CombatBalanceApplier
 {
+    private const string ReaperPrefabPath = "Assets/Prefabs/Enemy/Enemy_Reaper.prefab";
     private const string MagePrefabPath = "Assets/Prefabs/Enemy/Enemy_Mage.prefab";
     private const string SlimePrefabPath = "Assets/Prefabs/Enemy/Enemy_Slime.prefab";
     private const string SkeletonPrefabPath = "Assets/Prefabs/Enemy/Enemy_Skeleton.prefab";
     private const string MageProjectilePrefabPath = "Assets/Prefabs/Enemy/Enemy_Mage_Projectile.prefab";
+    private const string AbyssMagePrefabPath = "Assets/Prefabs/Enemy/Boss/Enemy_AbyssMage.prefab";
+    private const string AbyssMageFireballPrefabPath = "Assets/Prefabs/Enemy/Boss/Enemy_AbyssMage_Fireball.prefab";
     private static readonly BindingFlags InstanceFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
     private static readonly FieldInfo EnemyMaxHealthField = typeof(Enemy).GetField("maxHealth", InstanceFlags);
     private static readonly FieldInfo EnemyCurrentHealthField = typeof(Enemy).GetField("currentHealth", InstanceFlags);
@@ -45,6 +48,16 @@ public static class CombatBalanceApplier
             ApplyMageBalance(mage);
         }
 
+        foreach (Enemy_AbyssMage abyssMage in Object.FindObjectsOfType<Enemy_AbyssMage>(true))
+        {
+            ApplyAbyssMageBalance(abyssMage);
+        }
+
+        foreach (Enemy_Reaper reaper in Object.FindObjectsOfType<Enemy_Reaper>(true))
+        {
+            ApplyReaperBalance(reaper);
+        }
+
         foreach (Enemy_Slime slime in Object.FindObjectsOfType<Enemy_Slime>(true))
         {
             ApplySlimeBalance(slime);
@@ -63,6 +76,16 @@ public static class CombatBalanceApplier
             ApplyMageBalance(root.GetComponent<Enemy_Mage>());
         });
 
+        ApplyPrefabAtPath(AbyssMagePrefabPath, root =>
+        {
+            ApplyAbyssMageBalance(root.GetComponent<Enemy_AbyssMage>());
+        });
+
+        ApplyPrefabAtPath(ReaperPrefabPath, root =>
+        {
+            ApplyReaperBalance(root.GetComponent<Enemy_Reaper>());
+        });
+
         ApplyPrefabAtPath(SlimePrefabPath, root =>
         {
             ApplySlimeBalance(root.GetComponent<Enemy_Slime>());
@@ -75,14 +98,12 @@ public static class CombatBalanceApplier
 
         ApplyPrefabAtPath(MageProjectilePrefabPath, root =>
         {
-            Entity_Combat combat = root.GetComponent<Entity_Combat>();
-            if (combat != null)
-            {
-                SerializedObject combatSo = new SerializedObject(combat);
-                SetInt(combatSo, "damage", 10);
-                combatSo.ApplyModifiedPropertiesWithoutUndo();
-                EditorUtility.SetDirty(combat);
-            }
+            ApplyProjectileDamage(root, 12);
+        });
+
+        ApplyPrefabAtPath(AbyssMageFireballPrefabPath, root =>
+        {
+            ApplyProjectileDamage(root, 8);
         });
     }
 
@@ -96,11 +117,11 @@ public static class CombatBalanceApplier
         SerializedObject playerSo = new SerializedObject(player);
         SetIntArray(playerSo, "basicAttackDamages", 12, 14, 18);
         SetIntArray(playerSo, "airAttackDamages", 10, 12, 16);
-        SetInt(playerSo, "fallAttackDamage", 20);
+        SetInt(playerSo, "fallAttackDamage", 22);
         playerSo.ApplyModifiedPropertiesWithoutUndo();
         PlayerBasicAttackDamagesField?.SetValue(player, new[] { 12, 14, 18 });
         PlayerAirAttackDamagesField?.SetValue(player, new[] { 10, 12, 16 });
-        PlayerFallAttackDamageField?.SetValue(player, 20);
+        PlayerFallAttackDamageField?.SetValue(player, 22);
 
         Entity_Health health = player.GetComponent<Entity_Health>();
         if (health != null)
@@ -125,7 +146,7 @@ public static class CombatBalanceApplier
 
         EditorUtility.SetDirty(player);
         PrefabUtility.RecordPrefabInstancePropertyModifications(player);
-        Debug.Log($"Applied player balance: HP=100, basic=[12,14,18], air=[10,12,16], fall=20, baseDamage=12", player);
+        Debug.Log($"Applied player balance: HP=100, basic=[12,14,18], air=[10,12,16], fall=22, baseDamage=12", player);
     }
 
     private static void ApplyMageBalance(Enemy_Mage mage)
@@ -136,19 +157,19 @@ public static class CombatBalanceApplier
         }
 
         SerializedObject mageSo = new SerializedObject(mage);
-        SetInt(mageSo, "maxHealth", 65);
+        SetInt(mageSo, "maxHealth", 55);
         mageSo.ApplyModifiedPropertiesWithoutUndo();
-        EnemyMaxHealthField?.SetValue(mage, 65);
-        EnemyCurrentHealthField?.SetValue(mage, 65);
+        EnemyMaxHealthField?.SetValue(mage, 55);
+        EnemyCurrentHealthField?.SetValue(mage, 55);
 
         Enemy_Healthy health = mage.GetComponent<Enemy_Healthy>();
         if (health != null)
         {
             SerializedObject healthSo = new SerializedObject(health);
-            SetInt(healthSo, "maxHealth", 65);
+            SetInt(healthSo, "maxHealth", 55);
             healthSo.ApplyModifiedPropertiesWithoutUndo();
-            EntityHealthMaxHealthField?.SetValue(health, 65);
-            EntityHealthCurrentHealthField?.SetValue(health, 65);
+            EntityHealthMaxHealthField?.SetValue(health, 55);
+            EntityHealthCurrentHealthField?.SetValue(health, 55);
             EditorUtility.SetDirty(health);
         }
 
@@ -156,15 +177,102 @@ public static class CombatBalanceApplier
         if (combat != null)
         {
             SerializedObject combatSo = new SerializedObject(combat);
-            SetInt(combatSo, "damage", 20);
+            SetInt(combatSo, "damage", 16);
             combatSo.ApplyModifiedPropertiesWithoutUndo();
-            EntityCombatDamageField?.SetValue(combat, 20);
+            EntityCombatDamageField?.SetValue(combat, 16);
             EditorUtility.SetDirty(combat);
         }
 
         EditorUtility.SetDirty(mage);
         PrefabUtility.RecordPrefabInstancePropertyModifications(mage);
         Debug.Log($"Applied mage balance: maxHealth={mage.MaxHealth}, currentHealth={mage.CurrentHealth}, meleeDamage={(combat != null ? combat.Damage : -1)}", mage);
+    }
+
+    private static void ApplyAbyssMageBalance(Enemy_AbyssMage abyssMage)
+    {
+        if (abyssMage == null)
+        {
+            return;
+        }
+
+        SerializedObject mageSo = new SerializedObject(abyssMage);
+        SetInt(mageSo, "maxHealth", 60);
+        mageSo.ApplyModifiedPropertiesWithoutUndo();
+        EnemyMaxHealthField?.SetValue(abyssMage, 60);
+        EnemyCurrentHealthField?.SetValue(abyssMage, 60);
+
+        Enemy_Healthy health = abyssMage.GetComponent<Enemy_Healthy>();
+        if (health != null)
+        {
+            SerializedObject healthSo = new SerializedObject(health);
+            SetInt(healthSo, "maxHealth", 60);
+            healthSo.ApplyModifiedPropertiesWithoutUndo();
+            EntityHealthMaxHealthField?.SetValue(health, 60);
+            EntityHealthCurrentHealthField?.SetValue(health, 60);
+            EditorUtility.SetDirty(health);
+        }
+
+        Entity_Combat combat = abyssMage.GetComponent<Entity_Combat>();
+        if (combat != null)
+        {
+            SerializedObject combatSo = new SerializedObject(combat);
+            SetInt(combatSo, "damage", 16);
+            combatSo.ApplyModifiedPropertiesWithoutUndo();
+            EntityCombatDamageField?.SetValue(combat, 16);
+            EditorUtility.SetDirty(combat);
+        }
+
+        EditorUtility.SetDirty(abyssMage);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(abyssMage);
+        Debug.Log($"Applied abyss mage balance: maxHealth={abyssMage.MaxHealth}, currentHealth={abyssMage.CurrentHealth}, meleeDamage={(combat != null ? combat.Damage : -1)}", abyssMage);
+    }
+
+    private static void ApplyReaperBalance(Enemy_Reaper reaper)
+    {
+        if (reaper == null)
+        {
+            return;
+        }
+
+        SerializedObject reaperSo = new SerializedObject(reaper);
+        SetInt(reaperSo, "maxHealth", 90);
+        SerializedProperty spellDamageScale = reaperSo.FindProperty("spellDamageScale");
+        if (spellDamageScale != null)
+        {
+            SerializedProperty phyiscal = spellDamageScale.FindPropertyRelative("phyiscal");
+            if (phyiscal != null)
+            {
+                phyiscal.floatValue = 0.45f;
+            }
+        }
+        reaperSo.ApplyModifiedPropertiesWithoutUndo();
+        EnemyMaxHealthField?.SetValue(reaper, 90);
+        EnemyCurrentHealthField?.SetValue(reaper, 90);
+
+        Enemy_Healthy health = reaper.GetComponent<Enemy_Healthy>();
+        if (health != null)
+        {
+            SerializedObject healthSo = new SerializedObject(health);
+            SetInt(healthSo, "maxHealth", 90);
+            healthSo.ApplyModifiedPropertiesWithoutUndo();
+            EntityHealthMaxHealthField?.SetValue(health, 90);
+            EntityHealthCurrentHealthField?.SetValue(health, 90);
+            EditorUtility.SetDirty(health);
+        }
+
+        Entity_Combat combat = reaper.GetComponent<Entity_Combat>();
+        if (combat != null)
+        {
+            SerializedObject combatSo = new SerializedObject(combat);
+            SetInt(combatSo, "damage", 18);
+            combatSo.ApplyModifiedPropertiesWithoutUndo();
+            EntityCombatDamageField?.SetValue(combat, 18);
+            EditorUtility.SetDirty(combat);
+        }
+
+        EditorUtility.SetDirty(reaper);
+        PrefabUtility.RecordPrefabInstancePropertyModifications(reaper);
+        Debug.Log($"Applied reaper balance: maxHealth={reaper.MaxHealth}, currentHealth={reaper.CurrentHealth}, meleeDamage={(combat != null ? combat.Damage : -1)}", reaper);
     }
 
     private static void ApplySlimeBalance(Enemy_Slime slime)
@@ -175,19 +283,19 @@ public static class CombatBalanceApplier
         }
 
         SerializedObject slimeSo = new SerializedObject(slime);
-        SetInt(slimeSo, "maxHealth", 45);
+        SetInt(slimeSo, "maxHealth", 44);
         slimeSo.ApplyModifiedPropertiesWithoutUndo();
-        EnemyMaxHealthField?.SetValue(slime, 45);
-        EnemyCurrentHealthField?.SetValue(slime, 45);
+        EnemyMaxHealthField?.SetValue(slime, 44);
+        EnemyCurrentHealthField?.SetValue(slime, 44);
 
         Enemy_Healthy health = slime.GetComponent<Enemy_Healthy>();
         if (health != null)
         {
             SerializedObject healthSo = new SerializedObject(health);
-            SetInt(healthSo, "maxHealth", 45);
+            SetInt(healthSo, "maxHealth", 44);
             healthSo.ApplyModifiedPropertiesWithoutUndo();
-            EntityHealthMaxHealthField?.SetValue(health, 45);
-            EntityHealthCurrentHealthField?.SetValue(health, 45);
+            EntityHealthMaxHealthField?.SetValue(health, 44);
+            EntityHealthCurrentHealthField?.SetValue(health, 44);
             EditorUtility.SetDirty(health);
         }
 
@@ -195,9 +303,9 @@ public static class CombatBalanceApplier
         if (combat != null)
         {
             SerializedObject combatSo = new SerializedObject(combat);
-            SetInt(combatSo, "damage", 17);
+            SetInt(combatSo, "damage", 14);
             combatSo.ApplyModifiedPropertiesWithoutUndo();
-            EntityCombatDamageField?.SetValue(combat, 17);
+            EntityCombatDamageField?.SetValue(combat, 14);
             EditorUtility.SetDirty(combat);
         }
 
@@ -214,21 +322,21 @@ public static class CombatBalanceApplier
         }
 
         SerializedObject skeletonSo = new SerializedObject(skeleton);
-        SetInt(skeletonSo, "maxHealth", 65);
-        SetInt(skeletonSo, "skeletonContactDamage", 25);
+        SetInt(skeletonSo, "maxHealth", 70);
+        SetInt(skeletonSo, "skeletonContactDamage", 22);
         skeletonSo.ApplyModifiedPropertiesWithoutUndo();
-        EnemyMaxHealthField?.SetValue(skeleton, 65);
-        EnemyCurrentHealthField?.SetValue(skeleton, 65);
-        SkeletonContactDamageField?.SetValue(skeleton, 25);
+        EnemyMaxHealthField?.SetValue(skeleton, 70);
+        EnemyCurrentHealthField?.SetValue(skeleton, 70);
+        SkeletonContactDamageField?.SetValue(skeleton, 22);
 
         Enemy_Healthy health = skeleton.GetComponent<Enemy_Healthy>();
         if (health != null)
         {
             SerializedObject healthSo = new SerializedObject(health);
-            SetInt(healthSo, "maxHealth", 65);
+            SetInt(healthSo, "maxHealth", 70);
             healthSo.ApplyModifiedPropertiesWithoutUndo();
-            EntityHealthMaxHealthField?.SetValue(health, 65);
-            EntityHealthCurrentHealthField?.SetValue(health, 65);
+            EntityHealthMaxHealthField?.SetValue(health, 70);
+            EntityHealthCurrentHealthField?.SetValue(health, 70);
             EditorUtility.SetDirty(health);
         }
 
@@ -236,15 +344,35 @@ public static class CombatBalanceApplier
         if (combat != null)
         {
             SerializedObject combatSo = new SerializedObject(combat);
-            SetInt(combatSo, "damage", 25);
+            SetInt(combatSo, "damage", 22);
             combatSo.ApplyModifiedPropertiesWithoutUndo();
-            EntityCombatDamageField?.SetValue(combat, 25);
+            EntityCombatDamageField?.SetValue(combat, 22);
             EditorUtility.SetDirty(combat);
         }
 
         EditorUtility.SetDirty(skeleton);
         PrefabUtility.RecordPrefabInstancePropertyModifications(skeleton);
         Debug.Log($"Applied skeleton balance: maxHealth={skeleton.MaxHealth}, currentHealth={skeleton.CurrentHealth}, damage={(combat != null ? combat.Damage : -1)}", skeleton);
+    }
+
+    private static void ApplyProjectileDamage(GameObject root, int damage)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        Entity_Combat combat = root.GetComponent<Entity_Combat>();
+        if (combat == null)
+        {
+            return;
+        }
+
+        SerializedObject combatSo = new SerializedObject(combat);
+        SetInt(combatSo, "damage", damage);
+        combatSo.ApplyModifiedPropertiesWithoutUndo();
+        EntityCombatDamageField?.SetValue(combat, damage);
+        EditorUtility.SetDirty(combat);
     }
 
     private static void ApplyPrefabAtPath(string path, System.Action<GameObject> apply)

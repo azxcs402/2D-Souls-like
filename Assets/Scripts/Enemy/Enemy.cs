@@ -13,6 +13,8 @@ public abstract class Enemy : Entity
     [Header("Enemy Info")]
     [SerializeField, Min(1)] protected int maxHealth = 3;
     [SerializeField] protected bool canTakeDamage = true;
+    [Header("Stun Recovery")]
+    [SerializeField, Min(0f)] private float stunAttackRecoveryDelay = .6f;
 
     public StateMachine stateMachine { get; protected set; }
     public Entity_Combat Combat { get; protected set; }
@@ -20,11 +22,14 @@ public abstract class Enemy : Entity
     public int CurrentHealth => currentHealth;
     public bool CanTakeDamage => canTakeDamage && !isDead;
     public bool IsDead => isDead;
+    public bool IsStunAttackRecoveryActive => stunAttackRecoveryTimer > 0f;
+    public float StunAttackRecoveryDelay => stunAttackRecoveryDelay;
     public IState DeadState => GetDeadState();
 
     protected int currentHealth;
     protected bool isDead;
     protected int defaultLayer;
+    protected float stunAttackRecoveryTimer;
 
     protected override bool UseWallChecks => true;
 
@@ -38,10 +43,16 @@ public abstract class Enemy : Entity
         defaultLayer = gameObject.layer;
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
+        stunAttackRecoveryTimer = 0f;
     }
 
     protected virtual void Update()
     {
+        if (stunAttackRecoveryTimer > 0f)
+        {
+            stunAttackRecoveryTimer = Mathf.Max(0f, stunAttackRecoveryTimer - Time.deltaTime);
+        }
+
         SyncAnimationState();
         stateMachine.CurrentState?.Update();
     }
@@ -118,6 +129,7 @@ public abstract class Enemy : Entity
     {
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
+        stunAttackRecoveryTimer = 0f;
 
         if (anim != null && !anim.isActiveAndEnabled)
         {
@@ -132,6 +144,11 @@ public abstract class Enemy : Entity
 
     public virtual void SpecialAttack()
     {
+    }
+
+    public void StartStunAttackRecovery()
+    {
+        stunAttackRecoveryTimer = Mathf.Max(0f, stunAttackRecoveryDelay);
     }
 
     public void MakeUntargetable(bool canBeTargeted)

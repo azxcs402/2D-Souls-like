@@ -107,6 +107,7 @@ public class Enemy_SlimeStunnedState : EnemyState
         {
             slime.SetStunnedAnimation(false);
             slime.RestoreAliveColliderProfile();
+            slime.StartStunAttackRecovery();
         }
 
         if (slime != null && slime.rb != null)

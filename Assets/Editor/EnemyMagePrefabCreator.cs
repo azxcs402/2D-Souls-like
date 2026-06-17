@@ -207,16 +207,25 @@ public static class EnemyMagePrefabCreator
         mageSo.ApplyModifiedPropertiesWithoutUndo();
 
         SerializedObject enemySo = new SerializedObject(mage);
-        SetInteger(enemySo, "maxHealth", 65);
+        SetInteger(enemySo, "maxHealth", 55);
         SetBool(enemySo, "canTakeDamage", true);
         enemySo.ApplyModifiedPropertiesWithoutUndo();
 
         if (health != null)
         {
             SerializedObject healthSo = new SerializedObject(health);
-            SetInteger(healthSo, "maxHealth", 65);
+            SetInteger(healthSo, "maxHealth", 55);
             SetBool(healthSo, "canTakeDamage", true);
             healthSo.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        Entity_Combat combat = root.GetComponent<Entity_Combat>();
+        if (combat != null)
+        {
+            SerializedObject combatSo = new SerializedObject(combat);
+            SetInteger(combatSo, "damage", 16);
+            combatSo.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(combat);
         }
 
         EditorUtility.SetDirty(root);

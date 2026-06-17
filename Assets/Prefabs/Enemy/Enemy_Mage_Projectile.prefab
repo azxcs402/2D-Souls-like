@@ -274,7 +274,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 10
+  damage: 12
   showCombatDebugLogs: 0
   targetCheck: {fileID: 3264820721899666613}
   targetCheckRadius: 0.6

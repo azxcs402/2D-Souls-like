@@ -139,7 +139,7 @@ MonoBehaviour:
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 8908980238229560491}
   secondaryWallCheck: {fileID: 4535049385879726967}
-  maxHealth: 45
+  maxHealth: 44
   canTakeDamage: 1
   questTargetId: enemy_slime
   battleMoveSpeed: 3
@@ -265,7 +265,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e1e9c5537c00da4bbeed029e86c0757, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 17
+  damage: 14
   showCombatDebugLogs: 1
   targetCheck: {fileID: 2832818383850018919}
   targetCheckRadius: 1.1
@@ -292,7 +292,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 45
+  maxHealth: 44
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 3344165115431177832}

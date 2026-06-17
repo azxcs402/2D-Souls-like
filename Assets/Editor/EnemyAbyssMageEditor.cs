@@ -86,7 +86,8 @@ public class EnemyAbyssMageEditor : Editor
             {
                 new FieldInfo("stunnedDuration", "Stunned Duration", "stun time"),
                 new FieldInfo("stunnedVelocity", "Stunned Velocity", "stun knockback"),
-                new FieldInfo("canBeStunned", "Can Be Stunned", "counter stun")
+                new FieldInfo("canBeStunned", "Can Be Stunned", "counter stun"),
+                new FieldInfo("stunAttackRecoveryDelay", "Stun Attack Recovery Delay", "stun recovery")
             }
         ),
         new Section(
@@ -1062,7 +1063,7 @@ public static class EnemyAbyssMageSceneConfigurator
         SetObjectReference(mageSo, "primaryWallCheck", primaryWallCheck);
         SetObjectReference(mageSo, "secondaryWallCheck", secondaryWallCheck);
 
-        SetInteger(mageSo, "maxHealth", 65);
+        SetInteger(mageSo, "maxHealth", 60);
         SetBool(mageSo, "canTakeDamage", true);
         SetString(mageSo, "questTargetId", "enemy_abyss_mage");
         SetFloat(mageSo, "battleMoveSpeed", 4f);
@@ -1130,9 +1131,18 @@ public static class EnemyAbyssMageSceneConfigurator
         mageSo.ApplyModifiedPropertiesWithoutUndo();
 
         SerializedObject healthSo = new SerializedObject(health);
-        SetInteger(healthSo, "maxHealth", 65);
+        SetInteger(healthSo, "maxHealth", 60);
         SetBool(healthSo, "canTakeDamage", true);
         healthSo.ApplyModifiedPropertiesWithoutUndo();
+
+        Entity_Combat combat = root.GetComponent<Entity_Combat>();
+        if (combat != null)
+        {
+            SerializedObject combatSo = new SerializedObject(combat);
+            SetInteger(combatSo, "damage", 16);
+            combatSo.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(combat);
+        }
 
         ConfigureHoverAreaComponent(hoverArea1, new Vector2(4f, 1.8f));
         ConfigureHoverAreaComponent(hoverArea2, new Vector2(4f, 1.8f));

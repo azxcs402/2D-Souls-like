@@ -158,7 +158,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
-    public bool CanAttack => attackCooldownTimer <= 0f;
+    public bool CanAttack => attackCooldownTimer <= 0f && !IsStunAttackRecoveryActive;
     public bool IsCounterWindowActive => counterWindowActive;
     public int PlayerTargetDirection => playerTargetDirection;
     public Transform PlayerTarget => playerTarget;

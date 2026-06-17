@@ -146,7 +146,7 @@ public class Player : Entity
     [SerializeField] private float fallAttackEndAnimationMaxSpeed = 8f;
     [SerializeField] private float fallAttackEndAnimationLandingOffset = .15f;
     [SerializeField] private Entity_AttackData fallAttackData = new Entity_AttackData(new Vector2(.6f, -.2f), .7f, new Vector2(6f, 3f));
-    [SerializeField] private int fallAttackDamage = 20;
+    [SerializeField] private int fallAttackDamage = 22;
 
     [Header("Counter Attack Info")]
     [SerializeField, Min(0f)] private float counterDuration = .35f;
