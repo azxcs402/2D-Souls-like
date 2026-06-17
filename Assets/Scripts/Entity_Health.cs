@@ -1,11 +1,16 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 public class Entity_Health : MonoBehaviour, IDamagable
 {
+    public event Action<Entity_Health> OnHealthChanged;
+    public event Action<Entity_Health, int, Component> OnDamaged;
+    public event Action<Entity_Health> OnDied;
+
     [Header("Health")]
-    [SerializeField, Range(1, 20)] protected int maxHealth = 3;
+    [SerializeField, Min(1)] protected int maxHealth = 10;
     [SerializeField] protected bool canTakeDamage = true;
 
     [Header("Knockback")]
@@ -16,6 +21,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
     [SerializeField] protected GameObject healthBarPrefab;
     [SerializeField] protected Vector3 healthBarLocalOffset = new Vector3(0f, 1.2f, 0f);
     [SerializeField] protected bool autoCreateHealthBar = true;
+    [SerializeField] protected bool showMiniHealthBar = true;
 
     public int MaxHealth => maxHealth;
     public int CurrentHealth => currentHealth;
@@ -37,6 +43,11 @@ public class Entity_Health : MonoBehaviour, IDamagable
             entityVFX = gameObject.AddComponent<Entity_VFX>();
         }
 
+        if (TryGetComponent<Player>(out _))
+        {
+            showMiniHealthBar = false;
+        }
+
         EnsureHealthBar();
         UpdateHealthBar();
     }
@@ -46,20 +57,45 @@ public class Entity_Health : MonoBehaviour, IDamagable
         maxHealth = Mathf.Max(1, maxHealth);
         knockbackDuration = Mathf.Max(.01f, knockbackDuration);
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+
         EnsureHealthBar();
         UpdateHealthBar();
     }
 
     public virtual bool TakeDamage(int damage, Entity_Combat damageSource, Vector2 knockbackVelocity)
     {
-        if (!CanTakeDamage || damage <= 0 || !CanReceiveDamageFrom(damageSource))
+        return TakeDamageInternal(damage, damageSource, knockbackVelocity);
+    }
+
+    public virtual bool TakeDamage(int damage, Component damageSource, Vector2 knockbackVelocity)
+    {
+        return TakeDamageInternal(damage, damageSource, knockbackVelocity);
+    }
+
+    private bool TakeDamageInternal(int damage, Component damageSource, Vector2 knockbackVelocity)
+    {
+        if (!CanTakeDamage || damage <= 0)
+        {
+            return false;
+        }
+
+        if (damageSource is Entity_Combat combatSource)
+        {
+            if (!CanReceiveDamageFrom(combatSource))
+            {
+                return false;
+            }
+        }
+        else if (!CanReceiveDamageFrom(damageSource))
         {
             return false;
         }
 
         currentHealth = Mathf.Max(0, currentHealth - damage);
         ApplyKnockback(knockbackVelocity);
-        OnDamageTaken(damage, damageSource);
+        OnDamageTaken(damage, damageSource as Entity_Combat);
+        OnDamaged?.Invoke(this, damage, damageSource);
+        UpdateHealthBar();
 
         if (currentHealth <= 0)
         {
@@ -85,6 +121,11 @@ public class Entity_Health : MonoBehaviour, IDamagable
         return damageSource != null;
     }
 
+    protected virtual bool CanReceiveDamageFrom(Component damageSource)
+    {
+        return damageSource != null;
+    }
+
     protected virtual bool CanBeKnockedBack()
     {
         return true;
@@ -103,17 +144,18 @@ public class Entity_Health : MonoBehaviour, IDamagable
     protected virtual void OnDamageTaken(int damage, Entity_Combat damageSource)
     {
         entityVFX?.PlayOnDamageVFX();
-        Debug.Log($"{name} took {damage} damage. HP: {currentHealth}/{maxHealth}.", this);
     }
 
-    protected virtual void Die(Entity_Combat damageSource)
+    protected virtual void Die(Component damageSource)
     {
         isDead = true;
-        Debug.Log($"{name} died.", this);
+        OnDied?.Invoke(this);
 
         if (TryGetComponent<Player>(out Player player))
         {
             player.EnterDeadState();
+            bool freezeTime = damageSource is SpikeHazard;
+            GameManager.instance?.BeginPlayerDeathSequence(freezeTime);
             return;
         }
 
@@ -124,19 +166,36 @@ public class Entity_Health : MonoBehaviour, IDamagable
     {
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
-        Debug.Log($"{name} revived with {currentHealth}/{maxHealth} HP.", this);
+        UpdateHealthBar();
+
+        if (TryGetComponent<Player>(out Player player))
+        {
+            player.EndHazardRecovery();
+            player.SetDead(false);
+            player.SetDeathGroundVisualOffset(false);
+            player.RestoreAliveColliderProfile();
+            player.RestoreAlivePhysicsProfile();
+        }
+    }
+
+    public void SetMiniHealthBarVisible(bool visible)
+    {
+        showMiniHealthBar = visible;
+        EnsureHealthBar();
         UpdateHealthBar();
     }
 
+    public bool IsMiniHealthBarVisible => showMiniHealthBar;
+
     protected virtual void UpdateHealthBar()
     {
-        if (healthBar == null)
+        if (healthBar != null)
         {
-            return;
+            healthBar.maxValue = maxHealth;
+            healthBar.value = currentHealth;
         }
 
-        healthBar.maxValue = maxHealth;
-        healthBar.value = currentHealth;
+        OnHealthChanged?.Invoke(this);
     }
 
     private void EnsureHealthBar()
@@ -146,7 +205,13 @@ public class Entity_Health : MonoBehaviour, IDamagable
             healthBar = GetComponentInChildren<Slider>(true);
         }
 
-        if (healthBar != null || !autoCreateHealthBar)
+        if (healthBar != null)
+        {
+            ApplyMiniHealthBarVisibility();
+            return;
+        }
+
+        if (!autoCreateHealthBar || !showMiniHealthBar)
         {
             return;
         }
@@ -173,6 +238,20 @@ public class Entity_Health : MonoBehaviour, IDamagable
         if (healthBar != null)
         {
             UpdateHealthBar();
+        }
+    }
+
+    private void ApplyMiniHealthBarVisibility()
+    {
+        if (healthBar == null)
+        {
+            return;
+        }
+
+        GameObject healthBarObject = healthBar.gameObject;
+        if (healthBarObject.activeSelf != showMiniHealthBar)
+        {
+            healthBarObject.SetActive(showMiniHealthBar);
         }
     }
 }

@@ -30,14 +30,6 @@ public class Enemy_AttackState : Enemy_GroundedState
         stateTimer = GetAttackClipLength();
         skeleton?.DisableCounterWindow();
 
-        string currentStateName = stateMachine != null && stateMachine.CurrentState != null
-            ? stateMachine.CurrentState.GetType().Name
-            : "null";
-        Debug.Log(
-            $"{enemy.name} entered attack state. CounterWindowActive={(skeleton != null && skeleton.IsCounterWindowActive)}, " +
-            $"AttackClipLength={stateTimer:0.000}, State={currentStateName}",
-            enemy);
-
         if (skeleton != null)
         {
             if (skeleton.PlayerTarget != null)
@@ -103,12 +95,6 @@ public class Enemy_AttackState : Enemy_GroundedState
 
     public void AttackTrigger()
     {
-        Debug.Log(
-            $"{enemy.name} AttackTrigger received. damageTriggered={damageTriggered}, " +
-            $"counterWindowActive={(skeleton != null && skeleton.IsCounterWindowActive)}, " +
-            $"attackDirection={attackDirection}, elapsedAttackTime={elapsedAttackTime:0.000}",
-            enemy);
-
         if (damageTriggered)
         {
             return;
@@ -121,11 +107,6 @@ public class Enemy_AttackState : Enemy_GroundedState
         if (hitPlayer)
         {
             damageTriggered = true;
-            Debug.Log($"{enemy.name} AttackTrigger applied damage successfully.", enemy);
-        }
-        else
-        {
-            Debug.Log($"{enemy.name} AttackTrigger missed. Keeping later AttackTrigger events available.", enemy);
         }
     }
 
@@ -134,11 +115,6 @@ public class Enemy_AttackState : Enemy_GroundedState
         damageWindowActive = false;
         animationTriggered = true;
         stateTimer = 0f;
-
-        Debug.Log(
-            $"{enemy.name} AttackOver received. CounterWindowActive={(skeleton != null && skeleton.IsCounterWindowActive)}, " +
-            $"ElapsedAttackTime={elapsedAttackTime:0.000}",
-            enemy);
     }
 
     private bool TryApplyAttackDamage()

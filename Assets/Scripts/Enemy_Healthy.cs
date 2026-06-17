@@ -4,14 +4,26 @@ using UnityEngine;
 public class Enemy_Healthy : Entity_Health
 {
     private Enemy enemy;
+    private Enemy_Mage mage;
+    private Enemy_AbyssMage abyssMage;
+    private Enemy_Reaper reaper;
     private Enemy_Skeleton skeleton;
+    private Enemy_Slime slime;
 
     protected override void Awake()
     {
         base.Awake();
 
         enemy = GetComponent<Enemy>();
+        mage = GetComponent<Enemy_Mage>();
+        abyssMage = GetComponent<Enemy_AbyssMage>();
+        reaper = GetComponent<Enemy_Reaper>();
         skeleton = GetComponent<Enemy_Skeleton>();
+        slime = GetComponent<Enemy_Slime>();
+    }
+
+    private void Start()
+    {
         SyncEnemyHealth();
     }
 
@@ -32,6 +44,26 @@ public class Enemy_Healthy : Entity_Health
             skeleton = GetComponent<Enemy_Skeleton>();
         }
 
+        if (mage == null)
+        {
+            mage = GetComponent<Enemy_Mage>();
+        }
+
+        if (abyssMage == null)
+        {
+            abyssMage = GetComponent<Enemy_AbyssMage>();
+        }
+
+        if (reaper == null)
+        {
+            reaper = GetComponent<Enemy_Reaper>();
+        }
+
+        if (slime == null)
+        {
+            slime = GetComponent<Enemy_Slime>();
+        }
+
         if (enemy == null)
         {
             return base.TakeDamage(damage, damageSource, knockbackVelocity);
@@ -47,11 +79,33 @@ public class Enemy_Healthy : Entity_Health
         SyncEnemyHealth();
         ApplyKnockback(knockbackVelocity);
         entityVFX?.PlayOnDamageVFX();
-        Debug.Log($"{name} took {damage} damage from player. HP: {currentHealth}/{maxHealth}.", this);
+
+        if (mage != null && !isDead)
+        {
+            mage.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+            mage.HandleTeleportTriggerOnDamaged();
+        }
+
+        if (abyssMage != null && !isDead)
+        {
+            abyssMage.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+            abyssMage.HandleTeleportTriggerOnDamaged();
+        }
+
+        if (reaper != null && !isDead)
+        {
+            reaper.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+            reaper.HandleTeleportTriggerOnDamaged();
+        }
 
         if (skeleton != null && !isDead)
         {
             skeleton.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
+        if (slime != null && !isDead)
+        {
+            slime.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
         }
 
         return true;
@@ -76,14 +130,54 @@ public class Enemy_Healthy : Entity_Health
 
     protected override bool CanBeKnockedBack()
     {
+        if (mage != null)
+        {
+            return mage.CanBeKnockedBack;
+        }
+
+        if (abyssMage != null)
+        {
+            return abyssMage.CanBeKnockedBack;
+        }
+
+        if (reaper != null)
+        {
+            return reaper.CanBeKnockedBack;
+        }
+
+        if (slime != null)
+        {
+            return slime.CanSlimeBeKnockedBack;
+        }
+
         return skeleton == null || skeleton.CanSkeletonBeKnockedBack;
     }
 
     protected override void OnDamageTaken(int damage, Entity_Combat damageSource)
     {
+        if (mage != null)
+        {
+            mage.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
+        if (abyssMage != null)
+        {
+            abyssMage.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
+        if (reaper != null)
+        {
+            reaper.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
         if (skeleton != null)
         {
             skeleton.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
+        }
+
+        if (slime != null)
+        {
+            slime.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
         }
     }
 

@@ -157,6 +157,8 @@ public class EntityState : IState
             return false;
         }
 
+        player.TryConsumeDashStamina();
+
         if (directionOverride != 0)
         {
             player.SetDashDirectionOverride(directionOverride);

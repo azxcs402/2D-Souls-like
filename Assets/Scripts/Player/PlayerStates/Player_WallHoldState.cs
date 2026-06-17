@@ -42,6 +42,7 @@ public class Player_WallHoldState : EntityState
 
         if (player.JumpInputPressed())
         {
+            player.TryConsumeWallJumpStamina();
             stateMachine.ChangeState(player.wallJumpState);
             return;
         }

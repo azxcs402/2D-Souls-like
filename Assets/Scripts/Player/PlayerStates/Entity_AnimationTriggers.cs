@@ -31,13 +31,24 @@ public class Entity_AnimationTriggers : MonoBehaviour
         {
             attackState.AttackOver();
         }
+        else if (entity is Enemy_Reaper reaperAttackEnemy && reaperAttackEnemy.stateMachine.CurrentState is Enemy_ReaperAttackState reaperAttackState)
+        {
+            reaperAttackState.AttackOver();
+        }
+        else if (entity is Enemy_Reaper reaperSpellEnemy && reaperSpellEnemy.stateMachine.CurrentState is Enemy_ReaperSpellCastState reaperSpellCastState)
+        {
+            reaperSpellCastState.AttackOver();
+        }
+        else if (entity is Enemy_Reaper reaperTeleportEnemy && reaperTeleportEnemy.stateMachine.CurrentState is Enemy_ReaperTeleportState reaperTeleportState)
+        {
+            reaperTeleportState.AttackOver();
+        }
     }
 
     public void EnableCounterWindow()
     {
         if (entity is Enemy enemy && enemy is ICounterable counterable)
         {
-            Debug.Log($"{enemy.name} animation event EnableCounterWindow fired.", enemy);
             counterable.EnableCounterWindow();
         }
     }
@@ -46,7 +57,6 @@ public class Entity_AnimationTriggers : MonoBehaviour
     {
         if (entity is Enemy enemy && enemy is ICounterable counterable)
         {
-            Debug.Log($"{enemy.name} animation event DisableCounterWindow fired.", enemy);
             counterable.DisableCounterWindow();
         }
     }
@@ -68,6 +78,43 @@ public class Entity_AnimationTriggers : MonoBehaviour
                 player.fallAttackState.AttackTrigger();
             }
         }
+        else if (entity is Enemy slimeEnemy && slimeEnemy.stateMachine.CurrentState is Enemy_SlimeAttackState slimeAttackState)
+        {
+            slimeAttackState.AttackTrigger();
+        }
+        else if (entity is Enemy_Mage mage)
+        {
+            if (mage.stateMachine.CurrentState is Enemy_MageAttackState mageAttackState)
+            {
+                mageAttackState.AttackTrigger();
+            }
+            else if (mage.stateMachine.CurrentState is Enemy_MageSpellCastState mageSpellCastState)
+            {
+                mageSpellCastState.AttackTrigger();
+            }
+        }
+        else if (entity is Enemy_AbyssMage abyssMage)
+        {
+            if (abyssMage.stateMachine.CurrentState is Enemy_AbyssMageAttackState abyssMageAttackState)
+            {
+                abyssMageAttackState.AttackTrigger();
+            }
+            else if (abyssMage.stateMachine.CurrentState is Enemy_AbyssMageSpellCastState abyssMageSpellCastState)
+            {
+                abyssMageSpellCastState.AttackTrigger();
+            }
+        }
+        else if (entity is Enemy_Reaper reaper)
+        {
+            if (reaper.stateMachine.CurrentState is Enemy_ReaperAttackState reaperAttackState)
+            {
+                reaperAttackState.AttackTrigger();
+            }
+            else if (reaper.stateMachine.CurrentState is Enemy_ReaperSpellCastState reaperSpellCastState)
+            {
+                reaperSpellCastState.AttackTrigger();
+            }
+        }
         else if (entity is Enemy enemy && enemy.stateMachine.CurrentState is Enemy_AttackState attackState)
         {
             attackState.AttackTrigger();
@@ -80,9 +127,74 @@ public class Entity_AnimationTriggers : MonoBehaviour
         {
             player.counterAttackState.CurrentStateTrigger();
         }
+        else if (entity is Enemy slimeEnemy && slimeEnemy.stateMachine.CurrentState is Enemy_SlimeAttackState slimeAttackState)
+        {
+            slimeAttackState.CurrentStateTrigger();
+        }
+        else if (entity is Enemy_Mage mage)
+        {
+            if (mage.stateMachine.CurrentState is Enemy_MageAttackState mageAttackState)
+            {
+                mageAttackState.CurrentStateTrigger();
+            }
+            else if (mage.stateMachine.CurrentState is Enemy_MageSpellCastState mageSpellCastState)
+            {
+                mageSpellCastState.CurrentStateTrigger();
+            }
+        }
+        else if (entity is Enemy_AbyssMage abyssMage)
+        {
+            if (abyssMage.stateMachine.CurrentState is Enemy_AbyssMageAttackState abyssMageAttackState)
+            {
+                abyssMageAttackState.CurrentStateTrigger();
+            }
+            else if (abyssMage.stateMachine.CurrentState is Enemy_AbyssMageSpellCastState abyssMageSpellCastState)
+            {
+                abyssMageSpellCastState.CurrentStateTrigger();
+            }
+        }
+        else if (entity is Enemy_Reaper reaper)
+        {
+            if (reaper.stateMachine.CurrentState is Enemy_ReaperAttackState reaperAttackState)
+            {
+                reaperAttackState.CurrentStateTrigger();
+            }
+            else if (reaper.stateMachine.CurrentState is Enemy_ReaperSpellCastState reaperSpellCastState)
+            {
+                reaperSpellCastState.CurrentStateTrigger();
+            }
+            else if (reaper.stateMachine.CurrentState is Enemy_ReaperTeleportState reaperTeleportState)
+            {
+                reaperTeleportState.CurrentStateTrigger();
+            }
+        }
         else if (entity is Enemy enemy && enemy.stateMachine.CurrentState is Enemy_AttackState attackState)
         {
             attackState.CurrentStateTrigger();
+        }
+    }
+
+    public void TeleportTrigger()
+    {
+        if (entity is Enemy_Reaper reaper && reaper.stateMachine.CurrentState is Enemy_ReaperTeleportState reaperTeleportState)
+        {
+            reaperTeleportState.TeleportTrigger();
+        }
+    }
+
+    public void SpecialAttackTrigger()
+    {
+        if (entity is Enemy_Mage mage && mage.IsSpellCasting)
+        {
+            mage.SpecialAttack();
+        }
+        else if (entity is Enemy_AbyssMage abyssMage && abyssMage.IsSpellCasting)
+        {
+            abyssMage.SpecialAttack();
+        }
+        else if (entity is Enemy_Reaper reaper && reaper.IsSpellCasting)
+        {
+            reaper.SpecialAttack();
         }
     }
 

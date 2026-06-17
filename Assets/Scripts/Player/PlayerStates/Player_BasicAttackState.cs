@@ -54,8 +54,9 @@ public class Player_BasicAttackState : EntityState
             return;
         }
 
-        if (player.GroundDetected() && player.JumpInputPressed())
+        if (player.CanStartJump() && player.JumpInputPressed())
         {
+            player.TryConsumeJumpStamina();
             stateMachine.ChangeState(player.jumpState);
             return;
         }
@@ -101,6 +102,7 @@ public class Player_BasicAttackState : EntityState
         }
 
         damageTriggered = true;
+        player.SetCombatDamage(player.GetBasicAttackDamage(comboIndex));
         player.GetComponent<Entity_Combat>()?.AttackTrigger(player.GetBasicAttackData(comboIndex));
     }
 
@@ -143,6 +145,8 @@ public class Player_BasicAttackState : EntityState
 
     private void StartAttack()
     {
+        player.TryConsumeBasicAttackStamina(comboIndex);
+
         attackTimer = 0f;
         attackDuration = GetCurrentAttackDuration();
         moveTimer = player.BasicAttackMoveDuration;

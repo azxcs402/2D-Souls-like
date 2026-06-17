@@ -1,11 +1,13 @@
 using UnityEngine;
 using UnityEngine.Serialization;
 
-public class Enemy_Skeleton : Enemy, ICounterable
+public class Enemy_Skeleton : Enemy, ICounterable, IEnemyBattleResponder
 {
     [Header("Patrol Info")]
-    [SerializeField, Min(.1f)] private float idleDuration = 1.2f;
-    [SerializeField, Min(.1f)] private float moveDuration = 2f;
+    [SerializeField, Min(.1f)] private float idleDurationMin = 2f;
+    [SerializeField, Min(.1f)] private float idleDurationMax = 4f;
+    [SerializeField, Min(.1f)] private float moveDurationMin = 4f;
+    [SerializeField, Min(.1f)] private float moveDurationMax = 8f;
     [SerializeField, Range(0f, 1f)] private float patrolTurnChance = .5f;
 
     [Header("Edge Check")]
@@ -68,8 +70,10 @@ public class Enemy_Skeleton : Enemy, ICounterable
     public Enemy_StunnedState stunnedState { get; private set; }
     public Enemy_DeadState deadState { get; private set; }
 
-    public float IdleDuration => idleDuration;
-    public float MoveDuration => moveDuration;
+    public float IdleDurationMin => idleDurationMin;
+    public float IdleDurationMax => idleDurationMax;
+    public float MoveDurationMin => moveDurationMin;
+    public float MoveDurationMax => moveDurationMax;
     public float PatrolTurnChance => patrolTurnChance;
     public bool UseEdgeCheck => useEdgeCheck;
     public float EdgeCheckForwardOffset => edgeCheckForwardOffset;
@@ -112,7 +116,7 @@ public class Enemy_Skeleton : Enemy, ICounterable
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
-    public bool CanAttack => attackCooldownTimer <= 0f;
+    public bool CanAttack => attackCooldownTimer <= 0f && !IsStunAttackRecoveryActive;
     public bool PlayerVisible => playerVisible;
     public bool PlayerInAttackRange => playerInAttackRange;
     public bool PlayerWithinChaseHeight => playerWithinChaseHeight;
@@ -242,6 +246,16 @@ public class Enemy_Skeleton : Enemy, ICounterable
         }
     }
 
+    public float GetRandomIdleDuration()
+    {
+        return Random.Range(idleDurationMin, idleDurationMax);
+    }
+
+    public float GetRandomMoveDuration()
+    {
+        return Random.Range(moveDurationMin, moveDurationMax);
+    }
+
     public void StopChasingPlayer()
     {
         isAlerted = false;
@@ -343,29 +357,20 @@ public class Enemy_Skeleton : Enemy, ICounterable
     public void EnableCounterWindow()
     {
         counterWindowActive = true;
-        Debug.Log($"{name} counter window ENABLED. State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}.", this);
     }
 
     public void DisableCounterWindow()
     {
         counterWindowActive = false;
-        Debug.Log($"{name} counter window DISABLED. State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}.", this);
     }
 
     public bool TryCounter()
     {
-        Debug.Log(
-            $"{name} counter attempt. CounterWindowActive={counterWindowActive}, IsDead={IsDead}, " +
-            $"State={(stateMachine != null ? stateMachine.CurrentState?.GetType().Name : "null")}, " +
-            $"CanStun={(stunnedState != null)}",
-            this);
-
         if (!counterWindowActive || IsDead || stunnedState == null || stateMachine == null)
         {
             return false;
         }
 
-        Debug.Log($"{name} counter success -> entering stunned state.", this);
         stateMachine.ChangeState(stunnedState);
         return true;
     }
@@ -374,8 +379,10 @@ public class Enemy_Skeleton : Enemy, ICounterable
     {
         base.OnValidate();
 
-        idleDuration = Mathf.Max(.1f, idleDuration);
-        moveDuration = Mathf.Max(.1f, moveDuration);
+        idleDurationMin = Mathf.Max(.1f, idleDurationMin);
+        idleDurationMax = Mathf.Max(idleDurationMin, idleDurationMax);
+        moveDurationMin = Mathf.Max(.1f, moveDurationMin);
+        moveDurationMax = Mathf.Max(moveDurationMin, moveDurationMax);
         patrolTurnChance = Mathf.Clamp01(patrolTurnChance);
         edgeCheckForwardOffset = Mathf.Max(0f, edgeCheckForwardOffset);
         edgeCheckDistance = Mathf.Max(.01f, edgeCheckDistance);

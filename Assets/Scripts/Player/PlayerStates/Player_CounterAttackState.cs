@@ -85,7 +85,7 @@ public class Player_CounterAttackState : EntityState
 
         Collider2D[] targets = Physics2D.OverlapCircleAll(
             combat.TargetCheck.position,
-            combat.TargetCheckRadius,
+            Mathf.Max(.01f, combat.TargetCheckRadius * player.CounterAttackTargetCheckRadiusMultiplier),
             combat.WhatIsTarget
         );
 
@@ -117,6 +117,8 @@ public class Player_CounterAttackState : EntityState
         counterPerformed = true;
         performedAnimationFinished = false;
         stateTimer = Mathf.Max(.01f, player.GetAnimationLength(player.CounterAttackPerformedAnimationState));
+
+        player.TryConsumeCounterAttackSuccessStamina();
 
         player.SetCounterAttack(false);
         player.SetCounterAttackPerformed(true);

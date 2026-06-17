@@ -22,11 +22,13 @@ public abstract class Entity : MonoBehaviour
     public float WallCheckDistance => wallCheckDistance;
     public float WallCheckVerticalSpan => wallCheckVerticalSpan;
     public event Action OnFlipped;
+    public bool IsFacingLocked => facingLocked;
 
     protected int facingDirection = 1;
     protected virtual bool UseWallChecks => true;
     private Coroutine knockbackCoroutine;
     private bool knockbackActive;
+    private bool facingLocked;
 
     public bool IsKnockedBack => knockbackActive;
 
@@ -303,6 +305,11 @@ public abstract class Entity : MonoBehaviour
 
     public void TurnAround()
     {
+        if (facingLocked)
+        {
+            return;
+        }
+
         Flip(-facingDirection);
     }
 
@@ -313,10 +320,20 @@ public abstract class Entity : MonoBehaviour
             return;
         }
 
+        if (facingLocked)
+        {
+            return;
+        }
+
         if (facingDirection != direction)
         {
             Flip(direction);
         }
+    }
+
+    public void SetFacingLocked(bool locked)
+    {
+        facingLocked = locked;
     }
 
     protected Bounds GetColliderBounds()

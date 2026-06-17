@@ -8,6 +8,7 @@ public class Player_DeadState : EntityState
     private bool waitingForGround;
     private bool hasPlayedDeathAnimation;
     private bool hasFrozenDeathAnimation;
+    private bool corpsePhysicsLocked;
     private float deathAnimationLength;
     private float deathAnimationTimer;
 
@@ -23,6 +24,7 @@ public class Player_DeadState : EntityState
         waitingForGround = !player.GroundContactDetected();
         hasPlayedDeathAnimation = false;
         hasFrozenDeathAnimation = false;
+        corpsePhysicsLocked = false;
         deathAnimationTimer = 0f;
         deathAnimationLength = Mathf.Max(.01f, player.GetAnimationLength(DeathAnimationName));
 
@@ -39,7 +41,9 @@ public class Player_DeadState : EntityState
         player.SetCounterAttackPerformed(false);
         player.ResetFallAttackTrigger();
         player.SetDead(false);
+        player.RestoreAliveColliderProfile();
         player.SetDeathGroundVisualOffset(false);
+        SnapToGroundIfPossible();
 
         if (!waitingForGround)
         {
@@ -62,6 +66,14 @@ public class Player_DeadState : EntityState
                         && player.anim.GetCurrentAnimatorStateInfo(0).IsName(DeathAnimationName)
                         && player.anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1f))
                 {
+                    SnapToGroundIfPossible();
+
+                    if (!corpsePhysicsLocked)
+                    {
+                        player.LockCorpsePhysics();
+                        corpsePhysicsLocked = true;
+                    }
+
                     if (player.anim != null)
                     {
                         player.anim.Play($"Base Layer.{DeathAnimationName}", 0, DeathFreezeNormalizedTime);
@@ -95,9 +107,10 @@ public class Player_DeadState : EntityState
 
     public override void FixedUpdate()
     {
-        if (hasPlayedDeathAnimation)
+        if (hasPlayedDeathAnimation && !corpsePhysicsLocked)
         {
             player.SetVelocity(0f, 0f);
+            SnapToGroundIfPossible();
         }
     }
 
@@ -124,9 +137,27 @@ public class Player_DeadState : EntityState
         player.SetYVelocity(0f);
         player.SetVelocity(0f, 0f);
         player.rb.gravityScale = 0f;
+        player.ApplyDeathColliderProfile();
         player.SetDead(true);
+        SnapToGroundIfPossible();
+        player.LockCorpsePhysics();
+        corpsePhysicsLocked = true;
         player.anim.speed = 1f;
         player.anim.Play($"Base Layer.{DeathAnimationName}", 0, 0f);
         player.anim.Update(0f);
+        player.SetDeathGroundVisualOffset(true);
+        SnapToGroundIfPossible();
+        player.SetDeathGroundVisualOffset(true);
+    }
+
+    private void SnapToGroundIfPossible()
+    {
+        if (player == null || player.rb == null)
+        {
+            return;
+        }
+
+        float checkDistance = Mathf.Max(1f, player.FallAttackGroundSearchDistance);
+        player.SnapActiveColliderBottomToGround(checkDistance);
     }
 }

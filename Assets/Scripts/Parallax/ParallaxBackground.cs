@@ -1,39 +1,73 @@
 using UnityEngine;
 
+[DefaultExecutionOrder(10000)]
 public class ParallaxBackground : MonoBehaviour
 {
     private Camera mainCamera;
-    private float lastCameraPositionX;
+    private Vector3 startCameraPosition;
     private float cameraHalfWidth;
+    private bool initialized;
 
     [SerializeField] private ParallaxLayer[] backgroundLayers;
 
     private void Awake()
     {
-        mainCamera = Camera.main;
-        cameraHalfWidth = mainCamera.orthographicSize * mainCamera.aspect;
         InitializeLayers();
     }
 
-    private void FixedUpdate()
+    private void OnEnable()
     {
-        float currentCameraPositionX = mainCamera.transform.position.x;
-        float distanceToMove = currentCameraPositionX - lastCameraPositionX;
-        lastCameraPositionX = currentCameraPositionX;
+        InitializeLayers();
+    }
 
-        float cameraLeftEdge = currentCameraPositionX - cameraHalfWidth;
-        float cameraRightEdge = currentCameraPositionX + cameraHalfWidth;
+    private void LateUpdate()
+    {
+        if (!initialized)
+        {
+            InitializeLayers();
+        }
+
+        if (mainCamera == null)
+        {
+            return;
+        }
+
+        Vector3 currentCameraPosition = mainCamera.transform.position;
+        cameraHalfWidth = mainCamera.orthographicSize * mainCamera.aspect;
+
+        float cameraLeftEdge = currentCameraPosition.x - cameraHalfWidth;
+        float cameraRightEdge = currentCameraPosition.x + cameraHalfWidth;
 
         foreach (ParallaxLayer layer in backgroundLayers)
         {
-            layer.Move(distanceToMove);
+            if (layer == null)
+            {
+                continue;
+            }
+
+            layer.Move(currentCameraPosition, startCameraPosition);
             layer.LoopBackground(cameraLeftEdge, cameraRightEdge);
         }
     }
 
     private void InitializeLayers()
     {
+        mainCamera = Camera.main;
+
+        if (mainCamera == null)
+        {
+            initialized = false;
+            return;
+        }
+
+        startCameraPosition = mainCamera.transform.position;
+        cameraHalfWidth = mainCamera.orthographicSize * mainCamera.aspect;
+
         foreach (ParallaxLayer layer in backgroundLayers)
-            layer.CalculateImageWidth();
+        {
+            layer?.Initialize();
+        }
+
+        initialized = true;
     }
 }

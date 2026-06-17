@@ -2,18 +2,16 @@ using UnityEngine;
 
 public class Player_FallAttackState : EntityState
 {
+    private Entity_Combat combat;
     private float defaultGravityScale;
-    private float defaultAnimatorSpeed;
     private int attackDirection;
-    private float endAnimationLength;
-    private float endAnimationTimer;
-    private float landingTimer;
+    private int attackId;
     private bool isDiving;
     private bool diveRequested;
-    private bool isAttackFinished;
     private bool hasLanded;
-    private bool isEndAnimationFinished;
     private bool damageTriggered;
+    private bool finishRequested;
+    private bool attackFinished;
 
     public Player_FallAttackState(Player player, StateMachine stateMachine)
         : base(player, stateMachine)
@@ -25,19 +23,17 @@ public class Player_FallAttackState : EntityState
     {
         base.Enter();
 
+        combat = player.GetComponent<Entity_Combat>();
         attackDirection = GetAttackDirection();
         defaultGravityScale = player.rb.gravityScale;
-        defaultAnimatorSpeed = player.anim.speed;
+        attackId = 0;
         stateTimer = GetStartAnimationDuration();
         isDiving = false;
         diveRequested = false;
-        isAttackFinished = false;
         hasLanded = false;
-        isEndAnimationFinished = false;
         damageTriggered = false;
-        endAnimationLength = 0f;
-        endAnimationTimer = 0f;
-        landingTimer = 0f;
+        finishRequested = false;
+        attackFinished = false;
 
         player.DisableFallAttackUntilGrounded();
         player.CheckForFlip(attackDirection);
@@ -49,34 +45,26 @@ public class Player_FallAttackState : EntityState
         player.SetWallSlide(false);
         player.SetDash(false);
         player.ResetFallAttackTrigger();
+        player.SetFallAttackFinishRequested(false);
         player.SetFallAttack(true);
-        player.anim.speed = GetStartAnimationSpeed();
+        player.anim.speed = player.FallAttackAnimationSpeed;
         player.anim.CrossFadeInFixedTime(player.FallAttackStartAnimationName, .03f);
     }
 
     public override void Update()
     {
         base.Update();
-        player.SetYVelocity(player.rb.velocity.y);
 
-        if (!isDiving && (diveRequested || stateTimer <= 0f) && stateTimer <= 0f)
+        if (TryEnterDashState())
         {
-            StartDive();
+            return;
         }
 
-        if (isDiving)
-        {
-            if (hasLanded)
-            {
-                landingTimer += Time.deltaTime;
-                UpdateLandingRecoveryAnimationSpeed();
-            }
-            else
-            {
-                UpdateDiveAnimationSpeed();
-            }
+        player.SetYVelocity(player.rb.velocity.y);
 
-            endAnimationTimer += Time.deltaTime * player.anim.speed;
+        if (!isDiving && (diveRequested || stateTimer <= 0f))
+        {
+            StartDive();
         }
 
         if (player.GroundDetected() && player.rb.velocity.y <= 0f)
@@ -86,13 +74,7 @@ public class Player_FallAttackState : EntityState
                 StartLandingRecovery();
             }
 
-            TryFinishFallAttack();
-        }
-
-        if (isDiving && endAnimationTimer >= endAnimationLength)
-        {
-            isEndAnimationFinished = true;
-            TryFinishFallAttack();
+            RequestFinish();
         }
     }
 
@@ -102,6 +84,8 @@ public class Player_FallAttackState : EntityState
 
         if (isDiving)
         {
+            TryApplyDamage();
+
             if (hasLanded)
             {
                 player.SetVelocity(0f, 0f);
@@ -121,66 +105,26 @@ public class Player_FallAttackState : EntityState
         base.Exit();
 
         player.rb.gravityScale = defaultGravityScale;
-        player.anim.speed = defaultAnimatorSpeed;
+        player.anim.speed = player.FallAttackAnimationSpeed;
         player.ResetFallAttackTrigger();
+        player.SetFallAttackFinishRequested(false);
         player.SetFallAttack(false);
     }
 
     public void AttackTrigger()
     {
         diveRequested = true;
-
-        if (damageTriggered)
-        {
-            return;
-        }
-
-        damageTriggered = true;
-        player.GetComponent<Entity_Combat>()?.AttackTrigger(player.FallAttackData);
+        TryApplyDamage();
     }
 
     public void AttackOver()
     {
-        isEndAnimationFinished = true;
-        TryFinishFallAttack();
-    }
-
-    private void FinishFallAttack()
-    {
-        if (isAttackFinished)
-        {
-            return;
-        }
-
-        isAttackFinished = true;
-        player.SetFallAttack(false);
-        player.ResetFallAttackTrigger();
-
-        if (player.GroundDetected())
-        {
-            if (Mathf.Abs(xInput) <= .01f)
-            {
-                stateMachine.ChangeState(player.idleState);
-            }
-            else
-            {
-                stateMachine.ChangeState(player.moveState);
-            }
-
-            return;
-        }
-
-        stateMachine.ChangeState(player.fallState);
-    }
-
-    private int GetAttackDirection()
-    {
-        return player.FacingDirection;
+        FinishFallAttack();
     }
 
     private void StartDive()
     {
-        if (isDiving || isAttackFinished)
+        if (isDiving || attackFinished)
         {
             return;
         }
@@ -188,15 +132,53 @@ public class Player_FallAttackState : EntityState
         isDiving = true;
         diveRequested = false;
         stateTimer = float.PositiveInfinity;
-        endAnimationLength = GetEndAnimationLength();
-        endAnimationTimer = 0f;
-        landingTimer = 0f;
-        hasLanded = false;
-        isEndAnimationFinished = false;
         player.rb.gravityScale = 0f;
-        UpdateDiveAnimationSpeed();
+        player.anim.speed = player.FallAttackAnimationSpeed;
         player.ResetFallAttackTrigger();
-        player.anim.CrossFadeInFixedTime(player.FallAttackEndAnimationName, .03f);
+        player.anim.CrossFadeInFixedTime(player.FallAttackPerformed1AnimationName, .03f);
+    }
+
+    private void TryApplyDamage()
+    {
+        if (damageTriggered || !diveRequested)
+        {
+            return;
+        }
+
+        if (combat == null)
+        {
+            combat = player.GetComponent<Entity_Combat>();
+        }
+
+        if (combat == null)
+        {
+            return;
+        }
+
+        if (attackId <= 0)
+        {
+            attackId = combat.CreateAttackId();
+        }
+
+        player.SetCombatDamage(player.FallAttackDamage);
+
+        bool hitAnyTarget = combat.AttackTrigger(player.FallAttackData, attackId);
+        if (hitAnyTarget)
+        {
+            damageTriggered = true;
+            RequestFinish();
+        }
+    }
+
+    private void RequestFinish()
+    {
+        if (finishRequested)
+        {
+            return;
+        }
+
+        finishRequested = true;
+        player.SetFallAttackFinishRequested(true);
     }
 
     private Vector2 GetDiveVelocity()
@@ -223,136 +205,45 @@ public class Player_FallAttackState : EntityState
         return duration > 0f ? duration : .1f;
     }
 
-    private float GetStartAnimationSpeed()
+    private int GetAttackDirection()
     {
-        float clipLength = player.GetAnimationLength(player.FallAttackStartAnimationName);
-
-        if (player.FallAttackWindupDuration <= 0f || clipLength <= 0f)
-        {
-            return player.FallAttackAnimationSpeed;
-        }
-
-        return clipLength / player.FallAttackWindupDuration;
-    }
-
-    private float GetEndAnimationLength()
-    {
-        float duration = player.GetAnimationLength(player.FallAttackEndAnimationName);
-
-        return duration > 0f ? duration : .1f;
-    }
-
-    private void UpdateDiveAnimationSpeed()
-    {
-        if (endAnimationLength <= 0f)
-        {
-            player.anim.speed = player.FallAttackAnimationSpeed;
-            return;
-        }
-
-        if (endAnimationTimer >= endAnimationLength)
-        {
-            player.anim.speed = 0f;
-            return;
-        }
-
-        if (!player.TryGetGroundDistance(player.FallAttackGroundSearchDistance, out float groundDistance))
-        {
-            player.anim.speed = player.FallAttackAnimationSpeed;
-            return;
-        }
-
-        float verticalSpeed = Mathf.Abs(GetDiveVelocity().y);
-
-        if (verticalSpeed <= .01f)
-        {
-            player.anim.speed = player.FallAttackAnimationSpeed;
-            return;
-        }
-
-        float distanceBeforeGrounded = Mathf.Max(0f, groundDistance - player.GroundCheckDistance);
-        float timeToGround = Mathf.Max(Time.fixedDeltaTime, distanceBeforeGrounded / verticalSpeed);
-        float targetEndTime = Mathf.Max(Time.fixedDeltaTime, timeToGround + player.FallAttackEndAnimationLandingOffset);
-        float animationTimeLeft = Mathf.Max(.01f, endAnimationLength - endAnimationTimer);
-        float targetSpeed = animationTimeLeft / targetEndTime;
-
-        player.anim.speed = Mathf.Clamp(
-            targetSpeed,
-            player.FallAttackEndAnimationMinSpeed,
-            player.FallAttackEndAnimationMaxSpeed
-        );
+        return player.FacingDirection;
     }
 
     private void StartLandingRecovery()
     {
         hasLanded = true;
-        landingTimer = 0f;
         player.rb.gravityScale = defaultGravityScale;
         player.SetVelocity(0f, 0f);
-
-        if (player.FallAttackEndAnimationLandingOffset <= 0f)
-        {
-            TryFinishFallAttack();
-        }
-        else
-        {
-            UpdateLandingRecoveryAnimationSpeed();
-        }
+        RequestFinish();
     }
 
-    private void UpdateLandingRecoveryAnimationSpeed()
+    private void FinishFallAttack()
     {
-        if (endAnimationLength <= 0f)
-        {
-            player.anim.speed = player.FallAttackAnimationSpeed;
-            return;
-        }
-
-        if (endAnimationTimer >= endAnimationLength)
-        {
-            player.anim.speed = 0f;
-            return;
-        }
-
-        float timeLeft = Mathf.Max(0f, player.FallAttackEndAnimationLandingOffset - landingTimer);
-        float animationTimeLeft = Mathf.Max(.01f, endAnimationLength - endAnimationTimer);
-
-        if (timeLeft <= 0f)
-        {
-            player.anim.speed = player.FallAttackEndAnimationMaxSpeed;
-            return;
-        }
-
-        float targetSpeed = animationTimeLeft / timeLeft;
-
-        player.anim.speed = Mathf.Clamp(
-            targetSpeed,
-            player.FallAttackEndAnimationMinSpeed,
-            player.FallAttackEndAnimationMaxSpeed
-        );
-    }
-
-    private void TryFinishFallAttack()
-    {
-        if (isAttackFinished)
+        if (attackFinished)
         {
             return;
         }
 
-        if (!hasLanded)
+        attackFinished = true;
+        player.SetFallAttackFinishRequested(false);
+        player.SetFallAttack(false);
+        player.ResetFallAttackTrigger();
+
+        if (player.GroundDetected())
         {
-            if (player.FallAttackEndAnimationLandingOffset < 0f && isEndAnimationFinished)
+            if (Mathf.Abs(xInput) <= .01f)
             {
-                FinishFallAttack();
+                stateMachine.ChangeState(player.idleState);
+            }
+            else
+            {
+                stateMachine.ChangeState(player.moveState);
             }
 
             return;
         }
 
-        if (landingTimer >= Mathf.Max(0f, player.FallAttackEndAnimationLandingOffset)
-            && (isEndAnimationFinished || endAnimationTimer >= endAnimationLength))
-        {
-            FinishFallAttack();
-        }
+        stateMachine.ChangeState(player.fallState);
     }
 }

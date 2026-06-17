@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 [RequireComponent(typeof(Rigidbody2D), typeof(CapsuleCollider2D))]
 public abstract class Enemy : Entity
@@ -7,19 +8,28 @@ public abstract class Enemy : Entity
     private static readonly int MoveAnimHash = Animator.StringToHash("move");
     private static readonly int AttackAnimHash = Animator.StringToHash("attack");
 
+    public event Action<Enemy> OnDied;
+
     [Header("Enemy Info")]
-    [SerializeField, Range(1, 20)] protected int maxHealth = 3;
+    [SerializeField, Min(1)] protected int maxHealth = 3;
     [SerializeField] protected bool canTakeDamage = true;
+    [Header("Stun Recovery")]
+    [SerializeField, Min(0f)] private float stunAttackRecoveryDelay = .6f;
 
     public StateMachine stateMachine { get; protected set; }
+    public Entity_Combat Combat { get; protected set; }
     public int MaxHealth => maxHealth;
     public int CurrentHealth => currentHealth;
     public bool CanTakeDamage => canTakeDamage && !isDead;
     public bool IsDead => isDead;
+    public bool IsStunAttackRecoveryActive => stunAttackRecoveryTimer > 0f;
+    public float StunAttackRecoveryDelay => stunAttackRecoveryDelay;
     public IState DeadState => GetDeadState();
 
     protected int currentHealth;
     protected bool isDead;
+    protected int defaultLayer;
+    protected float stunAttackRecoveryTimer;
 
     protected override bool UseWallChecks => true;
 
@@ -29,12 +39,20 @@ public abstract class Enemy : Entity
         base.Awake();
 
         stateMachine = new StateMachine();
+        Combat = GetComponent<Entity_Combat>();
+        defaultLayer = gameObject.layer;
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
+        stunAttackRecoveryTimer = 0f;
     }
 
     protected virtual void Update()
     {
+        if (stunAttackRecoveryTimer > 0f)
+        {
+            stunAttackRecoveryTimer = Mathf.Max(0f, stunAttackRecoveryTimer - Time.deltaTime);
+        }
+
         SyncAnimationState();
         stateMachine.CurrentState?.Update();
     }
@@ -101,9 +119,9 @@ public abstract class Enemy : Entity
         if (stateMachine != null && DeadState != null)
         {
             stateMachine.ChangeState(DeadState);
-            return;
         }
 
+        OnDied?.Invoke(this);
         SetVelocity(0f, rb != null ? rb.velocity.y : 0f);
     }
 
@@ -111,6 +129,7 @@ public abstract class Enemy : Entity
     {
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
+        stunAttackRecoveryTimer = 0f;
 
         if (anim != null && !anim.isActiveAndEnabled)
         {
@@ -121,6 +140,26 @@ public abstract class Enemy : Entity
     protected virtual IState GetDeadState()
     {
         return null;
+    }
+
+    public virtual void SpecialAttack()
+    {
+    }
+
+    public void StartStunAttackRecovery()
+    {
+        stunAttackRecoveryTimer = Mathf.Max(0f, stunAttackRecoveryDelay);
+    }
+
+    public void MakeUntargetable(bool canBeTargeted)
+    {
+        int untargetableLayer = LayerMask.NameToLayer("Untargetable");
+        if (untargetableLayer >= 0)
+        {
+            gameObject.layer = canBeTargeted ? defaultLayer : untargetableLayer;
+        }
+
+        canTakeDamage = canBeTargeted;
     }
 
     private void EnsureCoreComponents()

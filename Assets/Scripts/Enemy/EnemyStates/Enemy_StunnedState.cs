@@ -96,6 +96,7 @@ public class Enemy_StunnedState : EnemyState
         if (skeleton != null)
         {
             skeleton.SetStunnedAnimation(false);
+            skeleton.StartStunAttackRecovery();
         }
 
         if (enemy.rb != null)

@@ -15,7 +15,8 @@ TagManager:
   - Player
   - Enemy
   - DeadPlayerBody
-  - 
+  - Untargetable
+  - ProjectileBreakable
   - 
   - 
   - 
