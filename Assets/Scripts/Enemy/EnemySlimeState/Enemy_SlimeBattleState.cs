@@ -91,6 +91,13 @@ public class Enemy_SlimeBattleState : EnemyState
         }
 
         int direction = GetPlayerDirection();
+        if (!slime.CanMoveTowardDirection(direction))
+        {
+            slime.SetVelocity(0f, slime.rb.velocity.y);
+            slime.SetBattleAnimation(true, 0f);
+            return;
+        }
+
         slime.FaceDirection(direction);
         slime.SetBattleAnimation(true, direction);
         slime.SetVelocity(direction * slime.BattleMoveSpeed, slime.rb.velocity.y);
@@ -104,8 +111,16 @@ public class Enemy_SlimeBattleState : EnemyState
         }
 
         int direction = GetPlayerDirection();
+        int retreatDirection = -direction;
+        if (!slime.CanMoveTowardDirection(retreatDirection))
+        {
+            slime.SetVelocity(0f, slime.rb.velocity.y);
+            slime.SetBattleAnimation(true, 0f);
+            return;
+        }
+
         Vector2 velocity = new Vector2(
-            slime.RetreatVelocity.x * -direction,
+            slime.RetreatVelocity.x * retreatDirection,
             slime.RetreatVelocity.y
         );
         slime.SetVelocity(velocity.x, velocity.y);

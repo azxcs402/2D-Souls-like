@@ -3,6 +3,9 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody2D), typeof(CapsuleCollider2D))]
 public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
 {
+    private static readonly float[] SplitSpawnHorizontalScales = { 1f, .8f, .6f, .4f, .2f, 0f };
+    private static readonly float[] SplitSpawnVerticalOffsets = { 0f, .15f, .3f, .45f, .6f, .8f, 1f };
+
     private static readonly int BattleAnimHash = Animator.StringToHash("battle");
     private static readonly int XVelocityAnimHash = Animator.StringToHash("xVelocity");
     private static readonly int MoveAnimSpeedMultiplierHash = Animator.StringToHash("moveAnimSpeedMultiplier");
@@ -535,13 +538,8 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         for (int i = 0; i < amountOfSlimesToCreate; i++)
         {
             int horizontalDirection = i % 2 == 0 ? -1 : 1;
-            Vector3 spawnOffset = new Vector3(
-                horizontalDirection * splitSeparation,
-                splitSpawnVerticalOffset,
-                0f
-            );
-
-            GameObject newSlime = Instantiate(prefabToSpawn, transform.position + spawnOffset, Quaternion.identity);
+            Vector3 spawnPosition = GetValidSplitSpawnPosition(horizontalDirection, splitSeparation);
+            GameObject newSlime = Instantiate(prefabToSpawn, spawnPosition, Quaternion.identity);
             Enemy_Slime slime = newSlime.GetComponent<Enemy_Slime>();
 
             if (slime != null)
@@ -973,6 +971,72 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         float extraOffset = Mathf.Max(0f, splitSpawnHorizontalOffset);
 
         return parentHalfWidth + childHalfWidth + extraOffset;
+    }
+
+    private Vector3 GetValidSplitSpawnPosition(int horizontalDirection, float splitSeparation)
+    {
+        Vector3 origin = transform.position;
+        int[] directionOrder = { horizontalDirection, -horizontalDirection, 0 };
+
+        foreach (int direction in directionOrder)
+        {
+            foreach (float horizontalScale in SplitSpawnHorizontalScales)
+            {
+                float spawnXOffset = direction * splitSeparation * horizontalScale;
+
+                foreach (float verticalOffset in SplitSpawnVerticalOffsets)
+                {
+                    Vector3 candidate = origin + new Vector3(
+                        spawnXOffset,
+                        splitSpawnVerticalOffset + verticalOffset,
+                        0f
+                    );
+
+                    if (IsValidSplitSpawnPosition(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+        }
+
+        return origin + new Vector3(horizontalDirection * splitSeparation, splitSpawnVerticalOffset, 0f);
+    }
+
+    private bool IsValidSplitSpawnPosition(Vector3 spawnPosition)
+    {
+        Bounds parentBounds = GetColliderBounds();
+        float scaleMultiplier = Mathf.Max(.1f, splitChildScaleMultiplier);
+
+        Vector2 centerOffset = (Vector2)(parentBounds.center - transform.position) * scaleMultiplier;
+        Vector2 predictedCenter = (Vector2)spawnPosition + centerOffset;
+        Vector2 predictedSize = Vector2.Scale(parentBounds.size, new Vector2(scaleMultiplier, scaleMultiplier));
+        Vector2 validationSize = new Vector2(
+            Mathf.Max(.05f, predictedSize.x * .9f),
+            Mathf.Max(.05f, predictedSize.y * .9f)
+        );
+
+        Collider2D[] overlaps = Physics2D.OverlapBoxAll(predictedCenter, validationSize, 0f);
+        for (int i = 0; i < overlaps.Length; i++)
+        {
+            Collider2D overlap = overlaps[i];
+            if (overlap == null || IsSelfCollider(overlap))
+            {
+                continue;
+            }
+
+            if (overlap.GetComponentInParent<SpikeHazard>() != null)
+            {
+                return false;
+            }
+
+            if (!overlap.isTrigger)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public void ConfigureSplitChild(int generation, bool canSplitFurther)

@@ -141,9 +141,14 @@ MonoBehaviour:
   secondaryWallCheck: {fileID: 4535049385879726967}
   maxHealth: 44
   canTakeDamage: 1
+  stunAttackRecoveryDelay: 0.6
+  avoidPitAndSpikeHazards: 1
+  hazardLookAheadOffset: 0.12
+  hazardProbeRadius: 0.12
+  hazardProbeVerticalOffset: 0.05
   questTargetId: enemy_slime
   battleMoveSpeed: 3
-  attackDistance: 1.5
+  attackDistance: 0.31
   attackCooldown: 0.5
   canChasePlayer: 1
   battleTimeDuration: 5
@@ -164,16 +169,31 @@ MonoBehaviour:
   whatIsPlayer:
     serializedVersion: 2
     m_Bits: 128
+  frontSightDistance: 4
+  backSightDistance: 2
+  chaseVerticalDistance: 3
+  maxSeeThroughWallDistance: 0.5
+  wallThicknessSampleDistance: 0.05
+  loseSightDuration: 3
+  showDetectionGizmos: 1
+  showAttackGizmos: 1
+  hearingDistance: 2
   playerCheck: {fileID: 2832818383850018919}
   playerCheckDistance: 10
-  chaseVerticalDistance: 3
-  loseSightDuration: 3
   slimeToCreatePrefab: {fileID: 0}
   amountOfSlimesToCreate: 2
   newSlimeVelocity: {x: 4, y: 3}
   hasRecoveryAnimation: 1
   canBeKnockedBack: 1
   slimeSpriteFacesLeftByDefault: 1
+  splitOnDeath: 1
+  splitGeneration: 0
+  maxSplitGenerations: 3
+  splitChildScaleMultiplier: 0.7
+  splitChildHealthMultiplier: 0.7
+  splitChildDamageMultiplier: 0.7
+  splitSpawnHorizontalOffset: 0.55
+  splitSpawnVerticalOffset: 0.2
   stunnedCollider: {fileID: 7777777777777777779}
   slimeAttackData:
     targetCheckOffset: {x: 0.7, y: 0}
@@ -266,19 +286,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   damage: 14
-  showCombatDebugLogs: 1
   targetCheck: {fileID: 2832818383850018919}
-  targetCheckRadius: 1.1
+  targetCheckRadius: 0.58
   whatIsTarget:
     serializedVersion: 2
     m_Bits: 128
   showTargetCheckGizmos: 1
   alwaysShowTargetCheckGizmos: 1
-  enableCombatPreview: 0
-  showPreviewTargetCheckObject: 0
-  showPreviewAttackData: 0
-  previewAnimationClip: {fileID: 7400000, guid: 16d5f907777414f4d807b58ee3ec0e3a, type: 2}
-  previewNormalizedTime: 0.38888887
+  enableCombatPreview: 1
+  showPreviewTargetCheckObject: 1
+  showPreviewAttackData: 1
+  previewAnimationClip: {fileID: 7400000, guid: d6da89482544eda489cafbc5cbebb0ca, type: 2}
+  previewNormalizedTime: 0.6
   autoEnsureHealthComponent: 1
 --- !u!114 &8428578993940170063
 MonoBehaviour:
@@ -391,7 +410,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 1.2}
+  m_AnchoredPosition: {x: 0.36, y: 0.18}
   m_SizeDelta: {x: 1.6, y: 0.22}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &6853181925675118468
@@ -502,7 +521,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 0}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 45
+  m_MaxValue: 44
   m_WholeNumbers: 1
   m_Value: 0
   m_OnValueChanged:
@@ -901,7 +920,7 @@ Transform:
   m_GameObject: {fileID: 5147927103493263192}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.257, y: -0.257, z: 0}
+  m_LocalPosition: {x: -0.036, y: -0.791, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1152,8 +1171,8 @@ CapsuleCollider2D:
   m_IsTrigger: 0
   m_UsedByEffector: 0
   m_UsedByComposite: 0
-  m_Offset: {x: 0.2906694, y: -0.88913757}
-  m_Size: {x: 1.067352, y: 0.6671188}
+  m_Offset: {x: 0.22592837, y: -1.1914978}
+  m_Size: {x: 1.4529603, y: 0.048167896}
   m_Direction: 1
 --- !u!1 &9215686009346851406
 GameObject:

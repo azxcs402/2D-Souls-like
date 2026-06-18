@@ -113,11 +113,14 @@ public static class BonfirePrefabCreator
 
         Bonfire bonfire = root.GetComponent<Bonfire>();
         SerializedObject bonfireSo = new SerializedObject(bonfire);
-        SetString(bonfireSo, "bonfireId", "bonfire_default");
+        SetString(bonfireSo, "bonfireId", string.Empty);
+        SetString(bonfireSo, "bonfireDisplayName", string.Empty);
         SetBool(bonfireSo, "restorePlayerOnRest", true);
         SetBool(bonfireSo, "reloadSceneOnRest", true);
         SetFloat(bonfireSo, "restDelay", 0.05f);
-        SetString(bonfireSo, "interactPrompt", "Press F to rest");
+        SetString(bonfireSo, "restPrompt", "休息");
+        SetString(bonfireSo, "travelPrompt", "传送");
+        SetString(bonfireSo, "ignitePrompt", "按下F激活篝火");
         SetFloat(bonfireSo, "framesPerSecond", 8f);
         SetBool(bonfireSo, "loopAnimation", true);
         SetBool(bonfireSo, "autoLoadDefaultFrames", false);

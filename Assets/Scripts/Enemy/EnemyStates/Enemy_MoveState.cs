@@ -51,7 +51,8 @@ public class Enemy_MoveState : Enemy_GroundedState
 
         if (skeleton != null && turnTimer <= 0f)
         {
-            bool shouldTurnAround = enemy.FacingWallContactDetected();
+            bool shouldTurnAround = enemy.FacingWallContactDetected()
+                || !enemy.CanMoveTowardDirection(enemy.FacingDirection);
 
             if (!shouldTurnAround && skeleton.UseEdgeCheck)
             {
@@ -88,6 +89,12 @@ public class Enemy_MoveState : Enemy_GroundedState
 
         int moveDirection = enemy.FacingDirection;
         float moveSpeed = skeleton.SkeletonMoveSpeed;
+
+        if (!enemy.CanMoveTowardDirection(moveDirection))
+        {
+            enemy.SetVelocity(0f, rb.velocity.y);
+            return;
+        }
 
         enemy.FaceDirection(moveDirection);
         enemy.SetVelocity(moveDirection * moveSpeed, rb.velocity.y);

@@ -241,21 +241,69 @@ public class ArenaEncounterController : MonoBehaviour
             int count = entry.Count;
             for (int spawnIndex = 0; spawnIndex < count; spawnIndex++)
             {
-                Transform spawnPoint = GetSpawnPoint(entry.UseRandomSpawnPoint, spawnIndex);
+                Transform spawnPoint = GetSpawnPoint(entry.UseRandomSpawnPoint, entry.SpawnPointIndex, spawnIndex);
                 Vector3 position = spawnPoint != null ? spawnPoint.position : transform.position;
                 Quaternion rotation = spawnPoint != null ? spawnPoint.rotation : Quaternion.identity;
 
-                GameObject enemyObject = Instantiate(entry.EnemyPrefab, position, rotation);
+                UnityEngine.Object spawnedObject = Instantiate((UnityEngine.Object)entry.EnemyPrefab, position, rotation);
+                GameObject enemyObject = spawnedObject as GameObject;
+                if (enemyObject == null && spawnedObject is Component spawnedComponent)
+                {
+                    enemyObject = spawnedComponent.gameObject;
+                }
+
+                if (enemyObject == null)
+                {
+                    Debug.LogWarning($"{name}: Failed to instantiate enemy prefab {entry.EnemyPrefab.name}.", this);
+                    continue;
+                }
+
+                ApplySpawnOverrides(enemyObject, entry);
+
                 RegisterSpawnedEnemy(enemyObject);
             }
         }
     }
 
-    private Transform GetSpawnPoint(bool useRandomSpawnPoint, int spawnIndex)
+    private void ApplySpawnOverrides(GameObject enemyObject, ArenaSpawnEntry entry)
+    {
+        if (enemyObject == null || entry == null)
+        {
+            return;
+        }
+
+        if (entry.OverrideScale)
+        {
+            Vector3 scale = entry.SpawnScale;
+            scale.x = Mathf.Max(.01f, scale.x);
+            scale.y = Mathf.Max(.01f, scale.y);
+            scale.z = Mathf.Max(.01f, scale.z);
+            enemyObject.transform.localScale = scale;
+        }
+
+        Enemy enemy = enemyObject.GetComponentInChildren<Enemy>(true);
+        if (enemy != null && entry.OverrideMaxHealth)
+        {
+            enemy.SetMaxHealth(entry.MaxHealth);
+        }
+
+        Entity_Combat combat = enemyObject.GetComponentInChildren<Entity_Combat>(true);
+        if (combat != null && entry.OverrideCombatDamage)
+        {
+            combat.SetDamage(entry.CombatDamage);
+        }
+    }
+
+    private Transform GetSpawnPoint(bool useRandomSpawnPoint, int spawnPointIndex, int spawnIndex)
     {
         if (spawnPoints == null || spawnPoints.Length == 0)
         {
             return transform;
+        }
+
+        if (!useRandomSpawnPoint && spawnPointIndex >= 0 && spawnPointIndex < spawnPoints.Length)
+        {
+            return spawnPoints[spawnPointIndex];
         }
 
         if (useRandomSpawnPoint)

@@ -60,7 +60,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.25, y: -0.677, z: 0}
-  m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 6307332320960078331}
@@ -106,7 +106,7 @@ SpriteRenderer:
   m_SortingLayerID: -180752319
   m_SortingLayer: -2
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: 62891f7126431ec48a4b4d35fa7e8f10, type: 3}
+  m_Sprite: {fileID: 594830084, guid: abd9d0da63096b641b16bf7b6a494a17, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -215,6 +215,11 @@ MonoBehaviour:
   secondaryWallCheck: {fileID: 565028296081151195}
   maxHealth: 70
   canTakeDamage: 1
+  stunAttackRecoveryDelay: 0.6
+  avoidPitAndSpikeHazards: 1
+  hazardLookAheadOffset: 0.12
+  hazardProbeRadius: 0.12
+  hazardProbeVerticalOffset: 0.05
   idleDurationMin: 2
   idleDurationMax: 4
   moveDurationMin: 4
@@ -296,9 +301,9 @@ CapsuleCollider2D:
   m_IsTrigger: 0
   m_UsedByEffector: 0
   m_UsedByComposite: 0
-  m_Offset: {x: 0.2906694, y: -0.88913757}
-  m_Size: {x: 1.067352, y: 0.6671188}
-  m_Direction: 1
+  m_Offset: {x: 0.03012382, y: -0.9333469}
+  m_Size: {x: 0.5721536, y: 1.5045196}
+  m_Direction: 0
 --- !u!50 &4922642255525653422
 Rigidbody2D:
   serializedVersion: 4
@@ -339,7 +344,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   damage: 22
-  showCombatDebugLogs: 1
   targetCheck: {fileID: 2191256382543718347}
   targetCheckRadius: 1.1
   whatIsTarget:
@@ -347,9 +351,9 @@ MonoBehaviour:
     m_Bits: 128
   showTargetCheckGizmos: 1
   alwaysShowTargetCheckGizmos: 1
-  enableCombatPreview: 0
-  showPreviewTargetCheckObject: 0
-  showPreviewAttackData: 0
+  enableCombatPreview: 1
+  showPreviewTargetCheckObject: 1
+  showPreviewAttackData: 1
   previewAnimationClip: {fileID: 7400000, guid: 16d5f907777414f4d807b58ee3ec0e3a, type: 2}
   previewNormalizedTime: 0.38888887
   autoEnsureHealthComponent: 1
@@ -449,7 +453,7 @@ Transform:
   m_GameObject: {fileID: 9100021343345357044}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.257, y: -0.257, z: 0}
+  m_LocalPosition: {x: 1.227, y: -0.975, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -473,7 +477,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1597358124939153940, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_MaxValue
-      value: 65
+      value: 70
       objectReference: {fileID: 0}
     - target: {fileID: 3127985493702693387, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_Name

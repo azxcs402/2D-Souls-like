@@ -136,6 +136,13 @@ public class Enemy_MageBattleState : Enemy_MageGroundedState
         }
 
         int direction = GetPlayerDirection();
+        if (!enemy.CanMoveTowardDirection(direction))
+        {
+            enemy.SetVelocity(0f, rb.velocity.y);
+            mage.SetBattleAnimation(true, 0f);
+            return;
+        }
+
         enemy.FaceDirection(direction);
         mage.SetBattleAnimation(true, direction);
         enemy.SetVelocity(direction * mage.BattleMoveSpeed, rb.velocity.y);
@@ -158,8 +165,16 @@ public class Enemy_MageBattleState : Enemy_MageGroundedState
         }
 
         int direction = GetPlayerDirection();
+        int retreatDirection = -direction;
+        if (!enemy.CanMoveTowardDirection(retreatDirection))
+        {
+            enemy.SetVelocity(0f, rb.velocity.y);
+            mage.SetBattleAnimation(true, 0f);
+            return;
+        }
+
         Vector2 velocity = new Vector2(
-            mage.RetreatVelocity.x * -direction,
+            mage.RetreatVelocity.x * retreatDirection,
             mage.RetreatVelocity.y
         );
 

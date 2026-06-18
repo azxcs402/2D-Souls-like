@@ -64,7 +64,8 @@ public class Enemy_SlimeMoveState : EnemyState
         {
             bool shouldTurnAround = !slime.GroundDetected()
                 || slime.FacingWallContactDetected()
-                || slime.EdgeDetected(.08f, .08f);
+                || slime.EdgeDetected(.08f, .08f)
+                || !slime.CanMoveTowardDirection(slime.FacingDirection);
 
             if (shouldTurnAround)
             {
@@ -89,6 +90,13 @@ public class Enemy_SlimeMoveState : EnemyState
         }
 
         float xVelocity = slime.MoveSpeed * slime.FacingDirection;
+
+        if (!slime.CanMoveTowardDirection(slime.FacingDirection))
+        {
+            slime.SetVelocity(0f, slime.rb.velocity.y);
+            return;
+        }
+
         slime.SetVelocity(xVelocity, slime.rb.velocity.y);
     }
 }

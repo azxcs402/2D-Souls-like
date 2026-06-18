@@ -35,7 +35,11 @@ public class EnemyMageEditor : Editor
                 new FieldInfo("wallCheckDistance", "Wall Check Distance", "wall obstacle"),
                 new FieldInfo("wallCheckVerticalSpan", "Wall Check Vertical Span", "wall span"),
                 new FieldInfo("primaryWallCheck", "Primary Wall Check", "wall check transform"),
-                new FieldInfo("secondaryWallCheck", "Secondary Wall Check", "wall check transform")
+                new FieldInfo("secondaryWallCheck", "Secondary Wall Check", "wall check transform"),
+                new FieldInfo("avoidPitAndSpikeHazards", "Avoid Pit And Spike Hazards", "hazard pit spike"),
+                new FieldInfo("hazardLookAheadOffset", "Hazard Look Ahead Offset", "hazard look ahead"),
+                new FieldInfo("hazardProbeRadius", "Hazard Probe Radius", "hazard probe"),
+                new FieldInfo("hazardProbeVerticalOffset", "Hazard Probe Vertical Offset", "hazard probe")
             }
         ),
         new Section(
@@ -544,6 +548,11 @@ public class EnemyMageEditor : Editor
         if (GUILayout.Button("Health"))
         {
             SetSearch("health");
+        }
+
+        if (GUILayout.Button("Hazard"))
+        {
+            SetSearch("hazard");
         }
 
         if (GUILayout.Button("Player Check"))

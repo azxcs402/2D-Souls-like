@@ -29,7 +29,29 @@ public class Enemy_Healthy : Entity_Health
 
     public override bool TakeDamage(int damage, Entity_Combat damageSource, Vector2 knockbackVelocity)
     {
-        if (!canTakeDamage || damage <= 0 || !CanReceiveDamageFrom(damageSource))
+        return TakeDamageInternal(damage, damageSource, knockbackVelocity);
+    }
+
+    public override bool TakeDamage(int damage, Component damageSource, Vector2 knockbackVelocity)
+    {
+        return TakeDamageInternal(damage, damageSource, knockbackVelocity);
+    }
+
+    private bool TakeDamageInternal(int damage, Component damageSource, Vector2 knockbackVelocity)
+    {
+        if (!canTakeDamage || damage <= 0)
+        {
+            return false;
+        }
+
+        if (damageSource is Entity_Combat combatSource)
+        {
+            if (!CanReceiveDamageFrom(combatSource))
+            {
+                return false;
+            }
+        }
+        else if (!CanReceiveDamageFrom(damageSource))
         {
             return false;
         }
@@ -75,7 +97,7 @@ public class Enemy_Healthy : Entity_Health
             return false;
         }
 
-        enemy.TakeDamage(damage);
+        enemy.TakeDamage(damage, allowRevive: false);
         SyncEnemyHealth();
         ApplyKnockback(knockbackVelocity);
         entityVFX?.PlayOnDamageVFX();
@@ -116,6 +138,28 @@ public class Enemy_Healthy : Entity_Health
         if (damageSource == null)
         {
             return false;
+        }
+
+        Player player = damageSource.GetComponentInParent<Player>();
+        if (player != null)
+        {
+            return true;
+        }
+
+        int playerLayer = LayerMask.NameToLayer("Player");
+        return playerLayer >= 0 && damageSource.gameObject.layer == playerLayer;
+    }
+
+    protected override bool CanReceiveDamageFrom(Component damageSource)
+    {
+        if (damageSource == null)
+        {
+            return false;
+        }
+
+        if (damageSource is SpikeHazard)
+        {
+            return true;
         }
 
         Player player = damageSource.GetComponentInParent<Player>();

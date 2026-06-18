@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &59479124106991593
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8925208851977501068}
+  m_Layer: 0
+  m_Name: SpellCastRange
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8925208851977501068
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 59479124106991593}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 4, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1000000000000000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1000000000000000001
 GameObject:
   m_ObjectHideFlags: 0
@@ -21,7 +52,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1000000000000000002
 Transform:
   m_ObjectHideFlags: 0
@@ -32,7 +63,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 2.5, y: 2.5, z: 2.5}
   m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1000000000000000008}
@@ -44,6 +75,8 @@ Transform:
   - {fileID: 1000000000000000026}
   - {fileID: 4526182595389499818}
   - {fileID: 7889447578249468821}
+  - {fileID: 2020722198922159523}
+  - {fileID: 8925208851977501068}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!50 &1000000000000000003
@@ -105,8 +138,8 @@ CapsuleCollider2D:
   m_IsTrigger: 0
   m_UsedByEffector: 0
   m_UsedByComposite: 0
-  m_Offset: {x: -0.08301735, y: -0.006603837}
-  m_Size: {x: 2.1358414, y: 3.4227073}
+  m_Offset: {x: 0.05122633, y: -0.14201461}
+  m_Size: {x: 0.6689602, y: 1.6929649}
   m_Direction: 0
 --- !u!114 &1000000000000000005
 MonoBehaviour:
@@ -131,13 +164,17 @@ MonoBehaviour:
   maxHealth: 90
   canTakeDamage: 1
   stunAttackRecoveryDelay: 0.6
+  avoidPitAndSpikeHazards: 1
+  hazardLookAheadOffset: 0.12
+  hazardProbeRadius: 0.12
+  hazardProbeVerticalOffset: 0.05
   questTargetId: enemy_reaper
   showDetectionGizmos: 1
   battleMoveSpeed: 1.6
   attackDistance: 1.35
   spellCastDistance: 4
-  attackRangeAnchor: {fileID: 0}
-  spellCastRangeAnchor: {fileID: 0}
+  attackRangeAnchor: {fileID: 2020722198922159523}
+  spellCastRangeAnchor: {fileID: 8925208851977501068}
   attackCooldown: 0.8
   canChasePlayer: 1
   battleTimeDuration: 4
@@ -587,6 +624,37 @@ MonoBehaviour:
   frontSightDistance: 4
   backSightDistance: 2
   chaseVerticalDistance: 3
+--- !u!1 &7177469003138219527
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2020722198922159523}
+  m_Layer: 0
+  m_Name: AttackRange
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2020722198922159523
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7177469003138219527}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 1.35, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1000000000000000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &106663530405733328
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -706,6 +774,10 @@ PrefabInstance:
     - target: {fileID: 4587702356441664122, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8211123169086152249, guid: 6289a54ead541634a8912c7f859fe122, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

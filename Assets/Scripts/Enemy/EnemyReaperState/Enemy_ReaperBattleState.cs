@@ -104,16 +104,25 @@ public class Enemy_ReaperBattleState : EnemyState
 
             if (horizontalGap > reaper.BattleStopDistance)
             {
+                int moveDirection = directionToPlayer;
                 if (horizontalGap < reaper.MinRetreatDistance)
                 {
-                    xVelocity = -directionToPlayer * reaper.BattleMoveSpeed;
+                    moveDirection = -directionToPlayer;
                 }
                 else
                 {
-                    xVelocity = directionToPlayer * reaper.BattleMoveSpeed;
+                    moveDirection = directionToPlayer;
                 }
 
-                reaper.FaceDirection(directionToPlayer);
+                if (reaper.CanMoveTowardDirection(moveDirection))
+                {
+                    xVelocity = moveDirection * reaper.BattleMoveSpeed;
+                    reaper.FaceDirection(directionToPlayer);
+                }
+                else
+                {
+                    xVelocity = 0f;
+                }
             }
         }
 

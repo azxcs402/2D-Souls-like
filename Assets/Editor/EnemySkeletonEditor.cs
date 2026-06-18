@@ -12,6 +12,22 @@ public class EnemySkeletonEditor : Editor
     private static readonly SearchableSection[] Sections =
     {
         new SearchableSection(
+            "Core",
+            "Enemy base settings. Use this for health, ground checks, wall checks, and hazard avoidance.",
+            new SearchableField("maxHealth", "Max Health", "health hit points hp"),
+            new SearchableField("canTakeDamage", "Can Take Damage", "damage invulnerable"),
+            new SearchableField("groundCheckDistance", "Ground Check Distance", "ground floor check"),
+            new SearchableField("whatIsGround", "What Is Ground", "ground layer mask"),
+            new SearchableField("wallCheckDistance", "Wall Check Distance", "wall obstacle"),
+            new SearchableField("wallCheckVerticalSpan", "Wall Check Vertical Span", "wall span"),
+            new SearchableField("primaryWallCheck", "Primary Wall Check", "wall check transform"),
+            new SearchableField("secondaryWallCheck", "Secondary Wall Check", "wall check transform"),
+            new SearchableField("avoidPitAndSpikeHazards", "Avoid Pit And Spike Hazards", "hazard pit spike"),
+            new SearchableField("hazardLookAheadOffset", "Hazard Look Ahead Offset", "hazard look ahead"),
+            new SearchableField("hazardProbeRadius", "Hazard Probe Radius", "hazard probe"),
+            new SearchableField("hazardProbeVerticalOffset", "Hazard Probe Vertical Offset", "hazard probe")
+        ),
+        new SearchableSection(
             "Patrol Info",
             "Idle and roaming timing for non-combat behavior.",
             new SearchableField("idleDurationMin", "Idle Duration Min", "idle"),
@@ -105,17 +121,19 @@ public class EnemySkeletonEditor : Editor
             ref showOnlyMatches,
             SearchPrefsKey,
             "Enemy Skeleton Inspector Search",
-            new[] { "Patrol", "Edge", "Target", "Move", "Attack", "Stunned", "Death" }
+            new[] { "Core", "Patrol", "Edge", "Target", "Move", "Attack", "Stunned", "Death" }
         );
         SearchableInspectorDrawer.DrawQuickFindButtons(
             SetSearch,
+            "core",
             "patrol",
             "edge",
             "target",
             "move",
             "attack",
             "stunned",
-            "death"
+            "death",
+            "hazard"
         );
 
         EditorGUILayout.Space();

@@ -12,6 +12,22 @@ public class EnemySlimeEditor : Editor
     private static readonly SearchableSection[] Sections =
     {
         new SearchableSection(
+            "Core",
+            "Enemy base settings. Use this for health, ground checks, wall checks, and hazard avoidance.",
+            new SearchableField("maxHealth", "Max Health", "health hit points hp"),
+            new SearchableField("canTakeDamage", "Can Take Damage", "damage invulnerable"),
+            new SearchableField("groundCheckDistance", "Ground Check Distance", "ground floor check"),
+            new SearchableField("whatIsGround", "What Is Ground", "ground layer mask"),
+            new SearchableField("wallCheckDistance", "Wall Check Distance", "wall obstacle"),
+            new SearchableField("wallCheckVerticalSpan", "Wall Check Vertical Span", "wall span"),
+            new SearchableField("primaryWallCheck", "Primary Wall Check", "wall check transform"),
+            new SearchableField("secondaryWallCheck", "Secondary Wall Check", "wall check transform"),
+            new SearchableField("avoidPitAndSpikeHazards", "Avoid Pit And Spike Hazards", "hazard pit spike"),
+            new SearchableField("hazardLookAheadOffset", "Hazard Look Ahead Offset", "hazard look ahead"),
+            new SearchableField("hazardProbeRadius", "Hazard Probe Radius", "hazard probe"),
+            new SearchableField("hazardProbeVerticalOffset", "Hazard Probe Vertical Offset", "hazard probe")
+        ),
+        new SearchableSection(
             "Battle Info",
             "Core battle tuning, chase range, and retreat behavior.",
             new SearchableField("battleMoveSpeed", "Battle Move Speed", "battle speed"),
@@ -127,10 +143,11 @@ public class EnemySlimeEditor : Editor
             ref showOnlyMatches,
             SearchPrefsKey,
             "Enemy Slime Inspector Search",
-            new[] { "Battle", "Stun", "Patrol", "Vision", "Spawn", "Split", "Attack", "Death" }
+            new[] { "Core", "Battle", "Stun", "Patrol", "Vision", "Spawn", "Split", "Attack", "Death" }
         );
         SearchableInspectorDrawer.DrawQuickFindButtons(
             SetSearch,
+            "core",
             "battle",
             "stun",
             "patrol",
@@ -138,7 +155,8 @@ public class EnemySlimeEditor : Editor
             "spawn",
             "split",
             "attack",
-            "death"
+            "death",
+            "hazard"
         );
 
         EditorGUILayout.Space();

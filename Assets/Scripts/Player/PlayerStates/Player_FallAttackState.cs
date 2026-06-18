@@ -10,6 +10,9 @@ public class Player_FallAttackState : EntityState
     private bool diveRequested;
     private bool hasLanded;
     private bool damageTriggered;
+    private bool damageWindowActive;
+    private float damageWindowTimer;
+    private bool attackOverRequested;
     private bool finishRequested;
     private bool attackFinished;
 
@@ -32,6 +35,9 @@ public class Player_FallAttackState : EntityState
         diveRequested = false;
         hasLanded = false;
         damageTriggered = false;
+        damageWindowActive = false;
+        damageWindowTimer = 0f;
+        attackOverRequested = false;
         finishRequested = false;
         attackFinished = false;
 
@@ -66,6 +72,8 @@ public class Player_FallAttackState : EntityState
         {
             StartDive();
         }
+
+        UpdateDamageWindow();
 
         if (player.GroundDetected() && player.rb.velocity.y <= 0f)
         {
@@ -114,12 +122,14 @@ public class Player_FallAttackState : EntityState
     public void AttackTrigger()
     {
         diveRequested = true;
+        OpenDamageWindow();
         TryApplyDamage();
     }
 
     public void AttackOver()
     {
-        FinishFallAttack();
+        attackOverRequested = true;
+        TryFinishFallAttack();
     }
 
     private void StartDive()
@@ -140,7 +150,7 @@ public class Player_FallAttackState : EntityState
 
     private void TryApplyDamage()
     {
-        if (damageTriggered || !diveRequested)
+        if (damageTriggered || !diveRequested || !damageWindowActive)
         {
             return;
         }
@@ -163,11 +173,55 @@ public class Player_FallAttackState : EntityState
         player.SetCombatDamage(player.FallAttackDamage);
 
         bool hitAnyTarget = combat.AttackTrigger(player.FallAttackData, attackId);
+        if (!hitAnyTarget)
+        {
+            hitAnyTarget = combat.AttackTrigger(player.FallAttackExtendedData, attackId);
+        }
+
         if (hitAnyTarget)
         {
             damageTriggered = true;
+            CloseDamageWindow();
             RequestFinish();
+            TryFinishFallAttack();
         }
+    }
+
+    private void UpdateDamageWindow()
+    {
+        if (!damageWindowActive)
+        {
+            return;
+        }
+
+        damageWindowTimer -= Time.deltaTime;
+        if (damageWindowTimer > 0f)
+        {
+            return;
+        }
+
+        CloseDamageWindow();
+        TryFinishFallAttack();
+    }
+
+    private void OpenDamageWindow()
+    {
+        float windowDuration = Mathf.Max(0f, player.FallAttackDamageWindowDuration);
+        if (windowDuration <= 0f)
+        {
+            damageWindowActive = true;
+            damageWindowTimer = 0f;
+            return;
+        }
+
+        damageWindowActive = true;
+        damageWindowTimer = windowDuration;
+    }
+
+    private void CloseDamageWindow()
+    {
+        damageWindowActive = false;
+        damageWindowTimer = 0f;
     }
 
     private void RequestFinish()
@@ -179,6 +233,16 @@ public class Player_FallAttackState : EntityState
 
         finishRequested = true;
         player.SetFallAttackFinishRequested(true);
+    }
+
+    private void TryFinishFallAttack()
+    {
+        if (!attackOverRequested || damageWindowActive)
+        {
+            return;
+        }
+
+        FinishFallAttack();
     }
 
     private Vector2 GetDiveVelocity()
@@ -215,7 +279,48 @@ public class Player_FallAttackState : EntityState
         hasLanded = true;
         player.rb.gravityScale = defaultGravityScale;
         player.SetVelocity(0f, 0f);
+
+        TryApplyLandingDamage();
         RequestFinish();
+        TryFinishFallAttack();
+    }
+
+    private void TryApplyLandingDamage()
+    {
+        if (damageTriggered)
+        {
+            return;
+        }
+
+        if (combat == null)
+        {
+            combat = player.GetComponent<Entity_Combat>();
+        }
+
+        if (combat == null)
+        {
+            return;
+        }
+
+        if (attackId <= 0)
+        {
+            attackId = combat.CreateAttackId();
+        }
+
+        player.SetCombatDamage(player.FallAttackDamage);
+
+        bool hitAnyTarget = combat.AttackTrigger(player.FallAttackData, attackId);
+        if (!hitAnyTarget)
+        {
+            hitAnyTarget = combat.AttackTrigger(player.FallAttackExtendedData, attackId);
+        }
+
+        if (hitAnyTarget)
+        {
+            damageTriggered = true;
+            CloseDamageWindow();
+            RequestFinish();
+        }
     }
 
     private void FinishFallAttack()

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -10,6 +11,7 @@ using UnityEngine.UI;
 [RequireComponent(typeof(SpriteRenderer))]
 public class Bonfire : MonoBehaviour, ISaveable
 {
+    private const string DefaultLegacySaveId = "bonfire_default";
     private static readonly string[] DefaultSpriteNames =
     {
         "Bonfire_1",
@@ -18,8 +20,12 @@ public class Bonfire : MonoBehaviour, ISaveable
         "Bonfire_4"
     };
 
+    [Header("Activation")]
+    [SerializeField] private bool bonfireActivated = true;
+
     [Header("Checkpoint")]
-    [SerializeField] private string bonfireId = "bonfire_default";
+    [SerializeField] private string bonfireId = string.Empty;
+    [SerializeField] private string bonfireDisplayName = string.Empty;
     [SerializeField] private bool restorePlayerOnRest = true;
     [SerializeField] private bool reloadSceneOnRest = true;
     [SerializeField, Min(0f)] private float restDelay = 0.05f;
@@ -35,22 +41,120 @@ public class Bonfire : MonoBehaviour, ISaveable
     [SerializeField, Min(0f)] private float ignitePulseScale = 1.1f;
     [SerializeField, Min(0.01f)] private float ignitePulseDuration = 0.35f;
 
-    [Header("Interaction")]
-    [SerializeField] private string interactPrompt = "Press F to rest";
-    [SerializeField] private string ignitePrompt = "Press F to light";
+    [Header("Interaction Prompt")]
+    [SerializeField] private Font promptFont;
+    [SerializeField] private string restPrompt = "\u4f11\u606f";
+    [SerializeField] private string travelPrompt = "\u4f20\u9001";
+    [SerializeField] private string ignitePrompt = "\u6309\u4e0bF\u6fc0\u6d3b\u7bdd\u706b";
+    [SerializeField] private string promptCursorSymbol = ">";
+    [SerializeField] private Sprite restPromptIcon;
+    [SerializeField] private Sprite travelPromptIcon;
+    [SerializeField] private Sprite ignitePromptIcon;
+    [SerializeField, Min(1f)] private float promptIconSize = 22f;
+    [SerializeField, Min(1f)] private float promptRowHeight = 56f;
+    [SerializeField, Min(0f)] private float promptRowSpacing = 8f;
+    [SerializeField, Min(0f)] private float promptRowPaddingX = 14f;
+    [SerializeField, Min(0f)] private float promptRowPaddingY = 4f;
+    [SerializeField] private Color promptRowBackground = new Color(0f, 0f, 0f, 0f);
+    [SerializeField] private Color promptRowSelectedBackground = new Color(0.34f, 0.34f, 0.12f, 0.35f);
     [SerializeField] private int playerSortingOrderOffset = 10;
     [SerializeField] private Vector3 promptLocalOffset = new Vector3(0f, 1.2f, 0f);
     [SerializeField, Min(1)] private int promptFontSize = 24;
     [SerializeField] private Color promptColor = Color.white;
+    [SerializeField] private Color selectedPromptColor = new Color(1f, 0.92f, 0.48f, 1f);
+    [SerializeField] private Color unselectedPromptColor = new Color(1f, 1f, 1f, 0.82f);
+
+    [Header("Travel Menu")]
+    [SerializeField] private Font travelMenuFont;
+    [SerializeField] private string travelMenuTitle = "\u4f20\u9001\u5730\u70b9";
+    [SerializeField] private string travelMenuHint = "W/S \u9009\u62e9  F \u4f20\u9001  ESC \u5173\u95ed  \u9f20\u6807\u70b9\u51fb\u53ef\u9009\u4e2d";
+    [SerializeField] private string travelMenuEmptyText = "\u6ca1\u6709\u53ef\u4f20\u9001\u7684\u7bdd\u706b";
+    [SerializeField] private string travelMenuCloseLabel = "X";
+    [SerializeField] private string travelMenuCursorSymbol = ">";
+    [SerializeField] private Sprite travelMenuCloseIcon;
+    [SerializeField] private Color travelMenuCloseButtonColor = new Color(0.25f, 0.25f, 0.3f, 0.95f);
+    [SerializeField] private Color travelMenuBackdropColor = new Color(0.18f, 0.18f, 0.2f, 0.72f);
+    [SerializeField] private Color travelMenuPanelColor = new Color(0.08f, 0.08f, 0.1f, 0.96f);
+    [SerializeField] private Color travelMenuListColor = new Color(0.09f, 0.09f, 0.11f, 0.98f);
+    [SerializeField] private Color travelMenuRowColor = new Color(0.19f, 0.19f, 0.24f, 1f);
+    [SerializeField] private Color travelMenuRowSelectedColor = new Color(0.42f, 0.42f, 0.16f, 1f);
+    [SerializeField] private Color travelMenuTitleColor = Color.white;
+    [SerializeField] private Color travelMenuHintColor = new Color(1f, 1f, 1f, 0.84f);
+    [SerializeField] private Color travelMenuEmptyColor = new Color(1f, 1f, 1f, 0.88f);
+    [SerializeField] private Color travelMenuCursorColor = new Color(1f, 0.92f, 0.48f, 1f);
+    [SerializeField] private Color travelMenuLabelSelectedColor = Color.white;
+    [SerializeField] private Color travelMenuLabelUnselectedColor = new Color(1f, 1f, 1f, 0.82f);
+    [SerializeField] private Vector2 travelMenuRootSize = new Vector2(900f, 840f);
+    [SerializeField] private Vector2 travelMenuListSize = new Vector2(780f, 620f);
+    [SerializeField] private Vector2 travelMenuCloseButtonSize = new Vector2(56f, 56f);
+    [SerializeField] private Vector2 travelMenuCloseButtonOffset = new Vector2(-28f, -28f);
+    [SerializeField, Min(1f)] private float travelMenuItemHeight = 72f;
+    [SerializeField, Min(0f)] private float travelMenuItemSpacing = 10f;
+    [SerializeField, Min(1)] private int travelMenuTitleFontSize = 54;
+    [SerializeField, Min(1)] private int travelMenuHintFontSize = 24;
+    [SerializeField, Min(1)] private int travelMenuItemFontSize = 30;
+    [SerializeField, Min(1)] private int travelMenuCloseFontSize = 28;
+
 
     [Header("References")]
     [SerializeField] private SpriteRenderer flameRenderer;
     [SerializeField] private BoxCollider2D interactionCollider;
+    [SerializeField, HideInInspector] private string bonfireInstanceGuid = string.Empty;
 
     public string BonfireId => bonfireId;
-    public string InteractPrompt => isLit ? interactPrompt : ignitePrompt;
+    public string BonfireDisplayName => bonfireDisplayName;
+    public string SceneName => GetSceneName();
+    public string TravelKey => GetTravelKey();
+    public string InteractPrompt => bonfireActivated ? restPrompt : ignitePrompt;
+    public bool IsActivated => bonfireActivated;
     public bool IsLit => isLit;
 
+    public Font PromptFont => promptFont;
+    public Sprite RestPromptIcon => restPromptIcon;
+    public Sprite TravelPromptIcon => travelPromptIcon;
+    public Sprite IgnitePromptIcon => ignitePromptIcon;
+    public float PromptIconSize => promptIconSize;
+    public float PromptRowHeight => promptRowHeight;
+    public float PromptRowSpacing => promptRowSpacing;
+    public float PromptRowPaddingX => promptRowPaddingX;
+    public float PromptRowPaddingY => promptRowPaddingY;
+    public Color PromptRowBackground => promptRowBackground;
+    public Color PromptRowSelectedBackground => promptRowSelectedBackground;
+    public Color PromptSelectedColor => selectedPromptColor;
+    public Color PromptUnselectedColor => unselectedPromptColor;
+    public string RestPrompt => restPrompt;
+    public string TravelPrompt => travelPrompt;
+    public string IgnitePrompt => ignitePrompt;
+    public string PromptCursorSymbol => promptCursorSymbol;
+    public Font TravelMenuFont => travelMenuFont;
+    public string TravelMenuTitle => travelMenuTitle;
+    public string TravelMenuHint => travelMenuHint;
+    public string TravelMenuEmptyText => travelMenuEmptyText;
+    public string TravelMenuCloseLabel => travelMenuCloseLabel;
+    public string TravelMenuCursorSymbol => travelMenuCursorSymbol;
+    public Sprite TravelMenuCloseIcon => travelMenuCloseIcon;
+    public Color TravelMenuCloseButtonColor => travelMenuCloseButtonColor;
+    public Color TravelMenuBackdropColor => travelMenuBackdropColor;
+    public Color TravelMenuPanelColor => travelMenuPanelColor;
+    public Color TravelMenuListColor => travelMenuListColor;
+    public Color TravelMenuRowColor => travelMenuRowColor;
+    public Color TravelMenuRowSelectedColor => travelMenuRowSelectedColor;
+    public Color TravelMenuTitleColor => travelMenuTitleColor;
+    public Color TravelMenuHintColor => travelMenuHintColor;
+    public Color TravelMenuEmptyColor => travelMenuEmptyColor;
+    public Color TravelMenuCursorColor => travelMenuCursorColor;
+    public Color TravelMenuLabelSelectedColor => travelMenuLabelSelectedColor;
+    public Color TravelMenuLabelUnselectedColor => travelMenuLabelUnselectedColor;
+    public Vector2 TravelMenuRootSize => travelMenuRootSize;
+    public Vector2 TravelMenuListSize => travelMenuListSize;
+    public Vector2 TravelMenuCloseButtonSize => travelMenuCloseButtonSize;
+    public Vector2 TravelMenuCloseButtonOffset => travelMenuCloseButtonOffset;
+    public float TravelMenuItemHeight => travelMenuItemHeight;
+    public float TravelMenuItemSpacing => travelMenuItemSpacing;
+    public int TravelMenuTitleFontSize => travelMenuTitleFontSize;
+    public int TravelMenuHintFontSize => travelMenuHintFontSize;
+    public int TravelMenuItemFontSize => travelMenuItemFontSize;
+    public int TravelMenuCloseFontSize => travelMenuCloseFontSize;
     private Player currentPlayer;
     private bool isResting;
     private bool isLit;
@@ -59,8 +163,13 @@ public class Bonfire : MonoBehaviour, ISaveable
     private readonly List<PlayerRendererState> playerRendererStates = new();
     private Coroutine igniteCoroutine;
     private Canvas promptCanvas;
-    private Text promptText;
     private GameObject promptRoot;
+    private GameObject ignitePromptRoot;
+    private GameObject litPromptRoot;
+    private Image ignitePromptIconImage;
+    private Text ignitePromptText;
+    private PromptOptionVisual[] litPromptOptions;
+    private int selectedInteractionIndex;
 
     private struct PlayerRendererState
     {
@@ -68,13 +177,25 @@ public class Bonfire : MonoBehaviour, ISaveable
         public int sortingOrder;
     }
 
+    private struct PromptOptionVisual
+    {
+        public GameObject root;
+        public Button button;
+        public Image background;
+        public Image icon;
+        public Text cursor;
+        public Text label;
+    }
+
     private void Awake()
     {
         CacheReferences();
         ConfigureCollider();
+        EnsureActivationGuid();
         EnsurePromptVisual();
         TryLoadDefaultFrames();
-        isLit = startLit;
+        bonfireActivated = bonfireActivated || startLit;
+        isLit = bonfireActivated || startLit;
         ApplyLitVisuals();
         UpdatePromptVisual();
         ApplyFrame(0);
@@ -84,6 +205,10 @@ public class Bonfire : MonoBehaviour, ISaveable
     {
         CacheReferences();
         ConfigureCollider();
+        EnsureActivationGuid();
+        ResolveActivationDuplicate();
+        bonfireActivated = bonfireActivated || startLit;
+        isLit = bonfireActivated;
         framesPerSecond = Mathf.Max(1f, framesPerSecond);
         promptFontSize = Mathf.Max(1, promptFontSize);
         ignitePulseScale = Mathf.Max(1f, ignitePulseScale);
@@ -94,33 +219,83 @@ public class Bonfire : MonoBehaviour, ISaveable
             return;
         }
 
-        EnsurePromptVisual();
         TryLoadDefaultFrames();
         ApplyLitVisuals();
-        UpdatePromptVisual();
-        ApplyFrame(0);
+        if (promptRoot != null)
+        {
+            EnsurePromptVisual();
+            UpdatePromptVisual();
+            ApplyFrame(0);
+        }
+    }
+
+    private void Reset()
+    {
+        bonfireActivated = false;
+        isLit = false;
+        bonfireInstanceGuid = string.Empty;
+        EnsureActivationGuid();
     }
 
     private void Update()
     {
         UpdateAnimation();
 
-        if (isResting || currentPlayer == null)
+        if (currentPlayer == null || isResting)
         {
+            UpdatePromptVisual();
             return;
         }
 
         if (currentPlayer.IsDead)
         {
+            UpdatePromptVisual();
             return;
         }
 
-        if (Keyboard.current == null || !Keyboard.current.fKey.wasPressedThisFrame)
+        if (bonfireActivated && BonfireTravelMenu.IsOpen)
         {
+            UpdatePromptVisual();
             return;
         }
 
-        StartCoroutine(RestAtBonfireRoutine());
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null)
+        {
+            UpdatePromptVisual();
+            return;
+        }
+
+        if (bonfireActivated)
+        {
+            if (keyboard.wKey.wasPressedThisFrame)
+            {
+                MoveInteractionSelection(-1);
+            }
+
+            if (keyboard.sKey.wasPressedThisFrame)
+            {
+                MoveInteractionSelection(1);
+            }
+
+            if (keyboard.fKey.wasPressedThisFrame)
+            {
+                if (selectedInteractionIndex <= 0)
+                {
+                    StartRestSequence();
+                }
+                else
+                {
+                    BonfireTravelMenu.Open(this);
+                }
+            }
+        }
+        else if (keyboard.fKey.wasPressedThisFrame)
+        {
+            StartRestSequence();
+        }
+
+        UpdatePromptVisual();
     }
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -129,6 +304,11 @@ public class Bonfire : MonoBehaviour, ISaveable
         if (player != null)
         {
             currentPlayer = player;
+            if (bonfireActivated)
+            {
+                selectedInteractionIndex = 0;
+            }
+
             ApplyPlayerForeground(player);
             UpdatePromptVisual();
         }
@@ -145,12 +325,51 @@ public class Bonfire : MonoBehaviour, ISaveable
         }
     }
 
+    public void StartRestSequence()
+    {
+        if (isResting || currentPlayer == null || currentPlayer.IsDead)
+        {
+            return;
+        }
+
+        if (!bonfireActivated)
+        {
+            SetActivated(true);
+        }
+
+        StartCoroutine(RestAtBonfireRoutine());
+        UpdatePromptVisual();
+    }
+
+    public GameData.BonfireRecord BuildTravelRecord()
+    {
+        return new GameData.BonfireRecord
+        {
+            sceneName = GetSceneName(),
+            bonfireId = GetSaveId(),
+            displayName = GetDisplayName(),
+            worldPosition = transform.position
+        };
+    }
+
+    public void RefreshInteractionPrompt()
+    {
+        UpdatePromptVisual();
+    }
+
+    public void SetSelectedInteractionIndex(int index)
+    {
+        selectedInteractionIndex = Mathf.Clamp(index, 0, 1);
+        UpdatePromptVisual();
+    }
+
     private IEnumerator RestAtBonfireRoutine()
     {
         isResting = true;
 
-        if (!isLit)
+        if (!bonfireActivated || !isLit)
         {
+            SetActivated(true);
             SetLit(true, true);
         }
 
@@ -183,7 +402,20 @@ public class Bonfire : MonoBehaviour, ISaveable
                 SceneManager.LoadScene(sceneName);
             }
         }
+        else if (GameManager.instance != null)
+        {
+            GameManager.instance.SetGameplayControlsEnabled(true);
+        }
+        else if (player != null)
+        {
+            player.enabled = true;
+            if (player.rb != null)
+            {
+                player.rb.simulated = true;
+            }
+        }
 
+        RefreshInteractionPrompt();
         isResting = false;
     }
 
@@ -194,10 +426,65 @@ public class Bonfire : MonoBehaviour, ISaveable
             return;
         }
 
-        isLit = data.litBonfireIds != null && data.litBonfireIds.Contains(GetSaveId());
-        if (startLit)
+        data.litBonfireRecords ??= new List<GameData.BonfireRecord>();
+        string saveId = GetSaveId();
+        string saveKey = GetTravelKey();
+        string legacySaveId = GetLegacySaveId();
+        string sceneName = GetSceneName();
+
+        bool savedAsRecord = false;
+        if (data.litBonfireRecords != null)
         {
-            isLit = true;
+            for (int i = 0; i < data.litBonfireRecords.Count; i++)
+            {
+                GameData.BonfireRecord record = data.litBonfireRecords[i];
+                if (record == null)
+                {
+                    continue;
+                }
+
+                if (record.sceneName == sceneName && record.bonfireId == saveId)
+                {
+                    savedAsRecord = true;
+                    break;
+                }
+            }
+        }
+
+        bool savedAsLegacyId = data.litBonfireIds != null
+            && (data.litBonfireIds.Contains(saveId)
+                || data.litBonfireIds.Contains(saveKey)
+                || data.litBonfireIds.Contains(legacySaveId));
+
+        bonfireActivated = savedAsRecord || savedAsLegacyId || startLit || bonfireActivated;
+        isLit = bonfireActivated;
+
+        if (bonfireActivated)
+        {
+            int recordIndex = -1;
+            for (int i = 0; i < data.litBonfireRecords.Count; i++)
+            {
+                GameData.BonfireRecord record = data.litBonfireRecords[i];
+                if (record != null && record.sceneName == sceneName && record.bonfireId == saveId)
+                {
+                    recordIndex = i;
+                    break;
+                }
+            }
+
+            GameData.BonfireRecord bonfireRecord = recordIndex >= 0
+                ? data.litBonfireRecords[recordIndex]
+                : new GameData.BonfireRecord();
+
+            bonfireRecord.sceneName = sceneName;
+            bonfireRecord.bonfireId = saveId;
+            bonfireRecord.displayName = GetDisplayName();
+            bonfireRecord.worldPosition = transform.position;
+
+            if (recordIndex < 0)
+            {
+                data.litBonfireRecords.Add(bonfireRecord);
+            }
         }
 
         ApplyLitVisuals();
@@ -211,11 +498,96 @@ public class Bonfire : MonoBehaviour, ISaveable
         }
 
         data.litBonfireIds ??= new List<string>();
+        data.litBonfireRecords ??= new List<GameData.BonfireRecord>();
+
         string saveId = GetSaveId();
-        if (isLit && !data.litBonfireIds.Contains(saveId))
+        string saveKey = GetTravelKey();
+        string sceneName = GetSceneName();
+        string displayName = GetDisplayName();
+
+        bool shouldSaveAsActivated = bonfireActivated || isLit;
+
+        if (shouldSaveAsActivated && !data.litBonfireIds.Contains(saveId))
         {
             data.litBonfireIds.Add(saveId);
         }
+
+        if (shouldSaveAsActivated && !data.litBonfireIds.Contains(saveKey))
+        {
+            data.litBonfireIds.Add(saveKey);
+        }
+
+        if (shouldSaveAsActivated)
+        {
+            int recordIndex = -1;
+            for (int i = 0; i < data.litBonfireRecords.Count; i++)
+            {
+                GameData.BonfireRecord record = data.litBonfireRecords[i];
+                if (record != null && record.sceneName == sceneName && record.bonfireId == saveId)
+                {
+                    recordIndex = i;
+                    break;
+                }
+            }
+
+            GameData.BonfireRecord bonfireRecord = recordIndex >= 0
+                ? data.litBonfireRecords[recordIndex]
+                : new GameData.BonfireRecord();
+
+            bonfireRecord.sceneName = sceneName;
+            bonfireRecord.bonfireId = saveId;
+            bonfireRecord.displayName = displayName;
+            bonfireRecord.worldPosition = transform.position;
+
+            if (recordIndex < 0)
+            {
+                data.litBonfireRecords.Add(bonfireRecord);
+            }
+        }
+    }
+
+    private void EnsureActivationGuid()
+    {
+        if (!string.IsNullOrWhiteSpace(bonfireInstanceGuid))
+        {
+            return;
+        }
+
+        bonfireInstanceGuid = Guid.NewGuid().ToString("N");
+    }
+
+    private void ResolveActivationDuplicate()
+    {
+#if UNITY_EDITOR
+        if (Application.isPlaying || string.IsNullOrWhiteSpace(bonfireInstanceGuid))
+        {
+            return;
+        }
+
+        Bonfire[] allBonfires = FindObjectsByType<Bonfire>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        Bonfire conflict = null;
+        for (int i = 0; i < allBonfires.Length; i++)
+        {
+            Bonfire candidate = allBonfires[i];
+            if (candidate == null || candidate == this)
+            {
+                continue;
+            }
+
+            if (candidate.bonfireInstanceGuid == bonfireInstanceGuid)
+            {
+                conflict = candidate;
+                break;
+            }
+        }
+
+        if (conflict != null && GetInstanceID() > conflict.GetInstanceID())
+        {
+            bonfireActivated = false;
+            isLit = false;
+            bonfireInstanceGuid = Guid.NewGuid().ToString("N");
+        }
+#endif
     }
 
     private void CacheReferences()
@@ -386,6 +758,10 @@ public class Bonfire : MonoBehaviour, ISaveable
     {
         bool changed = isLit != lit;
         isLit = lit;
+        if (lit)
+        {
+            bonfireActivated = true;
+        }
         ApplyLitVisuals();
 
         if (!changed)
@@ -402,6 +778,29 @@ public class Bonfire : MonoBehaviour, ISaveable
         if (lit && playIgniteEffect)
         {
             igniteCoroutine = StartCoroutine(IgnitePulseCo());
+        }
+    }
+
+    private void SetActivated(bool activated, bool synchronizeLit = true)
+    {
+        bool changed = bonfireActivated != activated;
+        bonfireActivated = activated;
+        if (synchronizeLit)
+        {
+            isLit = activated;
+        }
+
+        ApplyLitVisuals();
+
+        if (!changed)
+        {
+            return;
+        }
+
+        if (!activated && igniteCoroutine != null)
+        {
+            StopCoroutine(igniteCoroutine);
+            igniteCoroutine = null;
         }
     }
 
@@ -469,7 +868,93 @@ public class Bonfire : MonoBehaviour, ISaveable
 
     private string GetSaveId()
     {
-        return string.IsNullOrWhiteSpace(bonfireId) ? name : bonfireId.Trim();
+        string trimmedId = string.IsNullOrWhiteSpace(bonfireId) ? string.Empty : bonfireId.Trim();
+        if (!string.IsNullOrEmpty(trimmedId) && !string.Equals(trimmedId, DefaultLegacySaveId, System.StringComparison.Ordinal))
+        {
+            return trimmedId;
+        }
+
+        return BuildFallbackSaveId();
+    }
+
+    private string GetLegacySaveId()
+    {
+        return string.IsNullOrWhiteSpace(bonfireId) ? DefaultLegacySaveId : bonfireId.Trim();
+    }
+
+    private string GetDisplayName()
+    {
+        string displayName = string.IsNullOrWhiteSpace(bonfireDisplayName) ? string.Empty : bonfireDisplayName.Trim();
+        if (!string.IsNullOrWhiteSpace(displayName) && !LooksLikeMojibake(displayName))
+        {
+            return displayName;
+        }
+
+        return gameObject != null ? gameObject.name : string.Empty;
+    }
+
+    private string GetSceneName()
+    {
+        if (gameObject.scene.IsValid())
+        {
+            return gameObject.scene.name;
+        }
+
+        return SceneManager.GetActiveScene().name;
+    }
+
+    private string GetTravelKey()
+    {
+        return $"{GetSceneName()}|{GetSaveId()}";
+    }
+
+    private string BuildFallbackSaveId()
+    {
+        return $"{GetSceneName()}|{GetHierarchyPath(transform)}";
+    }
+
+    private static string GetHierarchyPath(Transform target)
+    {
+        if (target == null)
+        {
+            return string.Empty;
+        }
+
+        List<string> parts = new();
+        Transform current = target;
+        while (current != null)
+        {
+            parts.Add($"{current.name}[{current.GetSiblingIndex()}]");
+            current = current.parent;
+        }
+
+        parts.Reverse();
+        return string.Join("/", parts);
+    }
+
+    private static bool LooksLikeMojibake(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        int suspiciousCount = 0;
+        for (int i = 0; i < value.Length; i++)
+        {
+            char c = value[i];
+            if (c == '\uFFFD' || char.IsControl(c))
+            {
+                return true;
+            }
+
+            if (c >= '\u00C0' && c <= '\u024F')
+            {
+                suspiciousCount++;
+            }
+        }
+
+        return suspiciousCount >= 2;
     }
 
     private void EnsurePromptVisual()
@@ -495,6 +980,11 @@ public class Bonfire : MonoBehaviour, ISaveable
             promptCanvas = promptRoot.AddComponent<Canvas>();
         }
 
+        if (promptRoot.GetComponent<GraphicRaycaster>() == null)
+        {
+            promptRoot.AddComponent<GraphicRaycaster>();
+        }
+
         promptCanvas.renderMode = RenderMode.WorldSpace;
         promptCanvas.overrideSorting = true;
         promptCanvas.sortingOrder = 50;
@@ -508,49 +998,327 @@ public class Bonfire : MonoBehaviour, ISaveable
         rect.localPosition = promptLocalOffset;
         rect.localRotation = Quaternion.identity;
         rect.localScale = Vector3.one * 0.01f;
-        rect.sizeDelta = new Vector2(400f, 120f);
+        rect.sizeDelta = new Vector2(560f, 180f);
 
-        if (promptText == null)
-        {
-            promptText = promptRoot.GetComponentInChildren<Text>(true);
-        }
-
-        if (promptText == null)
-        {
-            GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
-            textObject.transform.SetParent(promptRoot.transform, false);
-            promptText = textObject.GetComponent<Text>();
-        }
-
-        RectTransform textRect = promptText.GetComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = Vector2.zero;
-        textRect.offsetMax = Vector2.zero;
-
-        promptText.font = LoadPromptFont();
-        promptText.fontSize = promptFontSize;
-        promptText.alignment = TextAnchor.MiddleCenter;
-        promptText.color = promptColor;
-        promptText.horizontalOverflow = HorizontalWrapMode.Overflow;
-        promptText.verticalOverflow = VerticalWrapMode.Overflow;
+        EnsureIgnitePromptVisual();
+        EnsureLitPromptVisual();
+        UpdatePromptOptionVisuals();
     }
 
     private void UpdatePromptVisual()
     {
         EnsurePromptVisual();
 
-        if (promptRoot == null || promptText == null)
+        if (promptRoot == null)
         {
             return;
         }
 
-        promptRoot.SetActive(currentPlayer != null && !isResting);
-        promptText.text = InteractPrompt;
+        bool hasPlayer = currentPlayer != null && !isResting && !currentPlayer.IsDead;
+        bool showLitPrompt = hasPlayer && bonfireActivated && !BonfireTravelMenu.IsOpen;
+        bool showIgnitePrompt = hasPlayer && !bonfireActivated && !BonfireTravelMenu.IsOpen;
+
+        promptRoot.SetActive(hasPlayer);
+
+        if (ignitePromptRoot != null)
+        {
+            ignitePromptRoot.SetActive(showIgnitePrompt);
+        }
+
+        if (litPromptRoot != null)
+        {
+            litPromptRoot.SetActive(showLitPrompt);
+        }
+
+        if (showLitPrompt)
+        {
+            UpdatePromptOptionVisuals();
+        }
+
+    }
+
+    private void EnsureIgnitePromptVisual()
+    {
+        if (ignitePromptRoot == null)
+        {
+            ignitePromptRoot = new GameObject("IgnitePrompt", typeof(RectTransform));
+            ignitePromptRoot.transform.SetParent(promptRoot.transform, false);
+        }
+
+        RectTransform rootRect = ignitePromptRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        RectTransform contentRect;
+        Transform contentTransform = ignitePromptRoot.transform.Find("Content");
+        GameObject contentObject;
+        if (contentTransform == null)
+        {
+            contentObject = new GameObject("Content", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            contentObject.transform.SetParent(ignitePromptRoot.transform, false);
+        }
+        else
+        {
+            contentObject = contentTransform.gameObject;
+        }
+
+        contentRect = contentObject.GetComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0.5f, 0.5f);
+        contentRect.anchorMax = new Vector2(0.5f, 0.5f);
+        contentRect.pivot = new Vector2(0.5f, 0.5f);
+        contentRect.sizeDelta = new Vector2(360f, promptRowHeight);
+        contentRect.anchoredPosition = Vector2.zero;
+
+        HorizontalLayoutGroup layout = contentObject.GetComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childForceExpandHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childControlHeight = true;
+        layout.childControlWidth = true;
+        layout.spacing = promptRowSpacing;
+        layout.padding = new RectOffset(Mathf.RoundToInt(promptRowPaddingX), Mathf.RoundToInt(promptRowPaddingX), Mathf.RoundToInt(promptRowPaddingY), Mathf.RoundToInt(promptRowPaddingY));
+
+        if (ignitePromptIconImage == null)
+        {
+            Transform iconTransform = contentObject.transform.Find("Icon");
+            if (iconTransform != null)
+            {
+                ignitePromptIconImage = iconTransform.GetComponent<Image>();
+            }
+        }
+
+        if (ignitePromptIconImage == null)
+        {
+            GameObject iconObject = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+            iconObject.transform.SetParent(contentObject.transform, false);
+            ignitePromptIconImage = iconObject.GetComponent<Image>();
+        }
+
+        RectTransform iconRect = ignitePromptIconImage.GetComponent<RectTransform>();
+        iconRect.sizeDelta = new Vector2(promptIconSize, promptIconSize);
+        ignitePromptIconImage.sprite = ignitePromptIcon;
+        ignitePromptIconImage.color = Color.white;
+        ignitePromptIconImage.enabled = ignitePromptIconImage.sprite != null;
+
+        if (ignitePromptText == null)
+        {
+            Transform textTransform = contentObject.transform.Find("Text");
+            if (textTransform != null)
+            {
+                ignitePromptText = textTransform.GetComponent<Text>();
+            }
+        }
+
+        if (ignitePromptText == null)
+        {
+            GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+            textObject.transform.SetParent(contentObject.transform, false);
+            ignitePromptText = textObject.GetComponent<Text>();
+        }
+
+        RectTransform textRect = ignitePromptText.GetComponent<RectTransform>();
+        textRect.sizeDelta = Vector2.zero;
+
+        ignitePromptText.font = LoadPromptFont();
+        ignitePromptText.fontSize = promptFontSize;
+        ignitePromptText.alignment = TextAnchor.MiddleCenter;
+        ignitePromptText.color = promptColor;
+        ignitePromptText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        ignitePromptText.verticalOverflow = VerticalWrapMode.Overflow;
+        ignitePromptText.text = ignitePrompt;
+    }
+
+    private void EnsureLitPromptVisual()
+    {
+        if (litPromptRoot == null)
+        {
+            litPromptRoot = new GameObject("LitPrompt", typeof(RectTransform));
+            litPromptRoot.transform.SetParent(promptRoot.transform, false);
+        }
+
+        RectTransform rootRect = litPromptRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        if (litPromptOptions == null || litPromptOptions.Length != 2)
+        {
+            litPromptOptions = new PromptOptionVisual[2];
+        }
+
+        if (litPromptOptions[0].root == null)
+        {
+            GameObject panel = new GameObject("PromptPanel", typeof(RectTransform));
+            panel.transform.SetParent(litPromptRoot.transform, false);
+
+            RectTransform panelRect = panel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(480f, (promptRowHeight * 2f) + promptRowSpacing + 24f);
+            panelRect.anchoredPosition = Vector2.zero;
+
+            VerticalLayoutGroup layout = panel.AddComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childForceExpandHeight = false;
+            layout.childForceExpandWidth = true;
+            layout.childControlHeight = true;
+            layout.childControlWidth = true;
+            layout.spacing = promptRowSpacing;
+            layout.padding = new RectOffset(Mathf.RoundToInt(promptRowPaddingX), Mathf.RoundToInt(promptRowPaddingX), Mathf.RoundToInt(promptRowPaddingY), Mathf.RoundToInt(promptRowPaddingY));
+
+            ContentSizeFitter fitter = panel.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            litPromptOptions[0] = CreatePromptOption(panel.transform, "RestOption", restPrompt, restPromptIcon, 0, OnRestSelected);
+            litPromptOptions[1] = CreatePromptOption(panel.transform, "TravelOption", travelPrompt, travelPromptIcon, 1, OnTravelSelected);
+        }
+
+        UpdatePromptOptionVisuals();
+    }
+
+    private PromptOptionVisual CreatePromptOption(Transform parent, string name, string label, Sprite iconSprite, int index, System.Action onClick)
+    {
+        GameObject rootObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        rootObject.transform.SetParent(parent, false);
+
+        RectTransform rootRect = rootObject.GetComponent<RectTransform>();
+        rootRect.sizeDelta = new Vector2(0f, promptRowHeight);
+
+        LayoutElement layout = rootObject.AddComponent<LayoutElement>();
+        layout.minHeight = promptRowHeight;
+        layout.flexibleWidth = 1f;
+
+        Image background = rootObject.GetComponent<Image>();
+        background.color = promptRowBackground;
+
+        Button button = rootObject.GetComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        if (onClick != null)
+        {
+            button.onClick.AddListener(() => onClick());
+        }
+
+        HorizontalLayoutGroup rowLayout = rootObject.AddComponent<HorizontalLayoutGroup>();
+        rowLayout.childAlignment = TextAnchor.MiddleLeft;
+        rowLayout.childForceExpandHeight = true;
+        rowLayout.childForceExpandWidth = false;
+        rowLayout.childControlHeight = true;
+        rowLayout.childControlWidth = true;
+        rowLayout.spacing = promptRowSpacing;
+        rowLayout.padding = new RectOffset(Mathf.RoundToInt(promptRowPaddingX), Mathf.RoundToInt(promptRowPaddingX), Mathf.RoundToInt(promptRowPaddingY), Mathf.RoundToInt(promptRowPaddingY));
+
+        Text cursor = CreateText(rootObject.transform, "Cursor", string.IsNullOrWhiteSpace(promptCursorSymbol) ? ">" : promptCursorSymbol, promptFontSize, FontStyle.Bold, TextAnchor.MiddleCenter, promptFont);
+        cursor.color = selectedPromptColor;
+        cursor.GetComponent<RectTransform>().sizeDelta = new Vector2(promptFontSize, 0f);
+
+        GameObject iconObject = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+        iconObject.transform.SetParent(rootObject.transform, false);
+        Image icon = iconObject.GetComponent<Image>();
+        icon.sprite = iconSprite;
+        icon.color = Color.white;
+        icon.enabled = iconSprite != null;
+        icon.GetComponent<RectTransform>().sizeDelta = new Vector2(promptIconSize, promptIconSize);
+
+        Text labelText = CreateText(rootObject.transform, "Label", label, promptFontSize, FontStyle.Bold, TextAnchor.MiddleLeft, promptFont);
+        labelText.color = unselectedPromptColor;
+        labelText.GetComponent<RectTransform>().sizeDelta = Vector2.zero;
+
+        return new PromptOptionVisual
+        {
+            root = rootObject,
+            button = button,
+            background = background,
+            icon = icon,
+            cursor = cursor,
+            label = labelText
+        };
+    }
+
+    private void UpdatePromptOptionVisuals()
+    {
+        if (litPromptOptions == null || litPromptOptions.Length < 2)
+        {
+            return;
+        }
+
+        for (int i = 0; i < litPromptOptions.Length; i++)
+        {
+            PromptOptionVisual option = litPromptOptions[i];
+            if (option.root == null)
+            {
+                continue;
+            }
+
+            bool selected = i == Mathf.Clamp(selectedInteractionIndex, 0, 1);
+            if (option.background != null)
+            {
+                option.background.color = selected
+                    ? promptRowSelectedBackground
+                    : promptRowBackground;
+            }
+
+            if (option.icon != null)
+            {
+                option.icon.sprite = i == 0 ? restPromptIcon : travelPromptIcon;
+                option.icon.enabled = option.icon.sprite != null;
+            }
+
+            if (option.cursor != null)
+            {
+                Color color = option.cursor.color;
+                color.a = selected ? 1f : 0f;
+                option.cursor.color = color;
+            }
+
+            if (option.label != null)
+            {
+                option.label.color = selected ? selectedPromptColor : unselectedPromptColor;
+            }
+        }
+    }
+
+    private void MoveInteractionSelection(int delta)
+    {
+        if (selectedInteractionIndex < 0)
+        {
+            selectedInteractionIndex = 0;
+        }
+        else
+        {
+            selectedInteractionIndex = (selectedInteractionIndex + delta) % 2;
+            if (selectedInteractionIndex < 0)
+            {
+                selectedInteractionIndex += 2;
+            }
+        }
+
+        UpdatePromptOptionVisuals();
+    }
+
+    private void OnRestSelected()
+    {
+        selectedInteractionIndex = 0;
+        StartRestSequence();
+    }
+
+    private void OnTravelSelected()
+    {
+        selectedInteractionIndex = 1;
+        BonfireTravelMenu.Open(this);
     }
 
     private Font LoadPromptFont()
     {
+        if (promptFont != null)
+        {
+            return promptFont;
+        }
+
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font != null)
         {
@@ -558,6 +1326,29 @@ public class Bonfire : MonoBehaviour, ISaveable
         }
 
         return Font.CreateDynamicFontFromOSFont("Arial", 16);
+    }
+
+    private static Text CreateText(Transform parent, string name, string text, int fontSize, FontStyle style, TextAnchor alignment, Font font = null)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Text));
+        go.transform.SetParent(parent, false);
+
+        Text uiText = go.GetComponent<Text>();
+        uiText.text = text;
+        uiText.font = font != null ? font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (uiText.font == null)
+        {
+            uiText.font = Font.CreateDynamicFontFromOSFont("Arial", 16);
+        }
+
+        uiText.fontSize = fontSize;
+        uiText.fontStyle = style;
+        uiText.alignment = alignment;
+        uiText.color = Color.white;
+        uiText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        uiText.verticalOverflow = VerticalWrapMode.Overflow;
+
+        return uiText;
     }
 
     private void OnDisable()

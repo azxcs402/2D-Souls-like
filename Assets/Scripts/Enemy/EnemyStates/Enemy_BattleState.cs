@@ -87,10 +87,17 @@ public class Enemy_BattleState : Enemy_GroundedState
         {
             int moveDirection = skeleton.PlayerTargetDirection;
             float moveSpeed = skeleton.BattleMoveSpeed;
-            xVelocity = moveDirection * moveSpeed;
 
-            enemy.FaceDirection(moveDirection);
-            skeleton.SetBattleAnimation(true, moveDirection);
+            if (enemy.CanMoveTowardDirection(moveDirection))
+            {
+                xVelocity = moveDirection * moveSpeed;
+                enemy.FaceDirection(moveDirection);
+                skeleton.SetBattleAnimation(true, moveDirection);
+            }
+            else
+            {
+                skeleton.SetBattleAnimation(true, 0f);
+            }
         }
         else
         {

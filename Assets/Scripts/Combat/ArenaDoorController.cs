@@ -1,10 +1,13 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [DisallowMultipleComponent]
 public class ArenaDoorController : MonoBehaviour
 {
-    [SerializeField] private GameObject doorRoot;
+    [FormerlySerializedAs("doorRoot")]
+    [SerializeField] private GameObject visualRoot;
+    [SerializeField] private GameObject blockingRoot;
     [SerializeField] private Collider2D[] blockingColliders = Array.Empty<Collider2D>();
     [SerializeField] private Animator animator;
     [SerializeField] private string openBoolParameter = "open";
@@ -14,14 +17,36 @@ public class ArenaDoorController : MonoBehaviour
 
     private void Awake()
     {
+        if (visualRoot == null)
+        {
+            Transform visualChild = transform.Find("Visual");
+            if (visualChild != null)
+            {
+                visualRoot = visualChild.gameObject;
+            }
+        }
+
+        if (blockingRoot == null)
+        {
+            Transform blockingChild = transform.Find("Blocking");
+            if (blockingChild != null)
+            {
+                blockingRoot = blockingChild.gameObject;
+            }
+        }
+
         if (animator == null)
         {
-            animator = GetComponentInChildren<Animator>(true);
+            animator = visualRoot != null
+                ? visualRoot.GetComponentInChildren<Animator>(true)
+                : GetComponentInChildren<Animator>(true);
         }
 
         if (blockingColliders == null || blockingColliders.Length == 0)
         {
-            blockingColliders = GetComponentsInChildren<Collider2D>(true);
+            blockingColliders = blockingRoot != null
+                ? blockingRoot.GetComponentsInChildren<Collider2D>(true)
+                : GetComponentsInChildren<Collider2D>(true);
         }
     }
 
@@ -39,9 +64,14 @@ public class ArenaDoorController : MonoBehaviour
     {
         IsOpen = open;
 
-        if (doorRoot != null)
+        if (visualRoot != null && !visualRoot.activeSelf)
         {
-            doorRoot.SetActive(!open);
+            visualRoot.SetActive(true);
+        }
+
+        if (blockingRoot != null)
+        {
+            blockingRoot.SetActive(!open);
         }
 
         if (blockingColliders != null)

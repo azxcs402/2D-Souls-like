@@ -29,7 +29,7 @@ public class Enemy_ReaperMoveState : EnemyState
         reaper.SetStunnedAnimation(false);
         reaper.SetAnimation(false, true, false);
 
-        if (!reaper.GroundDetected() || reaper.FacingWallContactDetected())
+        if (!reaper.GroundDetected() || reaper.FacingWallContactDetected() || !reaper.CanMoveTowardDirection(reaper.FacingDirection))
         {
             reaper.TurnAround();
             turnTimer = reaper.PatrolTurnDelay;
@@ -56,7 +56,7 @@ public class Enemy_ReaperMoveState : EnemyState
             turnTimer -= Time.deltaTime;
         }
 
-        if (turnTimer <= 0f && (!reaper.GroundDetected() || reaper.FacingWallContactDetected() || reaper.EdgeDetected(.1f, .08f)))
+        if (turnTimer <= 0f && (!reaper.GroundDetected() || reaper.FacingWallContactDetected() || reaper.EdgeDetected(.1f, .08f) || !reaper.CanMoveTowardDirection(reaper.FacingDirection)))
         {
             reaper.TurnAround();
             turnTimer = reaper.PatrolTurnDelay;
@@ -79,6 +79,12 @@ public class Enemy_ReaperMoveState : EnemyState
 
         reaper.SetAnimation(false, true, false);
         reaper.SetMoveAnimationSpeed(1f);
+        if (!reaper.CanMoveTowardDirection(reaper.FacingDirection))
+        {
+            reaper.SetVelocity(0f, reaper.rb.velocity.y);
+            return;
+        }
+
         reaper.SetVelocity(reaper.MoveSpeed * reaper.FacingDirection, reaper.rb.velocity.y);
     }
 }

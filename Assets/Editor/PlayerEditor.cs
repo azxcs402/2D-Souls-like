@@ -105,7 +105,8 @@ public class PlayerEditor : Editor
             new SearchableField("fallAttackEndAnimationMinSpeed", "Fall Attack End Animation Min Speed", "end speed"),
             new SearchableField("fallAttackEndAnimationMaxSpeed", "Fall Attack End Animation Max Speed", "end speed"),
             new SearchableField("fallAttackEndAnimationLandingOffset", "Fall Attack End Animation Landing Offset", "landing"),
-            new SearchableField("fallAttackData", "Fall Attack Data", "fall hitbox")
+            new SearchableField("fallAttackData", "Fall Attack Data", "fall hitbox"),
+            new SearchableField("fallAttackExtendedData", "Fall Attack Extended Data", "extended fall hitbox")
         ),
         new SearchableSection(
             "Counter Attack Info",

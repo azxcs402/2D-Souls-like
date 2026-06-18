@@ -231,7 +231,14 @@ public class Enemy_SlimeAttackState : EnemyState
 
         if (elapsedRatio < .6f)
         {
-            velocity.x = attackDirection * slime.MoveSpeed * .65f;
+            if (attackDirection != 0 && !slime.CanMoveTowardDirection(attackDirection))
+            {
+                velocity.x = 0f;
+            }
+            else
+            {
+                velocity.x = attackDirection * slime.MoveSpeed * .65f;
+            }
         }
 
         return velocity;

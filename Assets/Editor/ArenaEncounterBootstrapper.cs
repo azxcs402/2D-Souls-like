@@ -22,54 +22,91 @@ public static class ArenaEncounterBootstrapper
 
         EnsureFolders();
 
-        GameObject encounterRoot = CreateGameObject("ArenaEncounter", selected != null ? selected.transform : null);
-        BoxCollider2D triggerCollider = Undo.AddComponent<BoxCollider2D>(encounterRoot);
-        triggerCollider.isTrigger = true;
-
-        ArenaEncounterController encounterController = Undo.AddComponent<ArenaEncounterController>(encounterRoot);
-
-        GameObject spawnRoot = CreateGameObject("SpawnPoints", encounterRoot.transform);
-        Transform[] spawnPoints = new Transform[4];
-        Vector3[] spawnOffsets =
+        GameObject encounterRoot = FindExistingArenaEncounter();
+        bool createdEncounterRoot = false;
+        if (encounterRoot == null)
         {
-            new Vector3(-4f, 1f, 0f),
-            new Vector3(-2f, 1f, 0f),
-            new Vector3(2f, 1f, 0f),
-            new Vector3(4f, 1f, 0f)
-        };
-
-        for (int i = 0; i < spawnPoints.Length; i++)
-        {
-            GameObject spawnPoint = CreateGameObject($"SpawnPoint_{i + 1}", spawnRoot.transform);
-            spawnPoint.transform.localPosition = spawnOffsets[i];
-            spawnPoints[i] = spawnPoint.transform;
+            encounterRoot = CreateGameObject("ArenaEncounter", selected != null ? selected.transform : null);
+            createdEncounterRoot = true;
         }
+
+        BoxCollider2D triggerCollider = encounterRoot.GetComponent<BoxCollider2D>();
+        if (triggerCollider == null)
+        {
+            triggerCollider = Undo.AddComponent<BoxCollider2D>(encounterRoot);
+            triggerCollider.isTrigger = true;
+        }
+
+        bool createdController = false;
+        ArenaEncounterController encounterController = encounterRoot.GetComponent<ArenaEncounterController>();
+        if (encounterController == null)
+        {
+            encounterController = Undo.AddComponent<ArenaEncounterController>(encounterRoot);
+            createdController = true;
+        }
+
+        GameObject spawnRoot = FindOrCreateChild(encounterRoot.transform, "SpawnPoints");
+        Transform[] spawnPoints = EnsureSpawnPoints(spawnRoot.transform);
 
         Transform gridTransform = selected != null
             ? FindDeepChild(selected.transform.root, "Grid")
             : FindGridInActiveScene();
         Transform doorParent = gridTransform != null ? gridTransform : encounterRoot.transform;
-        GameObject doorGroup = CreateGameObject("ArenaDoors", doorParent);
+        GameObject doorGroup = FindDeepChild(encounterRoot.transform, "ArenaDoors")?.gameObject
+            ?? FindOrCreateChild(doorParent, "ArenaDoors");
+        if (doorGroup.transform.parent != doorParent)
+        {
+            Undo.SetTransformParent(doorGroup.transform, doorParent, "Parent ArenaDoors");
+        }
 
-        ArenaDoorController leftDoor = CreateDoor(doorGroup.transform, "Door_Left", new Vector3(-6f, 0f, 0f));
-        ArenaDoorController rightDoor = CreateDoor(doorGroup.transform, "Door_Right", new Vector3(6f, 0f, 0f));
+        ArenaDoorController leftDoor = FindOrCreateDoor(doorGroup.transform, "Door_Left", new Vector3(-6f, 0f, 0f));
+        ArenaDoorController rightDoor = FindOrCreateDoor(doorGroup.transform, "Door_Right", new Vector3(6f, 0f, 0f));
 
         ArenaWaveSet waveSet = EnsureWaveSetAsset();
 
         SerializedObject controllerSo = new SerializedObject(encounterController);
-        SetObject(controllerSo, "waveSet", waveSet);
-        SetObjectArray(controllerSo, "spawnPoints", spawnPoints);
-        SetObjectArray(controllerSo, "doors", new Object[] { leftDoor, rightDoor });
-        SetBool(controllerSo, "lockDoorsWhenEncounterStarts", true);
-        SetBool(controllerSo, "startOnlyOnce", true);
-        SetFloat(controllerSo, "defaultDelayBeforeSpawn", 0.25f);
-        SetFloat(controllerSo, "defaultDelayAfterClear", 0.75f);
-        SetFloat(controllerSo, "clearConfirmDelay", 0.25f);
+        if (IsObjectReferenceNull(controllerSo, "waveSet"))
+        {
+            SetObject(controllerSo, "waveSet", waveSet);
+        }
+
+        if (ShouldFillArray(controllerSo, "spawnPoints"))
+        {
+            SetObjectArray(controllerSo, "spawnPoints", spawnPoints);
+        }
+
+        if (ShouldFillArray(controllerSo, "doors"))
+        {
+            SetObjectArray(controllerSo, "doors", new Object[] { leftDoor, rightDoor });
+        }
+
+        if (createdEncounterRoot || createdController)
+        {
+            SetBool(controllerSo, "lockDoorsWhenEncounterStarts", true);
+            SetBool(controllerSo, "startOnlyOnce", true);
+            SetFloat(controllerSo, "defaultDelayBeforeSpawn", 0.25f);
+            SetFloat(controllerSo, "defaultDelayAfterClear", 0.75f);
+            SetFloat(controllerSo, "clearConfirmDelay", 0.25f);
+        }
         controllerSo.ApplyModifiedPropertiesWithoutUndo();
 
         Selection.activeGameObject = encounterRoot;
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-        Debug.Log("Arena encounter setup created. Fill the wave set, then assign enemy prefabs and door tiles.");
+        Debug.Log(createdEncounterRoot
+            ? "Arena encounter setup created. Fill the wave set, then assign enemy prefabs and door tiles."
+            : "Existing ArenaEncounter reused. Missing setup parts were filled without overwriting your current settings.");
+    }
+
+    [MenuItem("Tools/Arena Encounter/Repair Default Wave Set")]
+    public static void RepairDefaultWaveSet()
+    {
+        EnsureFolders();
+        ArenaWaveSet waveSet = EnsureWaveSetAsset(forceRepair: true);
+        if (waveSet != null)
+        {
+            Selection.activeObject = waveSet;
+            EditorGUIUtility.PingObject(waveSet);
+        }
     }
 
     [MenuItem("Tools/Arena Encounter/Create Room Setup", true)]
@@ -84,20 +121,210 @@ public static class ArenaEncounterBootstrapper
         Directory.CreateDirectory("Assets/Combat/ArenaEncounter");
     }
 
-    private static ArenaWaveSet EnsureWaveSetAsset()
+    private static ArenaWaveSet EnsureWaveSetAsset(bool forceRepair = false)
     {
         ArenaWaveSet waveSet = AssetDatabase.LoadAssetAtPath<ArenaWaveSet>(WaveSetAssetPath);
         if (waveSet != null)
         {
+            EnsureDefaultWaveSetSetup(waveSet, forceRepair);
             return waveSet;
         }
 
         waveSet = ScriptableObject.CreateInstance<ArenaWaveSet>();
         AssetDatabase.CreateAsset(waveSet, WaveSetAssetPath);
+        EnsureDefaultWaveSetSetup(waveSet, true);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         EditorUtility.SetDirty(waveSet);
         return waveSet;
+    }
+
+    private static void EnsureDefaultWaveSetSetup(ArenaWaveSet waveSet, bool forceRepair)
+    {
+        if (waveSet == null)
+        {
+            return;
+        }
+
+        SerializedObject waveSetSo = new SerializedObject(waveSet);
+        SerializedProperty wavesProperty = waveSetSo.FindProperty("waves");
+        if (wavesProperty == null)
+        {
+            return;
+        }
+
+        GameObject skeletonPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Enemy/Enemy_Skeleton.prefab");
+        if (skeletonPrefab == null)
+        {
+            Debug.LogWarning("Default ArenaWaveSet could not be initialized because Enemy_Skeleton.prefab was not found.");
+            return;
+        }
+
+        bool needsRepair = forceRepair || wavesProperty.arraySize == 0;
+        if (!needsRepair && wavesProperty.arraySize > 0)
+        {
+            SerializedProperty existingWaveProperty = wavesProperty.GetArrayElementAtIndex(0);
+            SerializedProperty existingSpawnsProperty = existingWaveProperty.FindPropertyRelative("spawns");
+            if (existingSpawnsProperty == null || existingSpawnsProperty.arraySize < 2)
+            {
+                needsRepair = true;
+            }
+            else
+            {
+                SerializedProperty firstSpawnPrefab = existingSpawnsProperty.GetArrayElementAtIndex(0).FindPropertyRelative("enemyPrefab");
+                SerializedProperty secondSpawnPrefab = existingSpawnsProperty.GetArrayElementAtIndex(1).FindPropertyRelative("enemyPrefab");
+                needsRepair = firstSpawnPrefab == null || firstSpawnPrefab.objectReferenceValue == null
+                    || secondSpawnPrefab == null || secondSpawnPrefab.objectReferenceValue == null;
+            }
+        }
+
+        if (!needsRepair)
+        {
+            return;
+        }
+
+        wavesProperty.arraySize = 1;
+        SerializedProperty waveProperty = wavesProperty.GetArrayElementAtIndex(0);
+
+        SerializedProperty delayBeforeSpawnProperty = waveProperty.FindPropertyRelative("delayBeforeSpawn");
+        if (delayBeforeSpawnProperty != null)
+        {
+            delayBeforeSpawnProperty.floatValue = 1f;
+        }
+
+        SerializedProperty delayAfterClearProperty = waveProperty.FindPropertyRelative("delayAfterClear");
+        if (delayAfterClearProperty != null)
+        {
+            delayAfterClearProperty.floatValue = 0.75f;
+        }
+
+        SerializedProperty spawnsProperty = waveProperty.FindPropertyRelative("spawns");
+        if (spawnsProperty == null)
+        {
+            waveSetSo.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(waveSet);
+            AssetDatabase.SaveAssets();
+            return;
+        }
+
+        spawnsProperty.arraySize = 2;
+        ConfigureSpawnEntry(spawnsProperty.GetArrayElementAtIndex(0), skeletonPrefab, 0);
+        ConfigureSpawnEntry(spawnsProperty.GetArrayElementAtIndex(1), skeletonPrefab, 2);
+
+        waveSetSo.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(waveSet);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.ImportAsset(WaveSetAssetPath, ImportAssetOptions.ForceUpdate);
+    }
+
+    private static void ConfigureSpawnEntry(SerializedProperty spawnEntryProperty, GameObject enemyPrefab, int spawnPointIndex)
+    {
+        if (spawnEntryProperty == null)
+        {
+            return;
+        }
+
+        SerializedProperty enemyPrefabProperty = spawnEntryProperty.FindPropertyRelative("enemyPrefab");
+        if (enemyPrefabProperty != null)
+        {
+            enemyPrefabProperty.objectReferenceValue = enemyPrefab;
+        }
+
+        SerializedProperty countProperty = spawnEntryProperty.FindPropertyRelative("count");
+        if (countProperty != null)
+        {
+            countProperty.intValue = 1;
+        }
+
+        SerializedProperty useRandomSpawnPointProperty = spawnEntryProperty.FindPropertyRelative("useRandomSpawnPoint");
+        if (useRandomSpawnPointProperty != null)
+        {
+            useRandomSpawnPointProperty.boolValue = false;
+        }
+
+        SerializedProperty spawnPointIndexProperty = spawnEntryProperty.FindPropertyRelative("spawnPointIndex");
+        if (spawnPointIndexProperty != null)
+        {
+            spawnPointIndexProperty.intValue = spawnPointIndex;
+        }
+    }
+
+    private static GameObject FindExistingArenaEncounter()
+    {
+        Scene activeScene = SceneManager.GetActiveScene();
+        if (!activeScene.IsValid() || !activeScene.isLoaded)
+        {
+            return null;
+        }
+
+        GameObject[] rootObjects = activeScene.GetRootGameObjects();
+        for (int i = 0; i < rootObjects.Length; i++)
+        {
+            Transform found = FindDeepChild(rootObjects[i].transform, "ArenaEncounter");
+            if (found != null)
+            {
+                return found.gameObject;
+            }
+        }
+
+        return null;
+    }
+
+    private static GameObject FindOrCreateChild(Transform parent, string childName)
+    {
+        Transform existing = parent != null ? parent.Find(childName) : null;
+        if (existing != null)
+        {
+            return existing.gameObject;
+        }
+
+        return CreateGameObject(childName, parent);
+    }
+
+    private static Transform[] EnsureSpawnPoints(Transform spawnRoot)
+    {
+        Vector3[] spawnOffsets =
+        {
+            new Vector3(-4f, 1f, 0f),
+            new Vector3(-2f, 1f, 0f),
+            new Vector3(2f, 1f, 0f),
+            new Vector3(4f, 1f, 0f)
+        };
+
+        Transform[] spawnPoints = new Transform[spawnOffsets.Length];
+        for (int i = 0; i < spawnOffsets.Length; i++)
+        {
+            string spawnPointName = $"SpawnPoint_{i + 1}";
+            Transform existing = spawnRoot.Find(spawnPointName);
+            if (existing == null)
+            {
+                GameObject spawnPoint = CreateGameObject(spawnPointName, spawnRoot);
+                spawnPoint.transform.localPosition = spawnOffsets[i];
+                existing = spawnPoint.transform;
+            }
+
+            spawnPoints[i] = existing;
+        }
+
+        return spawnPoints;
+    }
+
+    private static ArenaDoorController FindOrCreateDoor(Transform parent, string doorName, Vector3 localPosition)
+    {
+        Transform existingDoor = parent.Find(doorName);
+        if (existingDoor == null)
+        {
+            return CreateDoor(parent, doorName, localPosition);
+        }
+
+        ArenaDoorController doorController = existingDoor.GetComponent<ArenaDoorController>();
+        if (doorController == null)
+        {
+            doorController = Undo.AddComponent<ArenaDoorController>(existingDoor.gameObject);
+        }
+
+        EnsureDoorChildren(existingDoor, doorController);
+        return doorController;
     }
 
     private static ArenaDoorController CreateDoor(Transform parent, string doorName, Vector3 localPosition)
@@ -108,36 +335,121 @@ public static class ArenaEncounterBootstrapper
         ArenaDoorController doorController = Undo.AddComponent<ArenaDoorController>(doorRoot);
 
         GameObject visualRoot = CreateGameObject("Visual", doorRoot.transform);
+        GameObject blockingRoot = CreateGameObject("Blocking", doorRoot.transform);
 
-        Tilemap tilemap = Undo.AddComponent<Tilemap>(visualRoot);
-        TilemapRenderer renderer = Undo.AddComponent<TilemapRenderer>(visualRoot);
-        TilemapCollider2D tilemapCollider = Undo.AddComponent<TilemapCollider2D>(visualRoot);
-        Rigidbody2D body = Undo.AddComponent<Rigidbody2D>(visualRoot);
-        CompositeCollider2D composite = Undo.AddComponent<CompositeCollider2D>(visualRoot);
+        Tilemap visualTilemap = Undo.AddComponent<Tilemap>(visualRoot);
+        TilemapRenderer visualRenderer = Undo.AddComponent<TilemapRenderer>(visualRoot);
+        visualRenderer.sortingLayerName = "Background";
+        visualRenderer.sortingOrder = 100;
 
-        body.bodyType = RigidbodyType2D.Static;
-        body.simulated = true;
-        body.useAutoMass = false;
+        Tilemap blockingTilemap = Undo.AddComponent<Tilemap>(blockingRoot);
+        TilemapRenderer blockingRenderer = Undo.AddComponent<TilemapRenderer>(blockingRoot);
+        blockingRenderer.sortingLayerName = "Background";
+        TilemapCollider2D blockingTilemapCollider = Undo.AddComponent<TilemapCollider2D>(blockingRoot);
+        Rigidbody2D blockingBody = Undo.AddComponent<Rigidbody2D>(blockingRoot);
+        CompositeCollider2D blockingComposite = Undo.AddComponent<CompositeCollider2D>(blockingRoot);
 
-        tilemapCollider.usedByComposite = true;
-        composite.geometryType = CompositeCollider2D.GeometryType.Polygons;
+        blockingBody.bodyType = RigidbodyType2D.Static;
+        blockingBody.simulated = true;
+        blockingBody.useAutoMass = false;
 
-        renderer.sortingOrder = 100;
+        blockingTilemapCollider.usedByComposite = true;
+        blockingComposite.geometryType = CompositeCollider2D.GeometryType.Polygons;
+        blockingRenderer.sortingOrder = 101;
 
         SerializedObject doorSo = new SerializedObject(doorController);
-        SetObject(doorSo, "doorRoot", visualRoot);
+        SetObject(doorSo, "visualRoot", visualRoot);
+        SetObject(doorSo, "blockingRoot", blockingRoot);
         SetBool(doorSo, "openOnStart", true);
         SetString(doorSo, "openBoolParameter", "open");
         doorSo.ApplyModifiedPropertiesWithoutUndo();
 
         EditorUtility.SetDirty(doorController);
-        EditorUtility.SetDirty(tilemap);
-        EditorUtility.SetDirty(renderer);
-        EditorUtility.SetDirty(tilemapCollider);
-        EditorUtility.SetDirty(body);
-        EditorUtility.SetDirty(composite);
+        EditorUtility.SetDirty(visualTilemap);
+        EditorUtility.SetDirty(visualRenderer);
+        EditorUtility.SetDirty(blockingTilemap);
+        EditorUtility.SetDirty(blockingRenderer);
+        EditorUtility.SetDirty(blockingTilemapCollider);
+        EditorUtility.SetDirty(blockingBody);
+        EditorUtility.SetDirty(blockingComposite);
 
         return doorController;
+    }
+
+    private static void EnsureDoorChildren(Transform doorRoot, ArenaDoorController doorController)
+    {
+        if (doorRoot == null || doorController == null)
+        {
+            return;
+        }
+
+        GameObject visualRoot = FindOrCreateChild(doorRoot, "Visual");
+        GameObject blockingRoot = FindOrCreateChild(doorRoot, "Blocking");
+
+        if (visualRoot.GetComponent<Tilemap>() == null)
+        {
+            Undo.AddComponent<Tilemap>(visualRoot);
+        }
+
+        if (visualRoot.GetComponent<TilemapRenderer>() == null)
+        {
+            TilemapRenderer visualRenderer = Undo.AddComponent<TilemapRenderer>(visualRoot);
+            visualRenderer.sortingLayerName = "Background";
+            visualRenderer.sortingOrder = 100;
+        }
+        else
+        {
+            visualRoot.GetComponent<TilemapRenderer>().sortingLayerName = "Background";
+        }
+
+        if (blockingRoot.GetComponent<Tilemap>() == null)
+        {
+            Undo.AddComponent<Tilemap>(blockingRoot);
+        }
+
+        if (blockingRoot.GetComponent<TilemapRenderer>() == null)
+        {
+            TilemapRenderer blockingRenderer = Undo.AddComponent<TilemapRenderer>(blockingRoot);
+            blockingRenderer.sortingLayerName = "Background";
+            blockingRenderer.sortingOrder = 101;
+        }
+        else
+        {
+            blockingRoot.GetComponent<TilemapRenderer>().sortingLayerName = "Background";
+        }
+
+        if (blockingRoot.GetComponent<TilemapCollider2D>() == null)
+        {
+            TilemapCollider2D blockingTilemapCollider = Undo.AddComponent<TilemapCollider2D>(blockingRoot);
+            blockingTilemapCollider.usedByComposite = true;
+        }
+
+        if (blockingRoot.GetComponent<Rigidbody2D>() == null)
+        {
+            Rigidbody2D blockingBody = Undo.AddComponent<Rigidbody2D>(blockingRoot);
+            blockingBody.bodyType = RigidbodyType2D.Static;
+            blockingBody.simulated = true;
+            blockingBody.useAutoMass = false;
+        }
+
+        if (blockingRoot.GetComponent<CompositeCollider2D>() == null)
+        {
+            CompositeCollider2D blockingComposite = Undo.AddComponent<CompositeCollider2D>(blockingRoot);
+            blockingComposite.geometryType = CompositeCollider2D.GeometryType.Polygons;
+        }
+
+        SerializedObject doorSo = new SerializedObject(doorController);
+        if (IsObjectReferenceNull(doorSo, "visualRoot"))
+        {
+            SetObject(doorSo, "visualRoot", visualRoot);
+        }
+
+        if (IsObjectReferenceNull(doorSo, "blockingRoot"))
+        {
+            SetObject(doorSo, "blockingRoot", blockingRoot);
+        }
+
+        doorSo.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static GameObject CreateGameObject(string name, Transform parent)
@@ -197,6 +509,23 @@ public static class ArenaEncounterBootstrapper
         }
 
         return null;
+    }
+
+    private static bool ShouldFillArray(SerializedObject serializedObject, string propertyName)
+    {
+        SerializedProperty property = serializedObject.FindProperty(propertyName);
+        if (property == null || !property.isArray)
+        {
+            return false;
+        }
+
+        return property.arraySize == 0;
+    }
+
+    private static bool IsObjectReferenceNull(SerializedObject serializedObject, string propertyName)
+    {
+        SerializedProperty property = serializedObject.FindProperty(propertyName);
+        return property == null || property.propertyType != SerializedPropertyType.ObjectReference || property.objectReferenceValue == null;
     }
 
     private static void SetObject(SerializedObject serializedObject, string propertyName, Object value)

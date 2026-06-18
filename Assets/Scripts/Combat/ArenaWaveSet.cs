@@ -28,8 +28,22 @@ public class ArenaSpawnEntry
     [SerializeField] private GameObject enemyPrefab;
     [SerializeField, Min(1)] private int count = 1;
     [SerializeField] private bool useRandomSpawnPoint = true;
+    [SerializeField, Min(-1)] private int spawnPointIndex = -1;
+    [SerializeField] private bool overrideScale;
+    [SerializeField] private Vector3 spawnScale = Vector3.one;
+    [SerializeField] private bool overrideMaxHealth;
+    [SerializeField, Min(1)] private int maxHealth = 1;
+    [SerializeField] private bool overrideCombatDamage;
+    [SerializeField, Min(1)] private int combatDamage = 1;
 
     public GameObject EnemyPrefab => enemyPrefab;
     public int Count => Mathf.Max(1, count);
     public bool UseRandomSpawnPoint => useRandomSpawnPoint;
+    public int SpawnPointIndex => spawnPointIndex;
+    public bool OverrideScale => overrideScale;
+    public Vector3 SpawnScale => spawnScale;
+    public bool OverrideMaxHealth => overrideMaxHealth;
+    public int MaxHealth => Mathf.Max(1, maxHealth);
+    public bool OverrideCombatDamage => overrideCombatDamage;
+    public int CombatDamage => Mathf.Max(1, combatDamage);
 }

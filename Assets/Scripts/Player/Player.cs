@@ -142,10 +142,12 @@ public class Player : Entity
     [SerializeField] private float fallAttackDiveAngle = 25f;
     [SerializeField] private float fallAttackGroundCheckDistance = 1.5f;
     [SerializeField] private float fallAttackGroundSearchDistance = 30f;
+    [SerializeField, Min(0f)] private float fallAttackDamageWindowDuration = .12f;
     [SerializeField] private float fallAttackEndAnimationMinSpeed = .05f;
     [SerializeField] private float fallAttackEndAnimationMaxSpeed = 8f;
     [SerializeField] private float fallAttackEndAnimationLandingOffset = .15f;
     [SerializeField] private Entity_AttackData fallAttackData = new Entity_AttackData(new Vector2(.6f, -.2f), .7f, new Vector2(6f, 3f));
+    [SerializeField] private Entity_AttackData fallAttackExtendedData = new Entity_AttackData(new Vector2(.6f, -.2f), 1.1f, new Vector2(6f, 3f));
     [SerializeField] private int fallAttackDamage = 22;
 
     [Header("Counter Attack Info")]
@@ -332,10 +334,12 @@ public class Player : Entity
     public float FallAttackDiveAngle => fallAttackDiveAngle;
     public float FallAttackGroundCheckDistance => fallAttackGroundCheckDistance;
     public float FallAttackGroundSearchDistance => fallAttackGroundSearchDistance;
+    public float FallAttackDamageWindowDuration => fallAttackDamageWindowDuration;
     public float FallAttackEndAnimationMinSpeed => fallAttackEndAnimationMinSpeed;
     public float FallAttackEndAnimationMaxSpeed => fallAttackEndAnimationMaxSpeed;
     public float FallAttackEndAnimationLandingOffset => fallAttackEndAnimationLandingOffset;
     public Entity_AttackData FallAttackData => fallAttackData;
+    public Entity_AttackData FallAttackExtendedData => fallAttackExtendedData;
     public int FallAttackDamage => Mathf.Max(1, fallAttackDamage);
     public float CounterDuration => counterDuration;
     public float CounterAttackTargetCheckRadiusMultiplier => counterAttackTargetCheckRadiusMultiplier;
@@ -2431,6 +2435,29 @@ public class Player : Entity
 
         Gizmos.color = new Color(1f, .6f, 0f, .35f);
         Gizmos.DrawWireCube(jumpClearanceBoxOrigin, jumpClearanceBoxSize);
+
+        DrawFallAttackGizmo(fallAttackData.TargetCheckOffset, fallAttackData.TargetCheckRadius, new Color(1f, .2f, .2f, 1f), "Fall Attack");
+        DrawFallAttackGizmo(fallAttackExtendedData.TargetCheckOffset, fallAttackExtendedData.TargetCheckRadius, new Color(1f, .5f, 0f, 1f), "Fall Attack Extended");
+    }
+
+    private void DrawFallAttackGizmo(Vector2 offset, float radius, Color color, string label)
+    {
+        Vector2 center = GetFallAttackGizmoCenter(offset);
+
+        Gizmos.color = color;
+        Gizmos.DrawWireSphere(center, radius);
+        Gizmos.DrawLine(transform.position, center);
+
+#if UNITY_EDITOR
+        UnityEditor.Handles.color = color;
+        UnityEditor.Handles.Label(center + Vector2.up * (radius + .1f), label);
+#endif
+    }
+
+    private Vector2 GetFallAttackGizmoCenter(Vector2 offset)
+    {
+        offset.x *= FacingDirection;
+        return (Vector2)transform.position + offset;
     }
 
     private void UpdateVisualPosition()

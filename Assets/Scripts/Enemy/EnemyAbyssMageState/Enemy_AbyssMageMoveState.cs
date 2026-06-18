@@ -57,7 +57,8 @@ public class Enemy_AbyssMageMoveState : Enemy_AbyssMageGroundedState
 
         if (mage != null && turnTimer <= 0f)
         {
-            bool shouldTurnAround = enemy.FacingWallContactDetected();
+            bool shouldTurnAround = enemy.FacingWallContactDetected()
+                || !enemy.CanMoveTowardDirection(enemy.FacingDirection);
 
             if (!shouldTurnAround)
             {
@@ -96,6 +97,12 @@ public class Enemy_AbyssMageMoveState : Enemy_AbyssMageGroundedState
 
         int moveDirection = enemy.FacingDirection;
         float moveSpeed = mage.MoveSpeed;
+
+        if (!enemy.CanMoveTowardDirection(moveDirection))
+        {
+            enemy.SetVelocity(0f, rb.velocity.y);
+            return;
+        }
 
         enemy.FaceDirection(moveDirection);
         enemy.SetVelocity(moveDirection * moveSpeed, rb.velocity.y);

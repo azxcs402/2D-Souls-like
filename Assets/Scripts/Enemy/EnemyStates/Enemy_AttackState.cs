@@ -198,7 +198,15 @@ public class Enemy_AttackState : Enemy_GroundedState
 
         if (IsMoveAxisActive(skeleton.SkeletonAttackMoveXDelay, moveDuration))
         {
-            velocity.x = attackDirection * moveDistance.x / moveDuration;
+            int moveDirection = attackDirection;
+            if (moveDirection != 0 && !enemy.CanMoveTowardDirection(moveDirection))
+            {
+                velocity.x = 0f;
+            }
+            else
+            {
+                velocity.x = moveDirection * moveDistance.x / moveDuration;
+            }
         }
 
         if (IsMoveAxisActive(skeleton.SkeletonAttackMoveYDelay, moveDuration))

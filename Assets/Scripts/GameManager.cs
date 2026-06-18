@@ -384,17 +384,26 @@ public class GameManager : MonoBehaviour
         SetRespawnFlashAlpha(0f);
     }
 
-    private void SetGameplayControlsEnabled(bool enabled)
+    public void SetGameplayControlsEnabled(bool enabled)
     {
-        if (gameplayControlsPaused == !enabled)
-        {
-            return;
-        }
-
         Player player = FindFirstObjectByType<Player>();
         if (player != null)
         {
             player.enabled = enabled;
+
+            if (player.rb != null)
+            {
+                if (enabled)
+                {
+                    player.rb.simulated = true;
+                }
+                else
+                {
+                    player.rb.velocity = Vector2.zero;
+                    player.rb.angularVelocity = 0f;
+                    player.rb.simulated = false;
+                }
+            }
         }
 
         gameplayControlsPaused = !enabled;

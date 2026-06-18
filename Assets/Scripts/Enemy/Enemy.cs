@@ -15,6 +15,11 @@ public abstract class Enemy : Entity
     [SerializeField] protected bool canTakeDamage = true;
     [Header("Stun Recovery")]
     [SerializeField, Min(0f)] private float stunAttackRecoveryDelay = .6f;
+    [Header("Hazard Avoidance")]
+    [SerializeField] private bool avoidPitAndSpikeHazards = true;
+    [SerializeField, Min(0f)] private float hazardLookAheadOffset = .12f;
+    [SerializeField, Min(.01f)] private float hazardProbeRadius = .12f;
+    [SerializeField, Min(0f)] private float hazardProbeVerticalOffset = .05f;
 
     public StateMachine stateMachine { get; protected set; }
     public Entity_Combat Combat { get; protected set; }
@@ -24,6 +29,10 @@ public abstract class Enemy : Entity
     public bool IsDead => isDead;
     public bool IsStunAttackRecoveryActive => stunAttackRecoveryTimer > 0f;
     public float StunAttackRecoveryDelay => stunAttackRecoveryDelay;
+    public bool AvoidPitAndSpikeHazards => avoidPitAndSpikeHazards;
+    public float HazardLookAheadOffset => hazardLookAheadOffset;
+    public float HazardProbeRadius => hazardProbeRadius;
+    public float HazardProbeVerticalOffset => hazardProbeVerticalOffset;
     public IState DeadState => GetDeadState();
 
     protected int currentHealth;
@@ -89,6 +98,11 @@ public abstract class Enemy : Entity
 
     public virtual void TakeDamage(int damage)
     {
+        TakeDamage(damage, allowRevive: true);
+    }
+
+    public virtual void TakeDamage(int damage, bool allowRevive)
+    {
         if (!CanTakeDamage || damage <= 0)
         {
             return;
@@ -98,7 +112,7 @@ public abstract class Enemy : Entity
 
         if (currentHealth <= 0)
         {
-            Die();
+            Die(allowRevive);
         }
     }
 
@@ -114,6 +128,11 @@ public abstract class Enemy : Entity
 
     protected virtual void Die()
     {
+        Die(allowRevive: true);
+    }
+
+    protected virtual void Die(bool allowRevive)
+    {
         isDead = true;
 
         if (stateMachine != null && DeadState != null)
@@ -123,6 +142,11 @@ public abstract class Enemy : Entity
 
         OnDied?.Invoke(this);
         SetVelocity(0f, rb != null ? rb.velocity.y : 0f);
+
+        if (allowRevive)
+        {
+            Revive();
+        }
     }
 
     public virtual void Revive()
@@ -135,6 +159,14 @@ public abstract class Enemy : Entity
         {
             anim.enabled = true;
         }
+    }
+
+    public void SetMaxHealth(int value, bool restoreCurrentHealth = true)
+    {
+        maxHealth = Mathf.Max(1, value);
+        currentHealth = restoreCurrentHealth
+            ? maxHealth
+            : Mathf.Clamp(currentHealth, 0, maxHealth);
     }
 
     protected virtual IState GetDeadState()
@@ -160,6 +192,65 @@ public abstract class Enemy : Entity
         }
 
         canTakeDamage = canBeTargeted;
+    }
+
+    public bool CanMoveTowardDirection(int direction)
+    {
+        if (!avoidPitAndSpikeHazards || direction == 0)
+        {
+            return true;
+        }
+
+        return !IsHazardAhead(direction);
+    }
+
+    private bool IsHazardAhead(int direction)
+    {
+        Bounds bounds = GetColliderBounds();
+        float facingSign = direction > 0 ? 1f : -1f;
+        float originX = (direction > 0 ? bounds.max.x : bounds.min.x) + facingSign * hazardLookAheadOffset;
+        Vector2 groundProbeOrigin = new Vector2(originX, bounds.min.y + .02f);
+        float groundProbeDistance = Mathf.Max(groundCheckDistance, bounds.size.y * .5f);
+
+        RaycastHit2D groundHit = Physics2D.Raycast(
+            groundProbeOrigin,
+            Vector2.down,
+            groundProbeDistance,
+            whatIsGround
+        );
+
+        if (groundHit.collider == null || IsSelfCollider(groundHit.collider))
+        {
+            return true;
+        }
+
+        Vector2 hazardProbeCenter = new Vector2(
+            originX,
+            groundHit.point.y + hazardProbeVerticalOffset
+        );
+
+        Collider2D[] overlaps = Physics2D.OverlapCircleAll(hazardProbeCenter, hazardProbeRadius);
+        for (int i = 0; i < overlaps.Length; i++)
+        {
+            Collider2D hit = overlaps[i];
+            if (hit == null || IsSelfCollider(hit))
+            {
+                continue;
+            }
+
+            if (hit.GetComponentInParent<SpikeHazard>() != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected bool IsSelfCollider(Collider2D collider)
+    {
+        return collider != null
+            && (collider.transform == transform || collider.transform.IsChildOf(transform));
     }
 
     private void EnsureCoreComponents()
