@@ -9,6 +9,7 @@ public class Enemy_ReaperAttackState : EnemyState
     private Entity_Combat combat;
     private int attackDirection;
     private float attackDuration;
+    private float elapsedAttackTime;
 
     public Enemy_ReaperAttackState(Enemy enemy, StateMachine stateMachine)
         : base(enemy, stateMachine, "attack")
@@ -24,6 +25,7 @@ public class Enemy_ReaperAttackState : EnemyState
         hasCompleted = false;
         damageTriggered = false;
         combat = reaper != null ? reaper.CombatComponent : null;
+        elapsedAttackTime = 0f;
         attackDirection = reaper != null && reaper.PlayerTarget != null
             ? (reaper.PlayerTarget.position.x >= reaper.transform.position.x ? 1 : -1)
             : reaper != null ? reaper.FacingDirection : 1;
@@ -51,10 +53,19 @@ public class Enemy_ReaperAttackState : EnemyState
     public override void Update()
     {
         base.Update();
+        elapsedAttackTime += Time.deltaTime;
 
         if (reaper == null || stateMachine.CurrentState != this || hasCompleted)
         {
             return;
+        }
+
+        if (!damageTriggered && IsInsideDamageWindow())
+        {
+            if (TryApplyAttackDamage())
+            {
+                damageTriggered = true;
+            }
         }
 
         if (animationTriggered || stateTimer <= 0f)
@@ -102,11 +113,7 @@ public class Enemy_ReaperAttackState : EnemyState
             return;
         }
 
-        bool hitPlayer = combat.AttackTrigger(reaper.ReaperAttackData);
-        if (hitPlayer)
-        {
-            damageTriggered = true;
-        }
+        TryApplyAttackDamage();
     }
 
     public void CurrentStateTrigger()
@@ -119,6 +126,28 @@ public class Enemy_ReaperAttackState : EnemyState
     {
         animationTriggered = true;
         stateTimer = 0f;
+    }
+
+    private bool IsInsideDamageWindow()
+    {
+        if (reaper == null || attackDuration <= 0f)
+        {
+            return false;
+        }
+
+        float startTime = Mathf.Clamp01(reaper.AttackDamageWindowStartNormalized) * attackDuration;
+        float endTime = Mathf.Clamp01(reaper.AttackDamageWindowEndNormalized) * attackDuration;
+        return elapsedAttackTime >= startTime && elapsedAttackTime <= endTime;
+    }
+
+    private bool TryApplyAttackDamage()
+    {
+        if (combat == null || reaper == null)
+        {
+            return false;
+        }
+
+        return combat.AttackTrigger(reaper.ReaperAttackData);
     }
 
     private void PlayAttackAnimation()

@@ -192,7 +192,7 @@ public class Entity_AnimationTriggers : MonoBehaviour
         {
             abyssMage.SpecialAttack();
         }
-        else if (entity is Enemy_Reaper reaper && reaper.IsSpellCasting)
+        else if (entity is Enemy_Reaper reaper)
         {
             reaper.SpecialAttack();
         }

@@ -1,6 +1,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Tilemaps;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -11,10 +15,16 @@ public class ArenaEncounterController : MonoBehaviour
     [SerializeField] private Transform[] spawnPoints = new Transform[0];
     [SerializeField, Min(0f)] private float defaultDelayBeforeSpawn = 0.25f;
     [SerializeField, Min(0f)] private float defaultDelayAfterClear = 0.75f;
+    [SerializeField] private bool showSpawnPointGizmos = true;
 
     [Header("Doors")]
     [SerializeField] private ArenaDoorController[] doors = new ArenaDoorController[0];
     [SerializeField] private bool lockDoorsWhenEncounterStarts = true;
+
+    [Header("Floating Platform")]
+    [SerializeField] private ArenaFloatingPlatformController floatingPlatform;
+    [SerializeField, Min(0)] private int showPlatformAfterWaveIndex = 1;
+    [SerializeField, Min(0)] private int hidePlatformAfterWaveIndex = 2;
 
     [Header("Trigger")]
     [SerializeField] private bool startOnlyOnce = true;
@@ -28,14 +38,52 @@ public class ArenaEncounterController : MonoBehaviour
     private bool encounterCompleted;
     private int currentWaveIndex = -1;
 
+    public int CurrentWaveIndex => currentWaveIndex;
+    public int ActiveEnemyCount => activeEnemies.Count;
+    public bool HasActiveEnemies => activeEnemies.Count > 0;
+    public string ActiveEnemySummary
+    {
+        get
+        {
+            if (activeEnemies.Count == 0)
+            {
+                return "None";
+            }
+
+            System.Text.StringBuilder builder = new System.Text.StringBuilder();
+            bool first = true;
+            foreach (Enemy enemy in activeEnemies)
+            {
+                if (enemy == null)
+                {
+                    continue;
+                }
+
+                if (!first)
+                {
+                    builder.Append(", ");
+                }
+
+                builder.Append(enemy.name);
+                first = false;
+            }
+
+            return first ? "None" : builder.ToString();
+        }
+    }
+
     private void Awake()
     {
         triggerCollider = GetComponent<BoxCollider2D>();
         triggerCollider.isTrigger = true;
+        ResolveReferences();
     }
 
     private void OnValidate()
     {
+        ResolveReferences();
+        SyncSpawnPointsFromScene();
+
         if (spawnPoints == null)
         {
             spawnPoints = new Transform[0];
@@ -50,6 +98,10 @@ public class ArenaEncounterController : MonoBehaviour
         {
             return;
         }
+
+        int maxWaveIndex = Mathf.Max(0, waveSet.Waves.Count - 1);
+        showPlatformAfterWaveIndex = Mathf.Clamp(showPlatformAfterWaveIndex, 0, maxWaveIndex);
+        hidePlatformAfterWaveIndex = Mathf.Clamp(hidePlatformAfterWaveIndex, 0, maxWaveIndex);
 
         if (defaultDelayBeforeSpawn < 0f)
         {
@@ -83,6 +135,43 @@ public class ArenaEncounterController : MonoBehaviour
 
         Gizmos.color = new Color(Gizmos.color.r, Gizmos.color.g, Gizmos.color.b, 0.12f);
         Gizmos.DrawCube(center, size);
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!showSpawnPointGizmos)
+        {
+            return;
+        }
+
+        SyncSpawnPointsFromScene();
+        if (spawnPoints == null || spawnPoints.Length == 0)
+        {
+            return;
+        }
+
+        Color pointColor = new Color(1f, 0.85f, 0.2f, 1f);
+        Color labelColor = new Color(1f, 0.95f, 0.6f, 1f);
+
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            Transform spawnPoint = spawnPoints[i];
+            if (spawnPoint == null)
+            {
+                continue;
+            }
+
+            Vector3 position = spawnPoint.position;
+            Gizmos.color = pointColor;
+            Gizmos.DrawSphere(position, 0.08f);
+            Gizmos.DrawLine(position + Vector3.left * 0.12f, position + Vector3.right * 0.12f);
+            Gizmos.DrawLine(position + Vector3.up * 0.12f, position + Vector3.down * 0.12f);
+
+#if UNITY_EDITOR
+            Handles.color = labelColor;
+            Handles.Label(position + Vector3.up * 0.18f, spawnPoint.name);
+#endif
+        }
     }
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -213,6 +302,29 @@ public class ArenaEncounterController : MonoBehaviour
                 yield return new WaitForSeconds(delayAfterClear);
             }
 
+            if (floatingPlatform != null)
+            {
+                if (wave != null)
+                {
+                    switch (wave.PlatformTransition)
+                    {
+                        case ArenaPlatformTransition.Show:
+                            yield return floatingPlatform.PlayAppearanceSequence();
+                            break;
+                        case ArenaPlatformTransition.Hide:
+                            yield return floatingPlatform.PlayDisappearanceSequence();
+                            break;
+                        default:
+                            yield return PlayLegacyPlatformTriggerIfNeeded();
+                            break;
+                    }
+                }
+                else
+                {
+                    yield return PlayLegacyPlatformTriggerIfNeeded();
+                }
+            }
+
             currentWaveIndex++;
         }
 
@@ -322,7 +434,7 @@ public class ArenaEncounterController : MonoBehaviour
         }
 
         Enemy enemy = enemyObject.GetComponentInChildren<Enemy>(true);
-        if (enemy == null)
+        if (enemy == null || enemy.IsDead)
         {
             Debug.LogWarning($"{name}: Spawned object {enemyObject.name} does not contain an Enemy component.", enemyObject);
             return;
@@ -339,7 +451,7 @@ public class ArenaEncounterController : MonoBehaviour
         }
 
         Enemy enemy = other.GetComponentInParent<Enemy>();
-        if (enemy != null)
+        if (enemy != null && !enemy.IsDead)
         {
             RegisterEnemy(enemy);
         }
@@ -347,7 +459,7 @@ public class ArenaEncounterController : MonoBehaviour
 
     private void RegisterEnemy(Enemy enemy)
     {
-        if (enemy == null || activeEnemies.Contains(enemy))
+        if (enemy == null || enemy.IsDead || activeEnemies.Contains(enemy))
         {
             return;
         }
@@ -392,7 +504,7 @@ public class ArenaEncounterController : MonoBehaviour
         List<Enemy> missingEnemies = null;
         foreach (Enemy enemy in activeEnemies)
         {
-            if (enemy == null)
+            if (enemy == null || enemy.IsDead)
             {
                 missingEnemies ??= new List<Enemy>();
                 missingEnemies.Add(enemy);
@@ -444,5 +556,335 @@ public class ArenaEncounterController : MonoBehaviour
         }
 
         return other.GetComponentInParent<Player>() != null;
+    }
+
+    private void ResolveReferences()
+    {
+        if (floatingPlatform == null)
+        {
+            floatingPlatform = GetComponentInChildren<ArenaFloatingPlatformController>(true);
+        }
+    }
+
+    private void SyncSpawnPointsFromScene()
+    {
+        Transform spawnRoot = transform.Find("SpawnPoints");
+        if (spawnRoot == null)
+        {
+            return;
+        }
+
+        List<Transform> discoveredSpawnPoints = new List<Transform>();
+        CollectSpawnPoints(spawnRoot, discoveredSpawnPoints);
+
+        if (discoveredSpawnPoints.Count == 0)
+        {
+            return;
+        }
+
+        discoveredSpawnPoints.Sort(CompareSpawnPointsByName);
+
+        bool needsSync = spawnPoints == null || spawnPoints.Length != discoveredSpawnPoints.Count;
+        if (!needsSync)
+        {
+            for (int i = 0; i < spawnPoints.Length; i++)
+            {
+                if (spawnPoints[i] != discoveredSpawnPoints[i])
+                {
+                    needsSync = true;
+                    break;
+                }
+            }
+        }
+
+        if (!needsSync)
+        {
+            return;
+        }
+
+        spawnPoints = discoveredSpawnPoints.ToArray();
+    }
+
+    private static void CollectSpawnPoints(Transform parent, List<Transform> spawnPointsList)
+    {
+        if (parent == null || spawnPointsList == null)
+        {
+            return;
+        }
+
+        foreach (Transform child in parent)
+        {
+            if (child == null)
+            {
+                continue;
+            }
+
+            if (child.name.StartsWith("SpawnPoint_", System.StringComparison.Ordinal) && !spawnPointsList.Contains(child))
+            {
+                spawnPointsList.Add(child);
+            }
+        }
+    }
+
+    private static int CompareSpawnPointsByName(Transform left, Transform right)
+    {
+        return GetSpawnPointIndex(left != null ? left.name : null).CompareTo(GetSpawnPointIndex(right != null ? right.name : null));
+    }
+
+    private static int GetSpawnPointIndex(string label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return int.MaxValue;
+        }
+
+        int underscoreIndex = label.LastIndexOf('_');
+        if (underscoreIndex < 0 || underscoreIndex >= label.Length - 1)
+        {
+            return int.MaxValue;
+        }
+
+        if (int.TryParse(label.Substring(underscoreIndex + 1), out int index))
+        {
+            return index;
+        }
+
+        return int.MaxValue;
+    }
+
+    private IEnumerator PlayLegacyPlatformTriggerIfNeeded()
+    {
+        if (floatingPlatform == null)
+        {
+            yield break;
+        }
+
+        if (currentWaveIndex == showPlatformAfterWaveIndex)
+        {
+            yield return floatingPlatform.PlayAppearanceSequence();
+        }
+        else if (currentWaveIndex == hidePlatformAfterWaveIndex)
+        {
+            yield return floatingPlatform.PlayDisappearanceSequence();
+        }
+    }
+}
+
+[DisallowMultipleComponent]
+public class ArenaFloatingPlatformController : MonoBehaviour
+{
+    private const string GroundLayerName = "Ground";
+
+    [Header("Tilemaps")]
+    [SerializeField] private Tilemap background1Tilemap;
+    [SerializeField] private Tilemap background2Tilemap;
+    [SerializeField] private Tilemap solidTilemap;
+
+    [Header("Appearance Sequence")]
+    [SerializeField, Min(0f)] private float hiddenToBackground1Delay = 1f;
+    [SerializeField, Min(0f)] private float background1ToBackground2Delay = 1f;
+    [SerializeField, Min(0f)] private float background2ToSolidDelay = 1f;
+
+    [Header("Disappearance Sequence")]
+    [SerializeField, Min(0f)] private float solidToBackground2Delay = 1f;
+    [SerializeField, Min(0f)] private float background2ToBackground1Delay = 1f;
+    [SerializeField, Min(0f)] private float background1ToHiddenDelay = 1f;
+
+    [Header("Editor")]
+    [SerializeField] private bool startHidden = true;
+
+    private TilemapRenderer background1Renderer;
+    private TilemapRenderer background2Renderer;
+    private TilemapRenderer solidRenderer;
+    private TilemapCollider2D solidCollider;
+    private Rigidbody2D solidBody;
+    private CompositeCollider2D solidComposite;
+
+    public bool IsVisible { get; private set; }
+
+    private void Awake()
+    {
+        ResolveReferences();
+
+        if (startHidden)
+        {
+            SetHidden();
+        }
+        else
+        {
+            SetSolid();
+        }
+    }
+
+    private void OnValidate()
+    {
+        ResolveReferences();
+
+        hiddenToBackground1Delay = Mathf.Max(0f, hiddenToBackground1Delay);
+        background1ToBackground2Delay = Mathf.Max(0f, background1ToBackground2Delay);
+        background2ToSolidDelay = Mathf.Max(0f, background2ToSolidDelay);
+        solidToBackground2Delay = Mathf.Max(0f, solidToBackground2Delay);
+        background2ToBackground1Delay = Mathf.Max(0f, background2ToBackground1Delay);
+        background1ToHiddenDelay = Mathf.Max(0f, background1ToHiddenDelay);
+    }
+
+    public IEnumerator PlayAppearanceSequence()
+    {
+        SetHidden();
+        if (hiddenToBackground1Delay > 0f)
+        {
+            yield return new WaitForSeconds(hiddenToBackground1Delay);
+        }
+
+        SetBackground1();
+        if (background1ToBackground2Delay > 0f)
+        {
+            yield return new WaitForSeconds(background1ToBackground2Delay);
+        }
+
+        SetBackground2();
+        if (background2ToSolidDelay > 0f)
+        {
+            yield return new WaitForSeconds(background2ToSolidDelay);
+        }
+
+        SetSolid();
+    }
+
+    public IEnumerator PlayDisappearanceSequence()
+    {
+        SetSolid();
+        if (solidToBackground2Delay > 0f)
+        {
+            yield return new WaitForSeconds(solidToBackground2Delay);
+        }
+
+        SetBackground2();
+        if (background2ToBackground1Delay > 0f)
+        {
+            yield return new WaitForSeconds(background2ToBackground1Delay);
+        }
+
+        SetBackground1();
+        if (background1ToHiddenDelay > 0f)
+        {
+            yield return new WaitForSeconds(background1ToHiddenDelay);
+        }
+
+        SetHidden();
+    }
+
+    public void SetHidden()
+    {
+        IsVisible = false;
+        SetRendererAndCollider(background1Renderer, null, false);
+        SetRendererAndCollider(background2Renderer, null, false);
+        SetRendererAndCollider(solidRenderer, solidCollider, false);
+        SetSolidPhysics(false);
+    }
+
+    public void SetBackground1()
+    {
+        IsVisible = true;
+        SetRendererAndCollider(background1Renderer, null, true);
+        SetRendererAndCollider(background2Renderer, null, false);
+        SetRendererAndCollider(solidRenderer, solidCollider, false);
+        SetSolidPhysics(false);
+    }
+
+    public void SetBackground2()
+    {
+        IsVisible = true;
+        SetRendererAndCollider(background1Renderer, null, false);
+        SetRendererAndCollider(background2Renderer, null, true);
+        SetRendererAndCollider(solidRenderer, solidCollider, false);
+        SetSolidPhysics(false);
+    }
+
+    public void SetSolid()
+    {
+        IsVisible = true;
+        SetRendererAndCollider(background1Renderer, null, false);
+        SetRendererAndCollider(background2Renderer, null, false);
+        SetRendererAndCollider(solidRenderer, solidCollider, true);
+        SetSolidPhysics(true);
+    }
+
+    private void ResolveReferences()
+    {
+        if (background1Tilemap == null)
+        {
+            background1Tilemap = FindTilemap("Background1");
+        }
+
+        if (background2Tilemap == null)
+        {
+            background2Tilemap = FindTilemap("Background2");
+        }
+
+        if (solidTilemap == null)
+        {
+            solidTilemap = FindTilemap("Solid");
+        }
+
+        background1Renderer = background1Tilemap != null ? background1Tilemap.GetComponent<TilemapRenderer>() : null;
+        background2Renderer = background2Tilemap != null ? background2Tilemap.GetComponent<TilemapRenderer>() : null;
+        solidRenderer = solidTilemap != null ? solidTilemap.GetComponent<TilemapRenderer>() : null;
+        solidCollider = solidTilemap != null ? solidTilemap.GetComponent<TilemapCollider2D>() : null;
+        solidBody = solidTilemap != null ? solidTilemap.GetComponent<Rigidbody2D>() : null;
+        solidComposite = solidTilemap != null ? solidTilemap.GetComponent<CompositeCollider2D>() : null;
+
+        EnsureSolidUsesGroundLayer();
+    }
+
+    private Tilemap FindTilemap(string childName)
+    {
+        Transform child = transform.Find(childName);
+        return child != null ? child.GetComponent<Tilemap>() : null;
+    }
+
+    private void SetRendererAndCollider(TilemapRenderer renderer, Collider2D collider2D, bool enabled)
+    {
+        if (renderer != null)
+        {
+            renderer.enabled = enabled;
+        }
+
+        if (collider2D != null)
+        {
+            collider2D.enabled = enabled;
+        }
+    }
+
+    private void SetSolidPhysics(bool enabled)
+    {
+        if (solidCollider != null)
+        {
+            solidCollider.enabled = enabled;
+        }
+
+        if (solidComposite != null)
+        {
+            solidComposite.enabled = enabled;
+        }
+
+        if (solidBody != null)
+        {
+            solidBody.simulated = enabled;
+        }
+    }
+
+    private void EnsureSolidUsesGroundLayer()
+    {
+        if (solidTilemap == null)
+        {
+            return;
+        }
+
+        int groundLayer = LayerMask.NameToLayer(GroundLayerName);
+        if (groundLayer >= 0 && solidTilemap.gameObject.layer != groundLayer)
+        {
+            solidTilemap.gameObject.layer = groundLayer;
+        }
     }
 }

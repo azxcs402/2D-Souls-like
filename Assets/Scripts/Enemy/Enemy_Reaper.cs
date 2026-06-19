@@ -84,6 +84,9 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
 
     [Header("Attack Info")]
     [SerializeField] private Entity_AttackData reaperAttackData = new Entity_AttackData(new Vector2(.7f, 0f), .65f, new Vector2(3f, 1.5f));
+    [SerializeField] private bool syncAttackHitboxWithTargetCheck = true;
+    [SerializeField, Range(0f, 1f)] private float attackDamageWindowStartNormalized = .42f;
+    [SerializeField, Range(0f, 1f)] private float attackDamageWindowEndNormalized = .62f;
 
     [Header("Death Info")]
     [SerializeField, Min(0f)] private float deadFallSpeed = 2.25f;
@@ -135,7 +138,10 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
     public float BackSightDistance => GetVisionBackSightDistance();
     public float ChaseVerticalDistance => GetVisionChaseVerticalDistance();
     public float LoseSightDuration => loseSightDuration;
-    public Entity_AttackData ReaperAttackData => reaperAttackData;
+    public bool SyncAttackHitboxWithTargetCheck => syncAttackHitboxWithTargetCheck;
+    public Entity_AttackData ReaperAttackData => GetEffectiveReaperAttackData();
+    public float AttackDamageWindowStartNormalized => attackDamageWindowStartNormalized;
+    public float AttackDamageWindowEndNormalized => attackDamageWindowEndNormalized;
     public DamageScaleData SpellDamageScale => spellDamageScale;
     public GameObject SpellCastPrefab => spellCastPrefab;
     public Vector2 PlayerOffsetPrediction => playerOffsetPrediction;
@@ -195,6 +201,9 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
     private SpriteRenderer visualSpriteRenderer;
     private bool defaultVisualFlipX;
     private Enemy_ReaperVisionAnchor visionAnchorComponent;
+    private bool defaultColliderEnabled;
+    private bool defaultRigidbodySimulated;
+    private bool teleportIntangibleActive;
 
     protected override void Awake()
     {
@@ -215,6 +224,8 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
         defaultTeleportChance = chanceToTeleport;
         visualSpriteRenderer = anim != null ? anim.GetComponent<SpriteRenderer>() : null;
         defaultVisualFlipX = visualSpriteRenderer != null && visualSpriteRenderer.flipX;
+        defaultColliderEnabled = cd != null && cd.enabled;
+        defaultRigidbodySimulated = rb != null && rb.simulated;
         CacheVisionAnchorReference();
         CacheBattleRangeAnchorReferences();
     }
@@ -222,6 +233,22 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
     public void EnsureBattleRangeAnchors()
     {
         CacheBattleRangeAnchorReferences();
+    }
+
+    public Entity_AttackData GetEffectiveReaperAttackData()
+    {
+        if (!syncAttackHitboxWithTargetCheck)
+        {
+            return reaperAttackData;
+        }
+
+        Entity_Combat combat = CombatComponent != null ? CombatComponent : GetComponent<Entity_Combat>();
+        if (combat == null || combat.TargetCheck == null)
+        {
+            return reaperAttackData;
+        }
+
+        return new Entity_AttackData(Vector2.zero, combat.TargetCheckRadius, reaperAttackData.KnockbackForce);
     }
 
     private void Start()
@@ -253,6 +280,17 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
         if (spellCastCoroutine != null)
         {
             return;
+        }
+
+        spellCastCoroutine = StartCoroutine(CastSpellCo());
+    }
+
+    public void ForceSpecialAttack()
+    {
+        if (spellCastCoroutine != null)
+        {
+            StopCoroutine(spellCastCoroutine);
+            spellCastCoroutine = null;
         }
 
         spellCastCoroutine = StartCoroutine(CastSpellCo());
@@ -335,6 +373,21 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
     public void SetTeleportTrigger(bool triggerStatus)
     {
         teleporTrigger = triggerStatus;
+    }
+
+    public void SetTeleportIntangible(bool intangible)
+    {
+        teleportIntangibleActive = intangible;
+
+        if (cd != null)
+        {
+            cd.enabled = intangible ? false : defaultColliderEnabled;
+        }
+
+        if (rb != null)
+        {
+            rb.simulated = intangible ? false : defaultRigidbodySimulated;
+        }
     }
 
     public Vector3 FindTeleportPoint()
@@ -577,45 +630,49 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
 
     private IEnumerator CastSpellCo()
     {
-        if (playerScript == null)
+        try
         {
-            Player player = FindAnyPlayerReference();
-            playerScript = player;
-        }
+            if (playerScript == null)
+            {
+                Player player = FindAnyPlayerReference();
+                playerScript = player;
+            }
 
-        Transform target = GetPlayerReference();
-        if (target == null || spellCastPrefab == null || amountToCast <= 0)
+            Transform target = GetPlayerReference();
+            if (target == null || spellCastPrefab == null || amountToCast <= 0)
+            {
+                SetSpellCastPreformed(true);
+                yield break;
+            }
+
+            for (int i = 0; i < amountToCast; i++)
+            {
+                float xOffset = 0f;
+                if (playerScript != null && playerScript.rb != null && playerScript.rb.velocity.sqrMagnitude > 0.01f)
+                {
+                    xOffset = playerOffsetPrediction.x * Mathf.Sign(playerScript.rb.velocity.x == 0f ? playerScript.FacingDirection : playerScript.rb.velocity.x);
+                }
+                else if (playerScript != null)
+                {
+                    xOffset = playerOffsetPrediction.x * playerScript.FacingDirection;
+                }
+
+                Vector3 spellPosition = target.position + new Vector3(xOffset, playerOffsetPrediction.y, 0f);
+                GameObject spellObject = Instantiate(spellCastPrefab, spellPosition, Quaternion.identity);
+                Enemy_ReaperSpell spell = spellObject.GetComponent<Enemy_ReaperSpell>();
+                if (spell != null)
+                {
+                    spell.SetupSpell(CombatComponent, spellDamageScale);
+                }
+
+                yield return new WaitForSeconds(spellCastRate);
+            }
+        }
+        finally
         {
             SetSpellCastPreformed(true);
             spellCastCoroutine = null;
-            yield break;
         }
-
-        for (int i = 0; i < amountToCast; i++)
-        {
-            float xOffset = 0f;
-            if (playerScript != null && playerScript.rb != null && playerScript.rb.velocity.sqrMagnitude > 0.01f)
-            {
-                xOffset = playerOffsetPrediction.x * Mathf.Sign(playerScript.rb.velocity.x == 0f ? playerScript.FacingDirection : playerScript.rb.velocity.x);
-            }
-            else if (playerScript != null)
-            {
-                xOffset = playerOffsetPrediction.x * playerScript.FacingDirection;
-            }
-
-            Vector3 spellPosition = target.position + new Vector3(xOffset, playerOffsetPrediction.y, 0f);
-            GameObject spellObject = Instantiate(spellCastPrefab, spellPosition, Quaternion.identity);
-            Enemy_ReaperSpell spell = spellObject.GetComponent<Enemy_ReaperSpell>();
-            if (spell != null)
-            {
-                spell.SetupSpell(CombatComponent, spellDamageScale);
-            }
-
-            yield return new WaitForSeconds(spellCastRate);
-        }
-
-        SetSpellCastPreformed(true);
-        spellCastCoroutine = null;
     }
 
     private void UpdatePlayerPerception()
@@ -975,5 +1032,11 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
         deadDropThroughDelay = Mathf.Max(0f, deadDropThroughDelay);
         deadDisappearDelay = Mathf.Max(0f, deadDisappearDelay);
         deadFallAngle = Mathf.Clamp(deadFallAngle, 0f, 180f);
+        attackDamageWindowStartNormalized = Mathf.Clamp01(attackDamageWindowStartNormalized);
+        attackDamageWindowEndNormalized = Mathf.Clamp01(attackDamageWindowEndNormalized);
+        if (attackDamageWindowEndNormalized < attackDamageWindowStartNormalized)
+        {
+            attackDamageWindowEndNormalized = attackDamageWindowStartNormalized;
+        }
     }
 }

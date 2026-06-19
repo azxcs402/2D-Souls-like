@@ -27,7 +27,7 @@ MonoBehaviour:
     - enemyPrefab: {fileID: 3722198934559894678, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       count: 1
       useRandomSpawnPoint: 0
-      spawnPointIndex: 2
+      spawnPointIndex: 1
       overrideScale: 0
       spawnScale: {x: 1, y: 1, z: 1}
       overrideMaxHealth: 0
@@ -36,3 +36,66 @@ MonoBehaviour:
       combatDamage: 1
     delayBeforeSpawn: 1
     delayAfterClear: 0.75
+    platformTransition: 0
+  - spawns:
+    - enemyPrefab: {fileID: 765384801099666234, guid: f4f5364682aa9214d8c395c4d3ebb0fb, type: 3}
+      count: 1
+      useRandomSpawnPoint: 0
+      spawnPointIndex: 0
+      overrideScale: 0
+      spawnScale: {x: 1, y: 1, z: 1}
+      overrideMaxHealth: 0
+      maxHealth: 1
+      overrideCombatDamage: 0
+      combatDamage: 1
+    - enemyPrefab: {fileID: 765384801099666234, guid: f4f5364682aa9214d8c395c4d3ebb0fb, type: 3}
+      count: 1
+      useRandomSpawnPoint: 0
+      spawnPointIndex: 1
+      overrideScale: 0
+      spawnScale: {x: 1, y: 1, z: 1}
+      overrideMaxHealth: 0
+      maxHealth: 1
+      overrideCombatDamage: 0
+      combatDamage: 1
+    delayBeforeSpawn: 1
+    delayAfterClear: 0.75
+    platformTransition: 1
+  - spawns:
+    - enemyPrefab: {fileID: 3722198934559894678, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
+      count: 1
+      useRandomSpawnPoint: 0
+      spawnPointIndex: 2
+      overrideScale: 0
+      spawnScale: {x: 1, y: 1, z: 1}
+      overrideMaxHealth: 0
+      maxHealth: 1
+      overrideCombatDamage: 0
+      combatDamage: 1
+    - enemyPrefab: {fileID: 3722198934559894678, guid: c6d02ab6d86eaa243b4a84b573885c0a, type: 3}
+      count: 1
+      useRandomSpawnPoint: 0
+      spawnPointIndex: 3
+      overrideScale: 0
+      spawnScale: {x: 1, y: 1, z: 1}
+      overrideMaxHealth: 0
+      maxHealth: 1
+      overrideCombatDamage: 0
+      combatDamage: 1
+    delayBeforeSpawn: 1
+    delayAfterClear: 0.75
+    platformTransition: 2
+  - spawns:
+    - enemyPrefab: {fileID: 1000000000000000001, guid: 8db425bbd6234c8d85117132d8c6b21b, type: 3}
+      count: 1
+      useRandomSpawnPoint: 0
+      spawnPointIndex: 4
+      overrideScale: 0
+      spawnScale: {x: 1, y: 1, z: 1}
+      overrideMaxHealth: 0
+      maxHealth: 1
+      overrideCombatDamage: 0
+      combatDamage: 1
+    delayBeforeSpawn: 1
+    delayAfterClear: 0.75
+    platformTransition: 0

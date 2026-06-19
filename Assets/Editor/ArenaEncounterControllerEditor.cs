@@ -1,6 +1,11 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 [CustomEditor(typeof(ArenaEncounterController))]
 [CanEditMultipleObjects]
@@ -10,8 +15,10 @@ public class ArenaEncounterControllerEditor : Editor
     private SerializedProperty spawnPointsProperty;
     private SerializedProperty defaultDelayBeforeSpawnProperty;
     private SerializedProperty defaultDelayAfterClearProperty;
+    private SerializedProperty showSpawnPointGizmosProperty;
     private SerializedProperty doorsProperty;
     private SerializedProperty lockDoorsWhenEncounterStartsProperty;
+    private SerializedProperty floatingPlatformProperty;
     private SerializedProperty startOnlyOnceProperty;
     private SerializedProperty playerTagProperty;
     private SerializedProperty clearConfirmDelayProperty;
@@ -22,8 +29,10 @@ public class ArenaEncounterControllerEditor : Editor
         spawnPointsProperty = serializedObject.FindProperty("spawnPoints");
         defaultDelayBeforeSpawnProperty = serializedObject.FindProperty("defaultDelayBeforeSpawn");
         defaultDelayAfterClearProperty = serializedObject.FindProperty("defaultDelayAfterClear");
+        showSpawnPointGizmosProperty = serializedObject.FindProperty("showSpawnPointGizmos");
         doorsProperty = serializedObject.FindProperty("doors");
         lockDoorsWhenEncounterStartsProperty = serializedObject.FindProperty("lockDoorsWhenEncounterStarts");
+        floatingPlatformProperty = serializedObject.FindProperty("floatingPlatform");
         startOnlyOnceProperty = serializedObject.FindProperty("startOnlyOnce");
         playerTagProperty = serializedObject.FindProperty("playerTag");
         clearConfirmDelayProperty = serializedObject.FindProperty("clearConfirmDelay");
@@ -59,6 +68,7 @@ public class ArenaEncounterControllerEditor : Editor
     {
         ArenaEncounterController controller = (ArenaEncounterController)target;
         ArenaWaveSet waveSet = waveSetProperty != null ? waveSetProperty.objectReferenceValue as ArenaWaveSet : null;
+        ArenaFloatingPlatformController platform = floatingPlatformProperty != null ? floatingPlatformProperty.objectReferenceValue as ArenaFloatingPlatformController : null;
 
         bool hasWaveSet = waveSet != null;
         int waveCount = hasWaveSet ? waveSet.Waves.Count : 0;
@@ -69,12 +79,25 @@ public class ArenaEncounterControllerEditor : Editor
         message.AppendLine(hasWaveSet ? $"Wave Set: {waveSet.name} ({waveCount} wave(s))" : "Wave Set: Missing");
         message.AppendLine($"Spawn Points: {spawnPointCount}");
         message.AppendLine($"Doors: {doorCount}");
+        message.AppendLine(platform != null ? $"Floating Platform: {platform.name}" : "Floating Platform: Missing");
+        message.AppendLine(controller != null ? $"Current Wave Index: {controller.CurrentWaveIndex}" : "Current Wave Index: N/A");
+        message.AppendLine(controller != null ? $"Active Enemies: {controller.ActiveEnemyCount}" : "Active Enemies: N/A");
+        if (controller != null)
+        {
+            message.AppendLine($"Active Enemy List: {controller.ActiveEnemySummary}");
+        }
+        message.AppendLine("Platform transitions are now driven from ArenaWaveSet per-wave settings.");
         message.AppendLine($"Trigger Status: {(Application.isPlaying ? "Playing" : "Edit Mode")}");
 
         MessageType messageType = MessageType.Info;
         if (!hasWaveSet || waveCount == 0)
         {
             messageType = MessageType.Error;
+        }
+        else if (platform == null)
+        {
+            messageType = MessageType.Warning;
+            message.AppendLine("Floating platform is not assigned. The encounter will not animate the platform transitions.");
         }
         else if (!IsWaveSetValid(waveSet, spawnPointCount, out string validationNote))
         {
@@ -135,14 +158,17 @@ public class ArenaEncounterControllerEditor : Editor
             SerializedProperty waveProperty = wavesProperty.GetArrayElementAtIndex(i);
             SerializedProperty spawnsProperty = waveProperty.FindPropertyRelative("spawns");
             SerializedProperty delayBeforeSpawnProperty = waveProperty.FindPropertyRelative("delayBeforeSpawn");
+            SerializedProperty platformTransitionProperty = waveProperty.FindPropertyRelative("platformTransition");
 
             int spawnCount = spawnsProperty != null ? spawnsProperty.arraySize : 0;
             float delayBeforeSpawn = delayBeforeSpawnProperty != null ? delayBeforeSpawnProperty.floatValue : 0f;
+            string platformTransition = platformTransitionProperty != null ? platformTransitionProperty.enumDisplayNames[platformTransitionProperty.enumValueIndex] : "None";
 
             EditorGUILayout.BeginVertical("helpbox");
             EditorGUILayout.LabelField($"Wave {i + 1}", EditorStyles.miniBoldLabel);
             EditorGUILayout.LabelField($"Spawns: {spawnCount}");
             EditorGUILayout.LabelField($"Delay Before Spawn: {delayBeforeSpawn:0.###} s");
+            EditorGUILayout.LabelField($"Platform Transition: {platformTransition}");
 
             if (!IsWaveValid(waveProperty, spawnPointsProperty != null ? spawnPointsProperty.arraySize : 0, out string waveIssue))
             {
@@ -161,6 +187,7 @@ public class ArenaEncounterControllerEditor : Editor
         EditorGUILayout.PropertyField(spawnPointsProperty, true);
         EditorGUILayout.PropertyField(defaultDelayBeforeSpawnProperty);
         EditorGUILayout.PropertyField(defaultDelayAfterClearProperty);
+        EditorGUILayout.PropertyField(showSpawnPointGizmosProperty, new GUIContent("Show Spawn Point Gizmos"));
         EditorGUILayout.EndVertical();
     }
 
@@ -170,6 +197,26 @@ public class ArenaEncounterControllerEditor : Editor
         EditorGUILayout.LabelField("Doors", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(doorsProperty, true);
         EditorGUILayout.PropertyField(lockDoorsWhenEncounterStartsProperty);
+        EditorGUILayout.EndVertical();
+
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("Floating Platform", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(floatingPlatformProperty);
+        EditorGUILayout.HelpBox(
+            "Wave transitions are configured inside ArenaWaveSet. These legacy index fields are kept for fallback only.",
+            MessageType.Info);
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Repair Platform Layers"))
+            {
+                ArenaEncounterBootstrapper.RepairFloatingPlatformLayers();
+            }
+
+            if (GUILayout.Button("Repair Template"))
+            {
+                ArenaEncounterBootstrapper.RepairDefaultWaveSet();
+            }
+        }
         EditorGUILayout.EndVertical();
     }
 
@@ -252,5 +299,308 @@ public class ArenaEncounterControllerEditor : Editor
         }
 
         return true;
+    }
+}
+
+[CustomEditor(typeof(ArenaFloatingPlatformController))]
+public class ArenaFloatingPlatformControllerEditor : Editor
+{
+    private const string GroundLayerName = "Ground";
+
+    public override void OnInspectorGUI()
+    {
+        serializedObject.Update();
+
+        EditorGUILayout.HelpBox(
+            "Paint each child Tilemap through Tile Palette:\n" +
+            "- Background1: first visible platform stage\n" +
+            "- Background2: second visible platform stage\n" +
+            "- Solid: final solid platform with collision\n" +
+            "During play, ArenaEncounterController will switch between the stages automatically.",
+            MessageType.Info);
+
+        DrawDefaultInspector();
+
+        EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField("Quick Select", EditorStyles.boldLabel);
+
+        ArenaFloatingPlatformController platform = (ArenaFloatingPlatformController)target;
+        if (GUILayout.Button("Generate / Repair Template"))
+        {
+            GenerateOrRepairPlatformTemplate(platform);
+        }
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Preview Hidden"))
+            {
+                platform.SetHidden();
+                EditorUtility.SetDirty(platform);
+                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+            }
+
+            if (GUILayout.Button("Preview BG1"))
+            {
+                platform.SetBackground1();
+                EditorUtility.SetDirty(platform);
+                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+            }
+
+            if (GUILayout.Button("Preview BG2"))
+            {
+                platform.SetBackground2();
+                EditorUtility.SetDirty(platform);
+                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+            }
+
+            if (GUILayout.Button("Preview Solid"))
+            {
+                platform.SetSolid();
+                EditorUtility.SetDirty(platform);
+                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+            }
+        }
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Play Appearance Seq"))
+            {
+                ArenaFloatingPlatformPreviewDriver.Play(platform, appearance: true);
+            }
+
+            if (GUILayout.Button("Play Disappearance Seq"))
+            {
+                ArenaFloatingPlatformPreviewDriver.Play(platform, appearance: false);
+            }
+        }
+
+        DrawSelectButton(platform.transform, "Background1");
+        DrawSelectButton(platform.transform, "Background2");
+        DrawSelectButton(platform.transform, "Solid");
+
+        serializedObject.ApplyModifiedProperties();
+    }
+
+    private static void DrawSelectButton(Transform root, string childName)
+    {
+        if (GUILayout.Button($"Select {childName}"))
+        {
+            Transform child = root != null ? root.Find(childName) : null;
+            if (child != null)
+            {
+                Selection.activeGameObject = child.gameObject;
+                EditorGUIUtility.PingObject(child.gameObject);
+            }
+        }
+    }
+
+    private static void GenerateOrRepairPlatformTemplate(ArenaFloatingPlatformController platform)
+    {
+        if (platform == null)
+        {
+            return;
+        }
+
+        Transform root = platform.transform;
+        Undo.RegisterFullObjectHierarchyUndo(platform.gameObject, "Generate Or Repair Arena Floating Platform");
+
+        GameObject background1 = EnsurePlatformLayer(root, "Background1", false, 3);
+        GameObject background2 = EnsurePlatformLayer(root, "Background2", false, 4);
+        GameObject solid = EnsurePlatformLayer(root, "Solid", true, 5);
+
+        SerializedObject so = new SerializedObject(platform);
+        SetObjectReference(so, "background1Tilemap", background1 != null ? background1.GetComponent<Tilemap>() : null);
+        SetObjectReference(so, "background2Tilemap", background2 != null ? background2.GetComponent<Tilemap>() : null);
+        SetObjectReference(so, "solidTilemap", solid != null ? solid.GetComponent<Tilemap>() : null);
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        EditorUtility.SetDirty(platform);
+        EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+        Selection.activeGameObject = platform.gameObject;
+        EditorGUIUtility.PingObject(platform.gameObject);
+    }
+
+    private static GameObject EnsurePlatformLayer(Transform parent, string childName, bool includeCollider, int sortingOrder)
+    {
+        if (parent == null)
+        {
+            return null;
+        }
+
+        Transform child = parent.Find(childName);
+        GameObject childObject = child != null ? child.gameObject : new GameObject(childName);
+        if (child == null)
+        {
+            Undo.RegisterCreatedObjectUndo(childObject, $"Create {childName}");
+            Undo.SetTransformParent(childObject.transform, parent, $"Parent {childName}");
+        }
+
+        childObject.transform.localPosition = Vector3.zero;
+        childObject.transform.localRotation = Quaternion.identity;
+        childObject.transform.localScale = Vector3.one;
+        childObject.layer = includeCollider ? LayerMask.NameToLayer(GroundLayerName) : LayerMask.NameToLayer("Default");
+
+        if (childObject.GetComponent<Tilemap>() == null)
+        {
+            Undo.AddComponent<Tilemap>(childObject);
+        }
+
+        TilemapRenderer renderer = childObject.GetComponent<TilemapRenderer>();
+        if (renderer == null)
+        {
+            renderer = Undo.AddComponent<TilemapRenderer>(childObject);
+        }
+
+        renderer.sortingLayerName = "Background";
+        renderer.sortingOrder = sortingOrder;
+
+        if (includeCollider)
+        {
+            TilemapCollider2D tilemapCollider = childObject.GetComponent<TilemapCollider2D>();
+            if (tilemapCollider == null)
+            {
+                tilemapCollider = Undo.AddComponent<TilemapCollider2D>(childObject);
+            }
+
+            tilemapCollider.usedByComposite = true;
+
+            Rigidbody2D body = childObject.GetComponent<Rigidbody2D>();
+            if (body == null)
+            {
+                body = Undo.AddComponent<Rigidbody2D>(childObject);
+            }
+
+            body.bodyType = RigidbodyType2D.Static;
+            body.simulated = true;
+            body.useAutoMass = false;
+
+            CompositeCollider2D composite = childObject.GetComponent<CompositeCollider2D>();
+            if (composite == null)
+            {
+                composite = Undo.AddComponent<CompositeCollider2D>(childObject);
+            }
+
+            composite.geometryType = CompositeCollider2D.GeometryType.Polygons;
+        }
+
+        return childObject;
+    }
+
+    private static void SetObjectReference(SerializedObject so, string propertyName, Object value)
+    {
+        if (so == null)
+        {
+            return;
+        }
+
+        SerializedProperty property = so.FindProperty(propertyName);
+        if (property != null && property.propertyType == SerializedPropertyType.ObjectReference)
+        {
+            property.objectReferenceValue = value;
+        }
+    }
+}
+
+internal static class ArenaFloatingPlatformPreviewDriver
+{
+    private static readonly FieldInfo WaitSecondsField = typeof(WaitForSeconds).GetField("m_Seconds", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static IEnumerator routine;
+    private static ArenaFloatingPlatformController platform;
+    private static double nextStepTime;
+    private static bool waiting;
+
+    static ArenaFloatingPlatformPreviewDriver()
+    {
+        EditorApplication.update += Tick;
+    }
+
+    public static void Play(ArenaFloatingPlatformController targetPlatform, bool appearance)
+    {
+        if (targetPlatform == null)
+        {
+            return;
+        }
+
+        platform = targetPlatform;
+        routine = appearance
+            ? targetPlatform.PlayAppearanceSequence()
+            : targetPlatform.PlayDisappearanceSequence();
+        waiting = false;
+        nextStepTime = 0d;
+        Advance();
+    }
+
+    private static void Tick()
+    {
+        if (routine == null || platform == null)
+        {
+            return;
+        }
+
+        if (waiting && EditorApplication.timeSinceStartup < nextStepTime)
+        {
+            return;
+        }
+
+        waiting = false;
+        Advance();
+    }
+
+    private static void Advance()
+    {
+        if (routine == null || platform == null)
+        {
+            routine = null;
+            platform = null;
+            return;
+        }
+
+        while (routine.MoveNext())
+        {
+            object yielded = routine.Current;
+            if (yielded is WaitForSeconds wait)
+            {
+                double seconds = GetSeconds(wait);
+                nextStepTime = EditorApplication.timeSinceStartup + seconds;
+                waiting = true;
+                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+                return;
+            }
+
+            if (yielded == null)
+            {
+                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+                return;
+            }
+        }
+
+        EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+        routine = null;
+        platform = null;
+        waiting = false;
+    }
+
+    private static double GetSeconds(WaitForSeconds wait)
+    {
+        if (wait == null)
+        {
+            return 0d;
+        }
+
+        if (WaitSecondsField != null)
+        {
+            object value = WaitSecondsField.GetValue(wait);
+            if (value is float floatSeconds)
+            {
+                return floatSeconds;
+            }
+
+            if (value is double doubleSeconds)
+            {
+                return doubleSeconds;
+            }
+        }
+
+        return 0d;
     }
 }

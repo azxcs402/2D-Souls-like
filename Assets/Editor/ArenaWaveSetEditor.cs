@@ -1,18 +1,12 @@
 using System.IO;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [CustomEditor(typeof(ArenaWaveSet))]
 public class ArenaWaveSetEditor : Editor
 {
-    private static readonly string[] SpawnPointLabels =
-    {
-        "SpawnPoint_1",
-        "SpawnPoint_2",
-        "SpawnPoint_3",
-        "SpawnPoint_4"
-    };
-
     private SerializedProperty wavesProperty;
 
     private void OnEnable()
@@ -28,7 +22,8 @@ public class ArenaWaveSetEditor : Editor
             "Use this asset to configure arena waves.\n" +
             "- Each wave can have multiple enemy entries.\n" +
             "- Disable Random Spawn Point to use a fixed spawnPointIndex.\n" +
-            "- SpawnPoint_1..SpawnPoint_4 map to indexes 0..3.\n" +
+            "- Spawn point buttons are discovered from the current scene.\n" +
+            "- Platform Transition uses buttons: None / Show / Hide.\n" +
             "- Use Create Wave Copy if you want a per-wave prefab you can edit with the full Enemy inspector.",
             MessageType.Info);
 
@@ -65,6 +60,7 @@ public class ArenaWaveSetEditor : Editor
             SerializedProperty spawnsProperty = waveProperty.FindPropertyRelative("spawns");
             SerializedProperty delayBeforeSpawnProperty = waveProperty.FindPropertyRelative("delayBeforeSpawn");
             SerializedProperty delayAfterClearProperty = waveProperty.FindPropertyRelative("delayAfterClear");
+            SerializedProperty platformTransitionProperty = waveProperty.FindPropertyRelative("platformTransition");
             bool removeWave = false;
 
             EditorGUILayout.BeginVertical("box");
@@ -83,6 +79,7 @@ public class ArenaWaveSetEditor : Editor
 
             EditorGUILayout.PropertyField(delayBeforeSpawnProperty, new GUIContent("Delay Before Spawn"));
             EditorGUILayout.PropertyField(delayAfterClearProperty, new GUIContent("Delay After Clear"));
+            DrawPlatformTransitionSelector(platformTransitionProperty);
 
             EditorGUILayout.Space(4f);
             EditorGUILayout.LabelField("Spawns", EditorStyles.boldLabel);
@@ -197,6 +194,7 @@ public class ArenaWaveSetEditor : Editor
         SerializedProperty spawnsProperty = waveProperty.FindPropertyRelative("spawns");
         SerializedProperty delayBeforeSpawnProperty = waveProperty.FindPropertyRelative("delayBeforeSpawn");
         SerializedProperty delayAfterClearProperty = waveProperty.FindPropertyRelative("delayAfterClear");
+        SerializedProperty platformTransitionProperty = waveProperty.FindPropertyRelative("platformTransition");
 
         if (spawnsProperty != null)
         {
@@ -211,6 +209,11 @@ public class ArenaWaveSetEditor : Editor
         if (delayAfterClearProperty != null)
         {
             delayAfterClearProperty.floatValue = 0.75f;
+        }
+
+        if (platformTransitionProperty != null)
+        {
+            platformTransitionProperty.enumValueIndex = 0;
         }
     }
 
@@ -363,8 +366,13 @@ public class ArenaWaveSetEditor : Editor
             return;
         }
 
+        string[] spawnPointLabels = GetSpawnPointLabelsFromScene();
+
         EditorGUILayout.Space(2f);
         EditorGUILayout.LabelField("Spawn Point", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField(spawnPointLabels.Length > 0
+            ? $"Found {spawnPointLabels.Length} spawn point(s) in the current scene."
+            : "No scene spawn points found. Falling back to SpawnPoint_1..SpawnPoint_4.", EditorStyles.miniLabel);
 
         using (new EditorGUILayout.HorizontalScope())
         {
@@ -376,11 +384,11 @@ public class ArenaWaveSetEditor : Editor
                     randomSpawnProperty.boolValue = true;
                 });
 
-            for (int i = 0; i < SpawnPointLabels.Length; i++)
+            for (int i = 0; i < spawnPointLabels.Length; i++)
             {
                 int index = i;
                 DrawSpawnPointButton(
-                    SpawnPointLabels[i],
+                    spawnPointLabels[i],
                     !randomSpawnProperty.boolValue && spawnPointIndexProperty.intValue == index,
                     () =>
                     {
@@ -389,6 +397,93 @@ public class ArenaWaveSetEditor : Editor
                     });
             }
         }
+    }
+
+    private static string[] GetSpawnPointLabelsFromScene()
+    {
+        List<string> labels = new List<string>();
+        Scene activeScene = SceneManager.GetActiveScene();
+        if (!activeScene.IsValid() || !activeScene.isLoaded)
+        {
+            return GetFallbackSpawnPointLabels();
+        }
+
+        GameObject[] roots = activeScene.GetRootGameObjects();
+        for (int i = 0; i < roots.Length; i++)
+        {
+            CollectSpawnPointLabels(roots[i] != null ? roots[i].transform : null, labels);
+        }
+
+        if (labels.Count == 0)
+        {
+            return GetFallbackSpawnPointLabels();
+        }
+
+        labels.Sort(CompareSpawnPointLabels);
+        return labels.ToArray();
+    }
+
+    private static void CollectSpawnPointLabels(Transform parent, List<string> labels)
+    {
+        if (parent == null || labels == null)
+        {
+            return;
+        }
+
+        foreach (Transform child in parent)
+        {
+            if (child == null)
+            {
+                continue;
+            }
+
+            if (child.name.StartsWith("SpawnPoint_", System.StringComparison.Ordinal))
+            {
+                if (!labels.Contains(child.name))
+                {
+                    labels.Add(child.name);
+                }
+            }
+
+            CollectSpawnPointLabels(child, labels);
+        }
+    }
+
+    private static int CompareSpawnPointLabels(string left, string right)
+    {
+        return GetSpawnPointIndex(left).CompareTo(GetSpawnPointIndex(right));
+    }
+
+    private static int GetSpawnPointIndex(string label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return int.MaxValue;
+        }
+
+        int underscoreIndex = label.LastIndexOf('_');
+        if (underscoreIndex < 0 || underscoreIndex >= label.Length - 1)
+        {
+            return int.MaxValue;
+        }
+
+        if (int.TryParse(label.Substring(underscoreIndex + 1), out int index))
+        {
+            return index;
+        }
+
+        return int.MaxValue;
+    }
+
+    private static string[] GetFallbackSpawnPointLabels()
+    {
+        return new[]
+        {
+            "SpawnPoint_1",
+            "SpawnPoint_2",
+            "SpawnPoint_3",
+            "SpawnPoint_4"
+        };
     }
 
     private static void DrawSpawnPointButton(string label, bool selected, System.Action onClick)
@@ -402,6 +497,43 @@ public class ArenaWaveSetEditor : Editor
         if (GUILayout.Button(label, EditorStyles.miniButton, GUILayout.MinWidth(72f)))
         {
             onClick?.Invoke();
+        }
+
+        GUI.backgroundColor = oldBackgroundColor;
+    }
+
+    private static void DrawPlatformTransitionSelector(SerializedProperty platformTransitionProperty)
+    {
+        if (platformTransitionProperty == null || platformTransitionProperty.propertyType != SerializedPropertyType.Enum)
+        {
+            return;
+        }
+
+        EditorGUILayout.Space(2f);
+        EditorGUILayout.LabelField("Platform Transition", EditorStyles.boldLabel);
+
+        int selectedIndex = Mathf.Clamp(platformTransitionProperty.enumValueIndex, 0, platformTransitionProperty.enumDisplayNames.Length - 1);
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            DrawPlatformTransitionButton(platformTransitionProperty, 0, "None", selectedIndex == 0);
+            DrawPlatformTransitionButton(platformTransitionProperty, 1, "Show", selectedIndex == 1);
+            DrawPlatformTransitionButton(platformTransitionProperty, 2, "Hide", selectedIndex == 2);
+        }
+
+        EditorGUILayout.LabelField($"Current: {platformTransitionProperty.enumDisplayNames[selectedIndex]}", EditorStyles.miniLabel);
+    }
+
+    private static void DrawPlatformTransitionButton(SerializedProperty property, int value, string label, bool selected)
+    {
+        Color oldBackgroundColor = GUI.backgroundColor;
+        if (selected)
+        {
+            GUI.backgroundColor = new Color(0.65f, 0.9f, 0.65f, 1f);
+        }
+
+        if (GUILayout.Button(label, EditorStyles.miniButton, GUILayout.MinWidth(64f)))
+        {
+            property.enumValueIndex = value;
         }
 
         GUI.backgroundColor = oldBackgroundColor;

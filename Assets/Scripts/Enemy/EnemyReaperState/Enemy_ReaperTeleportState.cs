@@ -26,6 +26,7 @@ public class Enemy_ReaperTeleportState : EnemyState
         }
 
         reaper.MakeUntargetable(false);
+        reaper.SetTeleportIntangible(true);
         reaper.SetAnimation(false, false, false);
         reaper.SetBattleAnimation(false, 0f);
         reaper.SetAttackAnimationSpeed(1f);
@@ -82,6 +83,7 @@ public class Enemy_ReaperTeleportState : EnemyState
 
         if (reaper != null)
         {
+            reaper.SetTeleportIntangible(false);
             reaper.MakeUntargetable(true);
             reaper.SetTeleportTrigger(false);
             reaper.SetFacingLocked(false);

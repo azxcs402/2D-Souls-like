@@ -16,10 +16,19 @@ public class ArenaWaveDefinition
     [SerializeField] private ArenaSpawnEntry[] spawns = Array.Empty<ArenaSpawnEntry>();
     [SerializeField, Min(0f)] private float delayBeforeSpawn = 0.25f;
     [SerializeField, Min(0f)] private float delayAfterClear = 0.75f;
+    [SerializeField] private ArenaPlatformTransition platformTransition = ArenaPlatformTransition.None;
 
     public IReadOnlyList<ArenaSpawnEntry> Spawns => spawns ?? Array.Empty<ArenaSpawnEntry>();
     public float DelayBeforeSpawn => delayBeforeSpawn;
     public float DelayAfterClear => delayAfterClear;
+    public ArenaPlatformTransition PlatformTransition => platformTransition;
+}
+
+public enum ArenaPlatformTransition
+{
+    None = 0,
+    Show = 1,
+    Hide = 2
 }
 
 [Serializable]

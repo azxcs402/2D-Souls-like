@@ -35,6 +35,7 @@ public class Enemy_ReaperSpellCastState : EnemyState
         reaper.SetVelocity(0f, reaper.rb != null ? reaper.rb.velocity.y : 0f);
         PlaySpellCastAnimation();
         reaper.SetSpellCastOnCooldown();
+        reaper.ForceSpecialAttack();
     }
 
     public override void Update()

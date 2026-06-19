@@ -8,6 +8,7 @@ using UnityEngine.Tilemaps;
 public static class ArenaEncounterBootstrapper
 {
     private const string WaveSetAssetPath = "Assets/Combat/ArenaEncounter/ArenaWaveSet.asset";
+    private const string GroundLayerName = "Ground";
 
     [MenuItem("Tools/Arena Encounter/Create Room Setup")]
     public static void CreateRoomSetup()
@@ -61,6 +62,7 @@ public static class ArenaEncounterBootstrapper
 
         ArenaDoorController leftDoor = FindOrCreateDoor(doorGroup.transform, "Door_Left", new Vector3(-6f, 0f, 0f));
         ArenaDoorController rightDoor = FindOrCreateDoor(doorGroup.transform, "Door_Right", new Vector3(6f, 0f, 0f));
+        ArenaFloatingPlatformController floatingPlatform = FindOrCreateFloatingPlatform(encounterRoot.transform);
 
         ArenaWaveSet waveSet = EnsureWaveSetAsset();
 
@@ -78,6 +80,11 @@ public static class ArenaEncounterBootstrapper
         if (ShouldFillArray(controllerSo, "doors"))
         {
             SetObjectArray(controllerSo, "doors", new Object[] { leftDoor, rightDoor });
+        }
+
+        if (IsObjectReferenceNull(controllerSo, "floatingPlatform"))
+        {
+            SetObject(controllerSo, "floatingPlatform", floatingPlatform);
         }
 
         if (createdEncounterRoot || createdController)
@@ -107,6 +114,34 @@ public static class ArenaEncounterBootstrapper
             Selection.activeObject = waveSet;
             EditorGUIUtility.PingObject(waveSet);
         }
+    }
+
+    [MenuItem("Tools/Arena Encounter/Repair Floating Platform Layers")]
+    public static void RepairFloatingPlatformLayers()
+    {
+        int repairedCount = 0;
+        ArenaFloatingPlatformController[] platforms = Object.FindObjectsOfType<ArenaFloatingPlatformController>(true);
+        for (int i = 0; i < platforms.Length; i++)
+        {
+            ArenaFloatingPlatformController platform = platforms[i];
+            if (platform == null || !platform.gameObject.scene.IsValid() || !platform.gameObject.scene.isLoaded)
+            {
+                continue;
+            }
+
+            if (RepairFloatingPlatformLayerSet(platform))
+            {
+                repairedCount++;
+                EditorUtility.SetDirty(platform);
+            }
+        }
+
+        if (repairedCount > 0)
+        {
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        }
+
+        Debug.Log($"ArenaEncounter: repaired floating platform layers on {repairedCount} scene object(s).");
     }
 
     [MenuItem("Tools/Arena Encounter/Create Room Setup", true)]
@@ -374,6 +409,196 @@ public static class ArenaEncounterBootstrapper
         EditorUtility.SetDirty(blockingComposite);
 
         return doorController;
+    }
+
+    private static ArenaFloatingPlatformController FindOrCreateFloatingPlatform(Transform parent)
+    {
+        Transform existingPlatform = FindDeepChild(parent, "ArenaFloatingPlatform");
+        if (existingPlatform == null)
+        {
+            return CreateFloatingPlatform(parent);
+        }
+
+        ArenaFloatingPlatformController platformController = existingPlatform.GetComponent<ArenaFloatingPlatformController>();
+        if (platformController == null)
+        {
+            platformController = Undo.AddComponent<ArenaFloatingPlatformController>(existingPlatform.gameObject);
+        }
+
+        EnsureFloatingPlatformChildren(existingPlatform, platformController);
+        return platformController;
+    }
+
+    private static ArenaFloatingPlatformController CreateFloatingPlatform(Transform parent)
+    {
+        GameObject platformRoot = CreateGameObject("ArenaFloatingPlatform", parent);
+        platformRoot.transform.localPosition = Vector3.zero;
+
+        ArenaFloatingPlatformController platformController = Undo.AddComponent<ArenaFloatingPlatformController>(platformRoot);
+
+        GameObject background1Root = CreateFloatingPlatformLayer(platformRoot.transform, "Background1", false, 3);
+        GameObject background2Root = CreateFloatingPlatformLayer(platformRoot.transform, "Background2", false, 4);
+        GameObject solidRoot = CreateFloatingPlatformLayer(platformRoot.transform, "Solid", true, 5);
+
+        SerializedObject platformSo = new SerializedObject(platformController);
+        SetObject(platformSo, "background1Tilemap", background1Root.GetComponent<Tilemap>());
+        SetObject(platformSo, "background2Tilemap", background2Root.GetComponent<Tilemap>());
+        SetObject(platformSo, "solidTilemap", solidRoot.GetComponent<Tilemap>());
+        SetBool(platformSo, "startHidden", true);
+        platformSo.ApplyModifiedPropertiesWithoutUndo();
+
+        EditorUtility.SetDirty(platformController);
+        return platformController;
+    }
+
+    private static GameObject CreateFloatingPlatformLayer(Transform parent, string childName, bool includeCollider, int sortingOrder)
+    {
+        GameObject layerRoot = CreateGameObject(childName, parent);
+        layerRoot.layer = includeCollider ? LayerMask.NameToLayer(GroundLayerName) : LayerMask.NameToLayer("Default");
+
+        Tilemap tilemap = Undo.AddComponent<Tilemap>(layerRoot);
+        TilemapRenderer renderer = Undo.AddComponent<TilemapRenderer>(layerRoot);
+        renderer.sortingLayerName = "Background";
+        renderer.sortingOrder = sortingOrder;
+
+        if (includeCollider)
+        {
+            TilemapCollider2D tilemapCollider = Undo.AddComponent<TilemapCollider2D>(layerRoot);
+            tilemapCollider.usedByComposite = true;
+
+            Rigidbody2D body = Undo.AddComponent<Rigidbody2D>(layerRoot);
+            body.bodyType = RigidbodyType2D.Static;
+            body.simulated = true;
+            body.useAutoMass = false;
+
+            CompositeCollider2D composite = Undo.AddComponent<CompositeCollider2D>(layerRoot);
+            composite.geometryType = CompositeCollider2D.GeometryType.Polygons;
+
+            EditorUtility.SetDirty(tilemapCollider);
+            EditorUtility.SetDirty(body);
+            EditorUtility.SetDirty(composite);
+        }
+
+        EditorUtility.SetDirty(tilemap);
+        EditorUtility.SetDirty(renderer);
+        return layerRoot;
+    }
+
+    private static bool RepairFloatingPlatformLayerSet(ArenaFloatingPlatformController platform)
+    {
+        if (platform == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        Transform root = platform.transform;
+        if (root == null)
+        {
+            return false;
+        }
+
+        GameObject background1 = FindDeepChild(root, "Background1") != null ? FindDeepChild(root, "Background1").gameObject : null;
+        GameObject background2 = FindDeepChild(root, "Background2") != null ? FindDeepChild(root, "Background2").gameObject : null;
+        GameObject solid = FindDeepChild(root, "Solid") != null ? FindDeepChild(root, "Solid").gameObject : null;
+
+        changed |= SetLayerIfDifferent(background1, LayerMask.NameToLayer("Default"));
+        changed |= SetLayerIfDifferent(background2, LayerMask.NameToLayer("Default"));
+        changed |= SetLayerIfDifferent(solid, LayerMask.NameToLayer(GroundLayerName));
+
+        return changed;
+    }
+
+    private static bool SetLayerIfDifferent(GameObject gameObject, int layer)
+    {
+        if (gameObject == null || layer < 0 || gameObject.layer == layer)
+        {
+            return false;
+        }
+
+        gameObject.layer = layer;
+        return true;
+    }
+
+    private static void EnsureFloatingPlatformChildren(Transform platformRoot, ArenaFloatingPlatformController platformController)
+    {
+        if (platformRoot == null || platformController == null)
+        {
+            return;
+        }
+
+        GameObject background1Root = FindOrCreateChild(platformRoot, "Background1");
+        GameObject background2Root = FindOrCreateChild(platformRoot, "Background2");
+        GameObject solidRoot = FindOrCreateChild(platformRoot, "Solid");
+
+        EnsureTilemapLayer(background1Root, false, 3);
+        EnsureTilemapLayer(background2Root, false, 4);
+        EnsureTilemapLayer(solidRoot, true, 5);
+
+        SerializedObject platformSo = new SerializedObject(platformController);
+        if (IsObjectReferenceNull(platformSo, "background1Tilemap"))
+        {
+            SetObject(platformSo, "background1Tilemap", background1Root.GetComponent<Tilemap>());
+        }
+
+        if (IsObjectReferenceNull(platformSo, "background2Tilemap"))
+        {
+            SetObject(platformSo, "background2Tilemap", background2Root.GetComponent<Tilemap>());
+        }
+
+        if (IsObjectReferenceNull(platformSo, "solidTilemap"))
+        {
+            SetObject(platformSo, "solidTilemap", solidRoot.GetComponent<Tilemap>());
+        }
+
+        platformSo.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void EnsureTilemapLayer(GameObject layerRoot, bool includeCollider, int sortingOrder)
+    {
+        if (layerRoot == null)
+        {
+            return;
+        }
+
+        layerRoot.layer = includeCollider ? LayerMask.NameToLayer(GroundLayerName) : LayerMask.NameToLayer("Default");
+
+        if (layerRoot.GetComponent<Tilemap>() == null)
+        {
+            Undo.AddComponent<Tilemap>(layerRoot);
+        }
+
+        TilemapRenderer renderer = layerRoot.GetComponent<TilemapRenderer>();
+        if (renderer == null)
+        {
+            renderer = Undo.AddComponent<TilemapRenderer>(layerRoot);
+        }
+
+        renderer.sortingLayerName = "Background";
+        renderer.sortingOrder = sortingOrder;
+
+        if (includeCollider)
+        {
+            if (layerRoot.GetComponent<TilemapCollider2D>() == null)
+            {
+                TilemapCollider2D tilemapCollider = Undo.AddComponent<TilemapCollider2D>(layerRoot);
+                tilemapCollider.usedByComposite = true;
+            }
+
+            if (layerRoot.GetComponent<Rigidbody2D>() == null)
+            {
+                Rigidbody2D body = Undo.AddComponent<Rigidbody2D>(layerRoot);
+                body.bodyType = RigidbodyType2D.Static;
+                body.simulated = true;
+                body.useAutoMass = false;
+            }
+
+            if (layerRoot.GetComponent<CompositeCollider2D>() == null)
+            {
+                CompositeCollider2D composite = Undo.AddComponent<CompositeCollider2D>(layerRoot);
+                composite.geometryType = CompositeCollider2D.GeometryType.Polygons;
+            }
+        }
     }
 
     private static void EnsureDoorChildren(Transform doorRoot, ArenaDoorController doorController)

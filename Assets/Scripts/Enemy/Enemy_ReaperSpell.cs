@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -5,11 +6,13 @@ public class Enemy_ReaperSpell : MonoBehaviour
 {
     [SerializeField] private LayerMask whatIsTarget;
     [SerializeField] private Collider2D col;
+    [SerializeField, Min(0f)] private float damageActivationDelay = 0.45f;
     [SerializeField, Min(.01f)] private float lifeTime = 2f;
     [SerializeField, Min(1)] private int baseDamage = 1;
 
     private Entity_Combat combat;
     private DamageScaleData damageScaleData;
+    private Coroutine activationCoroutine;
 
     private void Awake()
     {
@@ -52,7 +55,16 @@ public class Enemy_ReaperSpell : MonoBehaviour
     {
         this.combat = combat;
         this.damageScaleData = damageScaleData;
-        EnableCollider();
+
+        DisableCollider();
+
+        if (activationCoroutine != null)
+        {
+            StopCoroutine(activationCoroutine);
+            activationCoroutine = null;
+        }
+
+        activationCoroutine = StartCoroutine(EnableColliderAfterDelay());
         Destroy(gameObject, lifeTime);
     }
 
@@ -70,6 +82,17 @@ public class Enemy_ReaperSpell : MonoBehaviour
         {
             col.enabled = false;
         }
+    }
+
+    private IEnumerator EnableColliderAfterDelay()
+    {
+        if (damageActivationDelay > 0f)
+        {
+            yield return new WaitForSeconds(damageActivationDelay);
+        }
+
+        EnableCollider();
+        activationCoroutine = null;
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
