@@ -1,17 +1,36 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
 
 public class UI_Options : MonoBehaviour
 {
-    private const string MasterVolumeKey = "master_volume";
     private const string FullscreenKey = "fullscreen_enabled";
+
+    private enum VolumeChannel
+    {
+        Master,
+        Bgm,
+        Sfx
+    }
+
+    private static readonly Dictionary<VolumeChannel, string> VolumePrefsKeys = new()
+    {
+        [VolumeChannel.Master] = AudioVolumeKeys.Master,
+        [VolumeChannel.Bgm] = AudioVolumeKeys.Bgm,
+        [VolumeChannel.Sfx] = AudioVolumeKeys.Sfx
+    };
 
     [Header("Runtime-bound UI")]
     [SerializeField] private Slider masterVolumeSlider;
+    [SerializeField] private Slider bgmVolumeSlider;
+    [SerializeField] private Slider sfxVolumeSlider;
     [SerializeField] private Toggle fullscreenToggle;
     [SerializeField] private GameObject mainPanel;
 
-    private bool listenersWired;
+    private bool masterListenerWired;
+    private bool bgmListenerWired;
+    private bool sfxListenerWired;
+    private bool fullscreenListenerWired;
 
     private void Awake()
     {
@@ -35,10 +54,22 @@ public class UI_Options : MonoBehaviour
 
     public void MasterVolumeValue(float value)
     {
-        float clampedValue = Mathf.Clamp01(value);
-        AudioListener.volume = clampedValue;
-        PlayerPrefs.SetFloat(MasterVolumeKey, clampedValue);
-        PlayerPrefs.Save();
+        ApplySingleVolumeSetting(VolumeChannel.Master, value, clampedValue => AudioListener.volume = clampedValue);
+    }
+
+    public void BgmVolumeValue(float value)
+    {
+        ApplySingleVolumeSetting(VolumeChannel.Bgm, value, null);
+    }
+
+    public void SfxVolumeValue(float value)
+    {
+        ApplySingleVolumeSetting(VolumeChannel.Sfx, value, null);
+    }
+
+    public void ResetVolumeDefaults()
+    {
+        ApplyVolumeState(new VolumeState(AudioVolumeDefaults.Master, AudioVolumeDefaults.Bgm, AudioVolumeDefaults.Sfx));
     }
 
     public void FullscreenValue(bool isFullscreen)
@@ -67,26 +98,20 @@ public class UI_Options : MonoBehaviour
 
     public void LoadUpSettings()
     {
-        float savedVolume = PlayerPrefs.GetFloat(MasterVolumeKey, 0.6f);
+        VolumeState savedState = LoadVolumeState();
         bool fullscreen = PlayerPrefs.GetInt(FullscreenKey, 1) == 1;
 
-        AudioListener.volume = savedVolume;
+        ApplyVolumeState(savedState);
+
         Screen.fullScreen = fullscreen;
-
-        if (masterVolumeSlider != null)
-        {
-            masterVolumeSlider.SetValueWithoutNotify(savedVolume);
-        }
-
-        if (fullscreenToggle != null)
-        {
-            fullscreenToggle.SetIsOnWithoutNotify(fullscreen);
-        }
+        fullscreenToggle?.SetIsOnWithoutNotify(fullscreen);
     }
 
-    public void Bind(Slider volumeSlider, Toggle fullscreen)
+    public void Bind(Slider volumeSlider, Slider bgmSlider, Slider sfxSlider, Toggle fullscreen)
     {
         masterVolumeSlider = volumeSlider;
+        bgmVolumeSlider = bgmSlider;
+        sfxVolumeSlider = sfxSlider;
         fullscreenToggle = fullscreen;
         WireControls();
         LoadUpSettings();
@@ -97,6 +122,16 @@ public class UI_Options : MonoBehaviour
         if (masterVolumeSlider == null)
         {
             masterVolumeSlider = FindDeepChild(transform, "Master VolumeSlider")?.GetComponent<Slider>();
+        }
+
+        if (bgmVolumeSlider == null)
+        {
+            bgmVolumeSlider = FindDeepChild(transform, "BGM VolumeSlider")?.GetComponent<Slider>();
+        }
+
+        if (sfxVolumeSlider == null)
+        {
+            sfxVolumeSlider = FindDeepChild(transform, "SFX VolumeSlider")?.GetComponent<Slider>();
         }
 
         if (fullscreenToggle == null)
@@ -116,22 +151,48 @@ public class UI_Options : MonoBehaviour
 
     private void WireControls()
     {
-        if (listenersWired)
-        {
-            return;
-        }
-
-        if (masterVolumeSlider != null && masterVolumeSlider.onValueChanged.GetPersistentEventCount() == 0)
+        if (masterVolumeSlider != null && !masterListenerWired && masterVolumeSlider.onValueChanged.GetPersistentEventCount() == 0)
         {
             masterVolumeSlider.onValueChanged.AddListener(MasterVolumeValue);
+            masterListenerWired = true;
         }
 
-        if (fullscreenToggle != null && fullscreenToggle.onValueChanged.GetPersistentEventCount() == 0)
+        if (bgmVolumeSlider != null && !bgmListenerWired && bgmVolumeSlider.onValueChanged.GetPersistentEventCount() == 0)
+        {
+            bgmVolumeSlider.onValueChanged.AddListener(BgmVolumeValue);
+            bgmListenerWired = true;
+        }
+
+        if (sfxVolumeSlider != null && !sfxListenerWired && sfxVolumeSlider.onValueChanged.GetPersistentEventCount() == 0)
+        {
+            sfxVolumeSlider.onValueChanged.AddListener(SfxVolumeValue);
+            sfxListenerWired = true;
+        }
+
+        if (fullscreenToggle != null && !fullscreenListenerWired && fullscreenToggle.onValueChanged.GetPersistentEventCount() == 0)
         {
             fullscreenToggle.onValueChanged.AddListener(FullscreenValue);
+            fullscreenListenerWired = true;
+        }
+    }
+
+    private void ApplyVolumeState(VolumeState state)
+    {
+        float clampedMaster = Mathf.Clamp01(state.master);
+        float clampedBgm = Mathf.Clamp01(state.bgm);
+        float clampedSfx = Mathf.Clamp01(state.sfx);
+
+        if (AudioManager.instance != null)
+        {
+            AudioManager.instance.SetVolumeSettings(clampedMaster, clampedBgm, clampedSfx);
+        }
+        else
+        {
+            AudioListener.volume = clampedMaster;
+            SaveVolumePrefs(clampedMaster, clampedBgm, clampedSfx);
         }
 
-        listenersWired = true;
+        ApplyVolumeUIState(new VolumeState(clampedMaster, clampedBgm, clampedSfx));
     }
 
     private static Transform FindDeepChild(Transform root, string childName)
@@ -156,5 +217,70 @@ public class UI_Options : MonoBehaviour
         }
 
         return null;
+    }
+
+    private void ApplySingleVolumeSetting(VolumeChannel channel, float value, System.Action<float> applyFallback)
+    {
+        float clampedValue = Mathf.Clamp01(value);
+        string prefsKey = VolumePrefsKeys[channel];
+
+        if (AudioManager.instance != null)
+        {
+            switch (channel)
+            {
+                case VolumeChannel.Master:
+                    AudioManager.instance.SetMasterVolume(clampedValue);
+                    break;
+                case VolumeChannel.Bgm:
+                    AudioManager.instance.SetBgmVolume(clampedValue);
+                    break;
+                case VolumeChannel.Sfx:
+                    AudioManager.instance.SetSfxVolume(clampedValue);
+                    break;
+            }
+
+            return;
+        }
+
+        applyFallback?.Invoke(clampedValue);
+        PlayerPrefs.SetFloat(prefsKey, clampedValue);
+        PlayerPrefs.Save();
+    }
+
+    private static void SaveVolumePrefs(float master, float bgm, float sfx)
+    {
+        PlayerPrefs.SetFloat(VolumePrefsKeys[VolumeChannel.Master], master);
+        PlayerPrefs.SetFloat(VolumePrefsKeys[VolumeChannel.Bgm], bgm);
+        PlayerPrefs.SetFloat(VolumePrefsKeys[VolumeChannel.Sfx], sfx);
+        PlayerPrefs.Save();
+    }
+
+    private VolumeState LoadVolumeState()
+    {
+        return new VolumeState(
+            PlayerPrefs.GetFloat(VolumePrefsKeys[VolumeChannel.Master], AudioVolumeDefaults.Master),
+            PlayerPrefs.GetFloat(VolumePrefsKeys[VolumeChannel.Bgm], AudioVolumeDefaults.Bgm),
+            PlayerPrefs.GetFloat(VolumePrefsKeys[VolumeChannel.Sfx], AudioVolumeDefaults.Sfx));
+    }
+
+    private void ApplyVolumeUIState(VolumeState state)
+    {
+        masterVolumeSlider?.SetValueWithoutNotify(state.master);
+        bgmVolumeSlider?.SetValueWithoutNotify(state.bgm);
+        sfxVolumeSlider?.SetValueWithoutNotify(state.sfx);
+    }
+
+    private readonly struct VolumeState
+    {
+        public readonly float master;
+        public readonly float bgm;
+        public readonly float sfx;
+
+        public VolumeState(float master, float bgm, float sfx)
+        {
+            this.master = master;
+            this.bgm = bgm;
+            this.sfx = sfx;
+        }
     }
 }

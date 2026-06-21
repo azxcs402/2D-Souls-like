@@ -25,7 +25,7 @@ Transform:
   m_GameObject: {fileID: 59479124106991593}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4, y: 0, z: 0}
+  m_LocalPosition: {x: 22.55, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -62,7 +62,7 @@ Transform:
   m_GameObject: {fileID: 1000000000000000001}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 179.05, y: -1.08, z: 0}
   m_LocalScale: {x: 2.5, y: 2.5, z: 2.5}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -166,8 +166,8 @@ MonoBehaviour:
   spellCastStateCooldown: 12
   playerOffsetPrediction: {x: 1.2, y: 0.55}
   reaperAttackData:
-    targetCheckOffset: {x: 0.7, y: 0}
-    targetCheckRadius: 0.65
+    targetCheckOffset: {x: 12.05, y: 4.7615156}
+    targetCheckRadius: 3.14
     knockbackForce: {x: 3, y: 1.5}
   syncAttackHitboxWithTargetCheck: 1
   attackDamageWindowStartNormalized: 0.42
@@ -254,17 +254,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   damage: 18
   targetCheck: {fileID: 1000000000000000017}
-  targetCheckRadius: 0.65
+  targetCheckRadius: 3.91
   whatIsTarget:
     serializedVersion: 2
     m_Bits: 128
   showTargetCheckGizmos: 1
   alwaysShowTargetCheckGizmos: 1
-  enableCombatPreview: 0
-  showPreviewTargetCheckObject: 0
-  showPreviewAttackData: 0
-  previewAnimationClip: {fileID: 0}
-  previewNormalizedTime: 0.38888887
+  enableCombatPreview: 1
+  showPreviewTargetCheckObject: 1
+  showPreviewAttackData: 1
+  previewAnimationClip: {fileID: 7400000, guid: 785b91cca8ed87e408c50e48a5fd0e6c, type: 2}
+  previewNormalizedTime: 0.54545456
   autoEnsureHealthComponent: 1
 --- !u!114 &1000000000000000023
 MonoBehaviour:
@@ -512,7 +512,7 @@ Transform:
   m_GameObject: {fileID: 1000000000000000016}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.325, z: 0}
+  m_LocalPosition: {x: 1.712, y: -0.261, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -543,7 +543,7 @@ Transform:
   m_GameObject: {fileID: 1000000000000000018}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.725, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -574,7 +574,7 @@ Transform:
   m_GameObject: {fileID: 1000000000000000020}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1, y: 0.65, z: 0}
+  m_LocalPosition: {x: 7.767, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -652,7 +652,7 @@ Transform:
   m_GameObject: {fileID: 7177469003138219527}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.35, y: 0, z: 0}
+  m_LocalPosition: {x: 7.767, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -17,6 +18,10 @@ public static class SceneUIAndVFXBootstrapper
     private const string HealthBarAssetPath = "Assets/Resources/UI/HealthBar.png";
     private const string HeartSpriteName = "health_bar_0";
     private const string BarSpriteName = "health_bar_1";
+    private const string BossHealthBarObjectName = "UI_AbyssMageBossHealthBar";
+    private const string BossTmpFontAssetPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/SyneMono-Regular SDF.asset";
+    private const string BossNamePlateObjectName = "BossNamePlate";
+    private const string BossTickGroupObjectName = "BossTicks";
     private const string SkillFrameAssetPath = "Assets/Graphics/UI/AlexSkillUI/artdecoUI_PIPO_tr.png";
     private const string SkillFrameSpriteName = "artdecoUI_PIPO_tr_14";
     private const string SkillBackdropAssetPath = "Assets/Graphics/UI/AlexSkillUI/Background.png";
@@ -187,6 +192,7 @@ public static class SceneUIAndVFXBootstrapper
         }
 
         changed |= EnsurePlayerHealthBar(canvasObject.transform as RectTransform, uiLayer, heartSprite, barSprite);
+        changed |= EnsureAbyssMageBossHealthBar(canvasObject.transform as RectTransform, uiLayer, barSprite);
         changed |= EnsurePlayerStaminaBar(canvasObject.transform as RectTransform, uiLayer, barSprite);
 
         if (createdCanvas)
@@ -323,6 +329,152 @@ public static class SceneUIAndVFXBootstrapper
         playerHealthBar.Configure(slider);
         EditorUtility.SetDirty(playerHealthBar);
         return true;
+    }
+
+    private static bool EnsureAbyssMageBossHealthBar(RectTransform canvasRect, int uiLayer, Sprite barSprite)
+    {
+        if (canvasRect == null)
+        {
+            return false;
+        }
+
+        Transform existingBar = canvasRect.Find(BossHealthBarObjectName);
+        if (existingBar != null)
+        {
+            UI_AbyssMageBossHealthBar existingComponent = GetOrAddComponent<UI_AbyssMageBossHealthBar>(existingBar.gameObject);
+            Slider existingSlider = existingBar.GetComponent<Slider>();
+            CanvasGroup existingCanvasGroup = GetOrAddComponent<CanvasGroup>(existingBar.gameObject);
+            TextMeshProUGUI existingNameText = FindTextChild(existingBar, "BossName");
+            if (existingSlider != null && existingNameText != null)
+            {
+                EnsureBossHealthBarVisuals(existingBar as RectTransform, uiLayer, barSprite);
+                existingComponent.Configure(existingSlider, existingNameText, existingCanvasGroup);
+                EditorUtility.SetDirty(existingComponent);
+                EditorUtility.SetDirty(existingBar.gameObject);
+            }
+
+            return false;
+        }
+
+        GameObject bossBarObject = CreateGameObject(
+            BossHealthBarObjectName,
+            uiLayer,
+            typeof(RectTransform),
+            typeof(CanvasGroup),
+            typeof(Slider),
+            typeof(UI_AbyssMageBossHealthBar)
+        );
+        bossBarObject.transform.SetParent(canvasRect, false);
+
+        RectTransform rootRect = bossBarObject.GetComponent<RectTransform>();
+        rootRect.anchorMin = new Vector2(0.5f, 1f);
+        rootRect.anchorMax = new Vector2(0.5f, 1f);
+        rootRect.pivot = new Vector2(0.5f, 1f);
+        rootRect.anchoredPosition = new Vector2(0f, -26f);
+        rootRect.sizeDelta = new Vector2(520f, 84f);
+
+        CanvasGroup canvasGroup = bossBarObject.GetComponent<CanvasGroup>();
+        canvasGroup.alpha = 1f;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+
+        EnsureBossHealthBarVisuals(rootRect, uiLayer, barSprite);
+        RectTransform labelRect = FindOrCreateRect(rootRect, "BossName", uiLayer, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(480f, 34f), new Vector2(0f, -4f));
+        TextMeshProUGUI nameText = CreateTmpText(labelRect, "\u6df1\u6e0a\u6cd5\u5e08", 30, TextAlignmentOptions.Center);
+        nameText.enableWordWrapping = false;
+        nameText.raycastTarget = false;
+
+        RectTransform percentRect = FindOrCreateRect(rootRect, "BossPercentText", uiLayer, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(96f, 32f), new Vector2(-10f, -8f));
+        TextMeshProUGUI percentText = CreateTmpText(percentRect, "100%", 22, TextAlignmentOptions.Right);
+        percentText.enableWordWrapping = false;
+        percentText.raycastTarget = false;
+
+        Slider slider = bossBarObject.GetComponent<Slider>();
+        slider.transition = Selectable.Transition.None;
+        slider.interactable = false;
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.wholeNumbers = true;
+        slider.minValue = 0f;
+        slider.maxValue = 100f;
+        slider.value = 0f;
+
+        RectTransform barRoot = FindOrCreateRect(rootRect, "Bar", uiLayer, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(460f, 28f), new Vector2(0f, 10f));
+        Image borderImage = CreateImage("Border", barRoot, uiLayer, barSprite, Color.white, new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero, Image.Type.Sliced);
+        borderImage.pixelsPerUnitMultiplier = 12.5f;
+
+        RectTransform fillArea = FindOrCreateRect(barRoot, "Fill Area", uiLayer, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(-8f, -8f), Vector2.zero);
+        Image fillImage = CreateImage("Fill", fillArea, uiLayer, null, new Color(0.76f, 0.11f, 0.18f, 1f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, Image.Type.Simple);
+        Image backgroundImage = CreateImage("Background", barRoot, uiLayer, null, new Color(0f, 0f, 0f, 0.6f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, Image.Type.Simple);
+        backgroundImage.transform.SetAsFirstSibling();
+        EnsureBossTicks(barRoot, uiLayer);
+
+        slider.fillRect = fillImage.rectTransform;
+        slider.targetGraphic = fillImage;
+
+        TMP_FontAsset fontAsset = LoadTmpFontAsset();
+        if (fontAsset != null)
+        {
+            nameText.font = fontAsset;
+        }
+
+        UI_AbyssMageBossHealthBar bossHealthBar = bossBarObject.GetComponent<UI_AbyssMageBossHealthBar>();
+        bossHealthBar.Configure(slider, nameText, canvasGroup);
+        EditorUtility.SetDirty(bossHealthBar);
+        EditorUtility.SetDirty(bossBarObject);
+        return true;
+    }
+
+    private static void EnsureBossHealthBarVisuals(RectTransform rootRect, int uiLayer, Sprite barSprite)
+    {
+        if (rootRect == null)
+        {
+            return;
+        }
+
+        RectTransform namePlate = FindOrCreateRect(rootRect, BossNamePlateObjectName, uiLayer, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(300f, 44f), new Vector2(0f, 10f));
+        Image namePlateImage = GetOrAddComponent<Image>(namePlate.gameObject);
+        namePlateImage.color = new Color(0.08f, 0.08f, 0.1f, 0.9f);
+        namePlateImage.raycastTarget = false;
+        if (barSprite != null)
+        {
+            namePlateImage.sprite = barSprite;
+            namePlateImage.type = Image.Type.Sliced;
+            namePlateImage.pixelsPerUnitMultiplier = 12.5f;
+        }
+
+        RectTransform nameInner = FindOrCreateRect(namePlate, "Inner", uiLayer, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(-12f, -10f), Vector2.zero);
+        Image nameInnerImage = GetOrAddComponent<Image>(nameInner.gameObject);
+        nameInnerImage.color = new Color(0f, 0f, 0f, 0.35f);
+        nameInnerImage.raycastTarget = false;
+
+        RectTransform badge = FindOrCreateRect(namePlate, "Badge", uiLayer, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(104f, 20f), new Vector2(0f, 2f));
+        Image badgeImage = GetOrAddComponent<Image>(badge.gameObject);
+        badgeImage.color = new Color(0.16f, 0.13f, 0.12f, 0.95f);
+        badgeImage.raycastTarget = false;
+    }
+
+    private static void EnsureBossTicks(RectTransform barRoot, int uiLayer)
+    {
+        if (barRoot == null)
+        {
+            return;
+        }
+
+        RectTransform tickGroup = FindOrCreateRect(barRoot, BossTickGroupObjectName, uiLayer, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        for (int i = 1; i <= 5; i++)
+        {
+            DestroyChildIfExists(tickGroup, $"Tick_{i}");
+        }
+
+        for (int i = 0; i < 6; i++)
+        {
+            float t = (i + 1) / 7f;
+            string fireName = $"Fire_{i + 1}";
+            RectTransform fire = FindOrCreateRect(tickGroup, fireName, uiLayer, new Vector2(t, 0.5f), new Vector2(t, 0.5f), new Vector2(12f, 12f), Vector2.zero);
+            Image fireImage = GetOrAddComponent<Image>(fire.gameObject);
+            fireImage.color = new Color(0.3f, 0.16f, 0.12f, 0.22f);
+            fireImage.raycastTarget = false;
+        }
     }
 
     private static bool EnsurePlayerStaminaBar(RectTransform canvasRect, int uiLayer, Sprite barSprite)
@@ -1083,6 +1235,33 @@ public static class SceneUIAndVFXBootstrapper
         return rect;
     }
 
+    private static RectTransform FindOrCreateRect(RectTransform parent, string objectName, int layer, Vector2 anchorMin, Vector2 anchorMax, Vector2 sizeDelta, Vector2 anchoredPosition)
+    {
+        if (parent == null)
+        {
+            return null;
+        }
+
+        Transform existing = parent.Find(objectName);
+        if (existing != null && existing is RectTransform existingRect)
+        {
+            if (layer >= 0)
+            {
+                existingRect.gameObject.layer = layer;
+            }
+
+            existingRect.anchorMin = anchorMin;
+            existingRect.anchorMax = anchorMax;
+            existingRect.pivot = new Vector2(.5f, .5f);
+            existingRect.sizeDelta = sizeDelta;
+            existingRect.anchoredPosition = anchoredPosition;
+            existingRect.localScale = Vector3.one;
+            return existingRect;
+        }
+
+        return CreateRect(objectName, parent, layer, anchorMin, anchorMax, sizeDelta, anchoredPosition);
+    }
+
     private static Image CreateImage(
         string objectName,
         RectTransform parent,
@@ -1102,6 +1281,63 @@ public static class SceneUIAndVFXBootstrapper
         image.type = imageType;
         image.raycastTarget = false;
         return image;
+    }
+
+    private static TextMeshProUGUI FindTextChild(Transform parent, string childName)
+    {
+        Transform child = parent.Find(childName);
+        return child != null ? child.GetComponent<TextMeshProUGUI>() : null;
+    }
+
+    private static TextMeshProUGUI CreateTmpText(RectTransform rect, string text, int fontSize, TextAlignmentOptions alignment)
+    {
+        if (rect == null)
+        {
+            return null;
+        }
+
+        TextMeshProUGUI tmp = GetOrAddComponent<TextMeshProUGUI>(rect.gameObject);
+        tmp.text = text;
+        tmp.fontSize = fontSize;
+        tmp.alignment = alignment;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
+        tmp.enableWordWrapping = false;
+
+        TMP_FontAsset fontAsset = LoadTmpFontAsset();
+        if (fontAsset != null)
+        {
+            tmp.font = fontAsset;
+        }
+
+        return tmp;
+    }
+
+    private static void CreateBossHealthBarBackground(RectTransform rootRect, int uiLayer, Sprite barSprite)
+    {
+        RectTransform background = CreateRect("Panel", rootRect, uiLayer, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Image backgroundImage = background.gameObject.AddComponent<Image>();
+        backgroundImage.color = new Color(0.05f, 0.05f, 0.06f, 0.82f);
+        backgroundImage.raycastTarget = false;
+
+        RectTransform borderRect = CreateRect("Frame", rootRect, uiLayer, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Image borderImage = borderRect.gameObject.AddComponent<Image>();
+        borderImage.sprite = barSprite;
+        borderImage.type = Image.Type.Sliced;
+        borderImage.color = Color.white;
+        borderImage.pixelsPerUnitMultiplier = 12.5f;
+        borderImage.raycastTarget = false;
+    }
+
+    private static TMP_FontAsset LoadTmpFontAsset()
+    {
+        TMP_FontAsset fontAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BossTmpFontAssetPath);
+        if (fontAsset != null)
+        {
+            return fontAsset;
+        }
+
+        return TMP_Settings.defaultFontAsset;
     }
 
 }

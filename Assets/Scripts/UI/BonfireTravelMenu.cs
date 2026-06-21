@@ -118,6 +118,7 @@ public class BonfireTravelMenu : MonoBehaviour
         EnsureUi();
         sourceBonfire = bonfire;
         openedFrame = Time.frameCount;
+        AudioManager.instance?.PlayGlobalSFX(AudioKey.BonfireMenuOpen);
         ShowTravelPage();
         ApplyMenuTheme();
         SetVisible(true);
@@ -130,6 +131,7 @@ public class BonfireTravelMenu : MonoBehaviour
         if (sourceBonfire != null)
         {
             sourceBonfire.RefreshInteractionPrompt();
+            sourceBonfire.PlayTravelMenuClosedSfx();
         }
     }
 
@@ -175,6 +177,7 @@ public class BonfireTravelMenu : MonoBehaviour
         }
 
         CloseMenu(true);
+        bonfire.PlayTravelConfirmSfx();
         bonfire.StartRestSequence();
     }
 
@@ -191,6 +194,7 @@ public class BonfireTravelMenu : MonoBehaviour
         }
 
         CloseMenu(true);
+        AudioManager.instance?.PlayGlobalSFX(AudioKey.BonfireTravel);
 
         if (SaveManager.instance != null)
         {
@@ -248,6 +252,7 @@ public class BonfireTravelMenu : MonoBehaviour
 
         if (keyboard.escapeKey.wasPressedThisFrame)
         {
+            AudioManager.instance?.PlayGlobalSFX(AudioKey.BonfireMenuClose);
             CloseMenu(true);
             return;
         }

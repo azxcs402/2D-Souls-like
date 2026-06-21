@@ -110,6 +110,11 @@ public abstract class Enemy : Entity
 
         currentHealth = Mathf.Max(0, currentHealth - damage);
 
+        if (currentHealth > 0)
+        {
+            PlayCombatAudio(AudioKey.EnemyHurt);
+        }
+
         if (currentHealth <= 0)
         {
             Die(allowRevive);
@@ -134,6 +139,8 @@ public abstract class Enemy : Entity
     protected virtual void Die(bool allowRevive)
     {
         isDead = true;
+
+        PlayCombatAudio(AudioKey.EnemyDeath);
 
         if (stateMachine != null && DeadState != null)
         {
@@ -192,6 +199,11 @@ public abstract class Enemy : Entity
         }
 
         canTakeDamage = canBeTargeted;
+    }
+
+    private void PlayCombatAudio(AudioKey audioKey)
+    {
+        AudioManager.instance?.PlayGlobalSFX(audioKey);
     }
 
     public bool CanMoveTowardDirection(int direction)

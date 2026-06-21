@@ -144,6 +144,11 @@ public class Entity_Health : MonoBehaviour, IDamagable
     protected virtual void OnDamageTaken(int damage, Entity_Combat damageSource)
     {
         entityVFX?.PlayOnDamageVFX();
+
+        if (TryGetComponent<Player>(out _))
+        {
+            PlayCombatAudio(AudioKey.PlayerHurt);
+        }
     }
 
     protected virtual void Die(Component damageSource)
@@ -153,6 +158,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
 
         if (TryGetComponent<Player>(out Player player))
         {
+            PlayCombatAudio(AudioKey.PlayerDeath);
             player.EnterDeadState();
             bool freezeTime = damageSource is SpikeHazard;
             GameManager.instance?.BeginPlayerDeathSequence(freezeTime);
@@ -253,5 +259,10 @@ public class Entity_Health : MonoBehaviour, IDamagable
         {
             healthBarObject.SetActive(showMiniHealthBar);
         }
+    }
+
+    private void PlayCombatAudio(AudioKey audioKey)
+    {
+        AudioManager.instance?.PlayGlobalSFX(audioKey);
     }
 }

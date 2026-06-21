@@ -32,7 +32,7 @@ public class EntityState : IState
 
     public virtual void Update()
     {
-        xInput = player.moveInput.x;
+        xInput = player.MovementInputX;
         stateTimer -= Time.deltaTime;
     }
 
@@ -60,6 +60,7 @@ public class EntityState : IState
             || stateMachine.CurrentState == player.airAttackState
             || stateMachine.CurrentState == player.fallAttackState
             || stateMachine.CurrentState == player.dashState
+            || player.IsMovementLocked
             || !player.GroundDetected()
             || (player.IsBasicAttackLoopCooldownActive && !canRestartAfterLoopCooldown)
             || (!player.AttackInputPressed() && !canContinuePendingCombo && !canRestartAfterLoopCooldown))
@@ -99,6 +100,7 @@ public class EntityState : IState
             || stateMachine.CurrentState == player.airAttackState
             || stateMachine.CurrentState == player.fallAttackState
             || stateMachine.CurrentState == player.dashState
+            || player.IsMovementLocked
             || isWallAttackBlocked
             || player.GroundDetected()
             || (!player.CanAirAttack && !hasPendingCombo)
@@ -138,6 +140,7 @@ public class EntityState : IState
 
         if (stateMachine.CurrentState == player.fallAttackState
             || stateMachine.CurrentState == player.dashState
+            || player.IsMovementLocked
             || !player.CanStartFallAttack()
             || !fallAttackInputPressed)
         {
@@ -151,6 +154,7 @@ public class EntityState : IState
     protected bool TryEnterDashState(int directionOverride)
     {
         if (stateMachine.CurrentState == player.dashState
+            || player.IsMovementLocked
             || !player.CanDash
             || !player.DashInputPressed())
         {

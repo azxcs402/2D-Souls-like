@@ -12,14 +12,36 @@ public class Enemy_Healthy : Entity_Health
 
     protected override void Awake()
     {
+        abyssMage = GetComponent<Enemy_AbyssMage>();
+
+        if (abyssMage != null)
+        {
+            showMiniHealthBar = false;
+            autoCreateHealthBar = false;
+        }
+
         base.Awake();
 
         enemy = GetComponent<Enemy>();
         mage = GetComponent<Enemy_Mage>();
-        abyssMage = GetComponent<Enemy_AbyssMage>();
         reaper = GetComponent<Enemy_Reaper>();
         skeleton = GetComponent<Enemy_Skeleton>();
         slime = GetComponent<Enemy_Slime>();
+
+        if (abyssMage != null)
+        {
+            if (healthBar != null)
+            {
+                GameObject miniHealthBarObject = healthBar.gameObject;
+                healthBar = null;
+
+                if (miniHealthBarObject != null)
+                {
+                    miniHealthBarObject.SetActive(false);
+                    Destroy(miniHealthBarObject);
+                }
+            }
+        }
     }
 
     private void Start()

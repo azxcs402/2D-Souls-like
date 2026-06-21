@@ -1,3 +1,4 @@
+using System.Collections;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -150,6 +151,12 @@ public class Player : Entity
     [SerializeField] private Entity_AttackData fallAttackExtendedData = new Entity_AttackData(new Vector2(.6f, -.2f), 1.1f, new Vector2(6f, 3f));
     [SerializeField] private int fallAttackDamage = 22;
 
+    [Header("Damage Override Info")]
+    [SerializeField, Tooltip("When enabled, every player attack deals 999 damage.")]
+    private bool forceAllAttackDamageTo999;
+    [SerializeField, Tooltip("When enabled, every player attack deals 1 damage.")]
+    private bool forceAllAttackDamageTo1;
+
     [Header("Counter Attack Info")]
     [SerializeField, Min(0f)] private float counterDuration = .35f;
     [SerializeField, Min(.01f)] private float counterAttackTargetCheckRadiusMultiplier = 1.35f;
@@ -246,6 +253,11 @@ public class Player : Entity
     private bool hasPendingHazardRecoveryPosition;
     private GameObject healingPotionWorldIconObject;
     private PlayerHealingPotionWorldIcon healingPotionWorldIcon;
+    private bool movementLocked;
+    private bool bossIntroMoveActive;
+    private int bossIntroMoveDirection = 1;
+    private float bossIntroMoveSpeedMultiplier = 1f;
+    private float bossIntroMoveTargetX;
 
     public event Action<Player> OnStaminaChanged;
     public event Action<Player> OnHealingPotionChanged;
@@ -276,8 +288,8 @@ public class Player : Entity
     private bool wasDownInputHeldLastFrame;
     private bool downInputPressedThisFrame;
     private bool healingPotionPressedThisFrame;
-    public float MoveSpeed => moveSpeed * HealingPotionMoveSpeedMultiplier;
-    public float AirMoveSpeed => moveSpeed * airMoveSpeedMultiplier * HealingPotionMoveSpeedMultiplier;
+    public float MoveSpeed => moveSpeed * HealingPotionMoveSpeedMultiplier * bossIntroMoveSpeedMultiplier;
+    public float AirMoveSpeed => moveSpeed * airMoveSpeedMultiplier * HealingPotionMoveSpeedMultiplier * bossIntroMoveSpeedMultiplier;
     public float JumpHeadClearanceHeight => jumpHeadClearanceHeight;
     public float JumpHeadClearanceWidthMultiplier => jumpHeadClearanceWidthMultiplier;
     public float JumpHeadClearanceBottomOffset => jumpHeadClearanceBottomOffset;
@@ -340,7 +352,7 @@ public class Player : Entity
     public float FallAttackEndAnimationLandingOffset => fallAttackEndAnimationLandingOffset;
     public Entity_AttackData FallAttackData => fallAttackData;
     public Entity_AttackData FallAttackExtendedData => fallAttackExtendedData;
-    public int FallAttackDamage => Mathf.Max(1, fallAttackDamage);
+    public int FallAttackDamage => ApplyAttackDamageOverride(Mathf.Max(1, fallAttackDamage));
     public float CounterDuration => counterDuration;
     public float CounterAttackTargetCheckRadiusMultiplier => counterAttackTargetCheckRadiusMultiplier;
     public string CounterAttackAnimationState => counterAttackAnimationState;
@@ -377,6 +389,51 @@ public class Player : Entity
             healingPotionWorldIcon.SetSprite(sprite);
         }
     }
+
+    public void SetMovementLocked(bool locked)
+    {
+        if (movementLocked == locked)
+        {
+            return;
+        }
+
+        movementLocked = locked;
+        if (movementLocked)
+        {
+            moveInput = Vector2.zero;
+            if (rb != null)
+            {
+                rb.velocity = new Vector2(0f, rb.velocity.y);
+            }
+        }
+    }
+
+    public float MovementInputX => bossIntroMoveActive ? bossIntroMoveDirection : moveInput.x;
+
+    public void BeginBossIntroMoveTowards(float targetX, float distance, float speedMultiplier = 1f)
+    {
+        if (rb == null || stateMachine == null || moveState == null)
+        {
+            return;
+        }
+
+        bossIntroMoveActive = true;
+        bossIntroMoveDirection = targetX >= rb.position.x ? 1 : -1;
+        bossIntroMoveSpeedMultiplier = Mathf.Max(0.01f, speedMultiplier);
+        bossIntroMoveTargetX = rb.position.x + bossIntroMoveDirection * Mathf.Max(0f, distance);
+
+        SetMovementLocked(true);
+        stateMachine.ChangeState(moveState);
+    }
+
+    public void CancelBossIntroMove()
+    {
+        bossIntroMoveActive = false;
+        bossIntroMoveDirection = 1;
+        bossIntroMoveSpeedMultiplier = 1f;
+        bossIntroMoveTargetX = 0f;
+    }
+
     public float MaxStamina => maxStamina;
     public float CurrentStamina => currentStamina;
     public int CurrentStaminaRounded => Mathf.RoundToInt(currentStamina);
@@ -396,6 +453,7 @@ public class Player : Entity
     public CapsuleCollider2D DeathCollider => deathCollider;
     public bool IsDead => health != null && health.IsDead;
     public bool IsHazardRecoveryActive => hazardRecoveryActive;
+    public bool IsMovementLocked => movementLocked;
 
     protected override void Awake()
     {
@@ -458,6 +516,7 @@ public class Player : Entity
     private void OnDisable()
     {
         EndDashEnemyCollisionIgnore();
+        CancelBossIntroMove();
         if (input != null)
         {
             input.Player.UsePotion.started -= HandleUsePotionPerformed;
@@ -526,7 +585,7 @@ public class Player : Entity
             return;
         }
 
-        moveInput = input.Player.Movement.ReadValue<Vector2>();
+        moveInput = movementLocked ? Vector2.zero : input.Player.Movement.ReadValue<Vector2>();
         UpdateDownInputPressedThisFrame();
         if (HealingPotionInputPressed())
         {
@@ -541,6 +600,11 @@ public class Player : Entity
         UpdateStaminaRecoveryTimer();
         UpdateStaminaRecovery();
         UpdateWallContactStaminaDrain();
+
+        if (bossIntroMoveActive && stateMachine.CurrentState != moveState)
+        {
+            stateMachine.ChangeState(moveState);
+        }
 
         TryEnterCounterAttackState();
 
@@ -563,6 +627,29 @@ public class Player : Entity
         }
 
         stateMachine.CurrentState?.FixedUpdate();
+
+        if (bossIntroMoveActive && rb != null)
+        {
+            bool reachedTarget = bossIntroMoveDirection > 0
+                ? rb.position.x >= bossIntroMoveTargetX
+                : rb.position.x <= bossIntroMoveTargetX;
+
+            if (reachedTarget)
+            {
+                rb.position = new Vector2(bossIntroMoveTargetX, rb.position.y);
+                CancelBossIntroMove();
+                if (stateMachine != null && idleState != null)
+                {
+                    stateMachine.ChangeState(idleState);
+                }
+            }
+        }
+
+        if (movementLocked && !bossIntroMoveActive && rb != null)
+        {
+            rb.velocity = new Vector2(0f, rb.velocity.y);
+        }
+
         UpdateLastGroundedSafePosition();
     }
 
@@ -574,6 +661,7 @@ public class Player : Entity
     private bool TryEnterCounterAttackState()
     {
         if (counterAttackState == null
+            || movementLocked
             || !CounterInputPressed()
             || stateMachine.CurrentState == counterAttackState
             || stateMachine.CurrentState == deadState
@@ -888,10 +976,10 @@ public class Player : Entity
             || attackIndex < 0
             || attackIndex >= basicAttackDamages.Length)
         {
-            return 12;
+            return ApplyAttackDamageOverride(12);
         }
 
-        return Mathf.Max(1, basicAttackDamages[attackIndex]);
+        return ApplyAttackDamageOverride(Mathf.Max(1, basicAttackDamages[attackIndex]));
     }
 
     public Entity_AttackData GetAirAttackData(int attackIndex)
@@ -912,16 +1000,31 @@ public class Player : Entity
             || attackIndex < 0
             || attackIndex >= airAttackDamages.Length)
         {
-            return 10;
+            return ApplyAttackDamageOverride(10);
         }
 
-        return Mathf.Max(1, airAttackDamages[attackIndex]);
+        return ApplyAttackDamageOverride(Mathf.Max(1, airAttackDamages[attackIndex]));
     }
 
     public void SetCombatDamage(int damage)
     {
         combat ??= GetComponent<Entity_Combat>();
-        combat?.SetDamage(damage);
+        combat?.SetDamage(ApplyAttackDamageOverride(damage));
+    }
+
+    private int ApplyAttackDamageOverride(int damage)
+    {
+        if (forceAllAttackDamageTo999)
+        {
+            return 999;
+        }
+
+        if (forceAllAttackDamageTo1)
+        {
+            return 1;
+        }
+
+        return Mathf.Max(1, damage);
     }
 
     public float GetBasicAttackComboInputLeftWindow(int attackIndex)

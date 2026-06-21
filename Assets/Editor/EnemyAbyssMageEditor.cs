@@ -176,7 +176,8 @@ public class EnemyAbyssMageEditor : Editor
                 new FieldInfo("deadSlideAcceleration", "Dead Slide Acceleration", "slide acceleration"),
                 new FieldInfo("deadDropThroughDelay", "Dead Drop Through Delay", "drop through"),
                 new FieldInfo("deadDisappearDelay", "Dead Disappear Delay", "despawn"),
-                new FieldInfo("deadFallAngle", "Dead Fall Angle", "death angle")
+                new FieldInfo("deadFallAngle", "Dead Fall Angle", "death angle"),
+                new FieldInfo("defeatIsPermanent", "Defeat Is Permanent", "boss defeat revive")
             }
         )
     };
@@ -198,6 +199,10 @@ public class EnemyAbyssMageEditor : Editor
         if (GUILayout.Button("Sync Scene Instance To Boss Setup"))
         {
             EnemyAbyssMageSceneConfigurator.ConfigureInstance(((Enemy_AbyssMage)target).gameObject);
+        }
+        if (GUILayout.Button("Save Scene Instance To Boss Prefab"))
+        {
+            EnemyAbyssMageSceneConfigurator.SaveSelectedAbyssMageInstanceToBossPrefab();
         }
         DrawHoverAnchorUtility();
         DrawSpellStartPointUtility();
@@ -948,6 +953,7 @@ public class EnemyAbyssMageEditor : Editor
 
 public static class EnemyAbyssMageSceneConfigurator
 {
+    private const string BossPrefabPath = "Assets/Prefabs/Enemy/Boss/Enemy_AbyssMage.prefab";
     private const string BossSpritePath = "Assets/Graphics/Characters/Boss/AbyssMage/Enemy_AbyssMage.png";
     private const string BossControllerPath = "Assets/Animations/AnimatorControllers/Characters/Boss/Enemy_AbyssMage.controller";
     private const string BossFireballPrefabPath = "Assets/Prefabs/Enemy/Boss/Enemy_AbyssMage_Fireball.prefab";
@@ -982,6 +988,41 @@ public static class EnemyAbyssMageSceneConfigurator
         }
 
         ConfigureInstance(root);
+    }
+
+    [MenuItem("Tools/Enemy/Save Selected Abyss Mage Instance To Boss Prefab")]
+    public static void SaveSelectedAbyssMageInstanceToBossPrefab()
+    {
+        GameObject source = FindSelectedAbyssMageRoot();
+        if (source == null)
+        {
+            Debug.LogWarning("Select an Abyss Mage scene instance first.");
+            return;
+        }
+
+        GameObject prefabRoot = UnityEngine.Object.Instantiate(source);
+        prefabRoot.name = "Enemy_AbyssMage";
+
+        try
+        {
+            ConfigureInstance(prefabRoot);
+            PrefabUtility.SaveAsPrefabAsset(prefabRoot, BossPrefabPath);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(prefabRoot);
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(BossPrefabPath);
+        if (prefab != null)
+        {
+            EditorGUIUtility.PingObject(prefab);
+        }
+
+        Debug.Log($"Saved Abyss Mage scene instance to prefab: {BossPrefabPath}");
     }
 
     public static void ConfigureInstance(GameObject root)
@@ -1163,7 +1204,10 @@ public static class EnemyAbyssMageSceneConfigurator
         EditorUtility.SetDirty(root);
         EditorUtility.SetDirty(mage);
         EditorUtility.SetDirty(health);
-        EditorSceneManager.MarkSceneDirty(root.scene);
+        if (root.scene.IsValid() && root.scene.isLoaded)
+        {
+            EditorSceneManager.MarkSceneDirty(root.scene);
+        }
     }
 
     private static GameObject FindSelectedAbyssMageRoot()

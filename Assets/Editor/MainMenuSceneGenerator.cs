@@ -154,7 +154,7 @@ public static class MainMenuSceneGenerator
         CreateOrMoveText(mainFooter.transform, "Hint", "Enter the world, adjust settings, or exit cleanly.", 16, FontStyle.Normal, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.88f, 0.62f), 26f);
 
         GameObject optionsPanel = CreateOrGetPanel(menuRoot.transform, OptionsPanelName, new Color(0.06f, 0.06f, 0.08f, 0.98f));
-        SetupPanelRect(optionsPanel.GetComponent<RectTransform>(), new Vector2(680f, 680f));
+        SetupPanelRect(optionsPanel.GetComponent<RectTransform>(), new Vector2(680f, 760f));
         SetupPanelStack(optionsPanel, 16f, new RectOffset(44, 48, 44, 40));
         CreatePanelFrame(optionsPanel.transform, MainFrameName, new Color(0.12f, 0.12f, 0.14f, 0.96f));
         GameObject optionsContent = CreateOrGetContainer(optionsPanel.transform, MainContentName);
@@ -179,12 +179,15 @@ public static class MainMenuSceneGenerator
         }
 
         CreateOrMoveSliderRow(optionsSettings.transform, "Master Volume", out Slider volumeSlider);
+        CreateOrMoveSliderRow(optionsSettings.transform, "BGM Volume", out Slider bgmVolumeSlider);
+        CreateOrMoveSliderRow(optionsSettings.transform, "SFX Volume", out Slider sfxVolumeSlider);
         CreateOrMoveToggleRow(optionsSettings.transform, "Fullscreen", out Toggle fullscreenToggle);
+        Button resetButton = CreateOrMoveButton(optionsFooter.transform, "ResetVolumeButton", "Restore Defaults");
         Button backButton = CreateOrMoveButton(optionsFooter.transform, "BackButton", "Back");
         DecorateMainButton(backButton, false);
 
         options.Configure(mainPanel);
-        options.Bind(volumeSlider, fullscreenToggle);
+        options.Bind(volumeSlider, bgmVolumeSlider, sfxVolumeSlider, fullscreenToggle);
         optionsPanel.SetActive(false);
 
         mainMenu.Configure(mainPanel, optionsPanel);
@@ -192,7 +195,7 @@ public static class MainMenuSceneGenerator
         mainMenuObject.FindProperty("continueButton").objectReferenceValue = continueButton;
         mainMenuObject.ApplyModifiedPropertiesWithoutUndo();
 
-        BindMenuButtons(playButton, continueButton, newGameButton, optionsButton, quitButton, backButton, options, volumeSlider, fullscreenToggle);
+        BindMenuButtons(playButton, continueButton, newGameButton, optionsButton, quitButton, resetButton, backButton, options, volumeSlider, bgmVolumeSlider, sfxVolumeSlider, fullscreenToggle);
 
         EditorUtility.SetDirty(gameManager);
         EditorUtility.SetDirty(saveManager);
@@ -239,7 +242,7 @@ public static class MainMenuSceneGenerator
         CreateOrMoveText(mainFooter.transform, "Hint", "Enter the world, adjust settings, or exit cleanly.", 16, FontStyle.Normal, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.88f, 0.62f), 26f);
 
         GameObject optionsPanel = CreateOrGetPanel(menuRoot, OptionsPanelName, new Color(0.06f, 0.06f, 0.08f, 0.98f));
-        SetupPanelRect(optionsPanel.GetComponent<RectTransform>(), new Vector2(680f, 680f));
+        SetupPanelRect(optionsPanel.GetComponent<RectTransform>(), new Vector2(680f, 760f));
         SetupPanelStack(optionsPanel, 16f, new RectOffset(44, 48, 44, 40));
         CreatePanelFrame(optionsPanel.transform, MainFrameName, new Color(0.12f, 0.12f, 0.14f, 0.96f));
         GameObject optionsContent = CreateOrGetContainer(optionsPanel.transform, MainContentName);
@@ -257,7 +260,10 @@ public static class MainMenuSceneGenerator
         CreateOrMoveText(optionsHeader.transform, "OptionsTitle", "Options", 50, FontStyle.Bold, TextAnchor.MiddleCenter, new Color(0.98f, 0.94f, 0.8f, 1f), 92f);
         CreateOrMoveDivider(optionsHeader.transform, "OptionsRule", new Color(0.85f, 0.74f, 0.35f, 0.25f), 1f, 180f);
         CreateOrMoveSliderRow(optionsSettings.transform, "Master Volume", out Slider volumeSlider);
+        CreateOrMoveSliderRow(optionsSettings.transform, "BGM Volume", out Slider bgmVolumeSlider);
+        CreateOrMoveSliderRow(optionsSettings.transform, "SFX Volume", out Slider sfxVolumeSlider);
         CreateOrMoveToggleRow(optionsSettings.transform, "Fullscreen", out Toggle fullscreenToggle);
+        CreateOrMoveButton(optionsFooter.transform, "ResetVolumeButton", "Restore Defaults");
         CreateOrMoveButton(optionsFooter.transform, "BackButton", "Back");
 
         UI_MainMenu mainMenu = menuRoot.GetComponent<UI_MainMenu>();
@@ -638,9 +644,12 @@ public static class MainMenuSceneGenerator
         Button newGameButton,
         Button optionsButton,
         Button quitButton,
+        Button resetButton,
         Button backButton,
         UI_Options options,
         Slider volumeSlider,
+        Slider bgmVolumeSlider,
+        Slider sfxVolumeSlider,
         Toggle fullscreenToggle)
     {
         UI_MainMenu mainMenu = playButton != null ? playButton.GetComponentInParent<UI_MainMenu>() : null;
@@ -688,10 +697,28 @@ public static class MainMenuSceneGenerator
             UnityEventTools.AddPersistentListener(backButton.onClick, options.CloseBTN);
         }
 
+        if (resetButton != null && options != null)
+        {
+            ClearPersistentListeners(resetButton.onClick);
+            UnityEventTools.AddPersistentListener(resetButton.onClick, options.ResetVolumeDefaults);
+        }
+
         if (volumeSlider != null && options != null)
         {
             ClearPersistentListeners(volumeSlider.onValueChanged);
             UnityEventTools.AddPersistentListener(volumeSlider.onValueChanged, options.MasterVolumeValue);
+        }
+
+        if (bgmVolumeSlider != null && options != null)
+        {
+            ClearPersistentListeners(bgmVolumeSlider.onValueChanged);
+            UnityEventTools.AddPersistentListener(bgmVolumeSlider.onValueChanged, options.BgmVolumeValue);
+        }
+
+        if (sfxVolumeSlider != null && options != null)
+        {
+            ClearPersistentListeners(sfxVolumeSlider.onValueChanged);
+            UnityEventTools.AddPersistentListener(sfxVolumeSlider.onValueChanged, options.SfxVolumeValue);
         }
 
         if (fullscreenToggle != null && options != null)

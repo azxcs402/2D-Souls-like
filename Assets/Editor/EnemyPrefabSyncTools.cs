@@ -15,6 +15,25 @@ internal static class EnemyPrefabSyncTools
         "Enemy_Reaper"
     };
 
+    [MenuItem("Tools/Enemy/Apply Selected Enemy Instance To Its Prefab")]
+    public static void ApplySelectedEnemyInstanceToItsPrefab()
+    {
+        GameObject root = GetSelectedEnemyRoot();
+        if (root == null)
+        {
+            Debug.LogWarning("Select a prefab instance root or any child under it first.");
+            return;
+        }
+
+        if (!PrefabUtility.IsPartOfPrefabInstance(root))
+        {
+            Debug.LogWarning($"Skipped '{root.name}' because it is not a prefab instance.");
+            return;
+        }
+
+        ApplyRootToPrefab(root);
+    }
+
     [MenuItem("Tools/Enemy/Apply Selected Enemy Instances To Prefabs")]
     public static void ApplySelectedEnemyInstancesToPrefabs()
     {
@@ -46,11 +65,8 @@ internal static class EnemyPrefabSyncTools
                 continue;
             }
 
-            Undo.RegisterFullObjectHierarchyUndo(root, $"Apply {root.name} To Prefab");
-            PrefabUtility.ApplyPrefabInstance(root, InteractionMode.UserAction);
-            EditorUtility.SetDirty(root);
+            ApplyRootToPrefab(root);
             appliedCount++;
-            Debug.Log($"Applied scene instance '{root.name}' back to its prefab asset.", root);
         }
 
         EditorSceneManager.MarkAllScenesDirty();
@@ -113,6 +129,33 @@ internal static class EnemyPrefabSyncTools
         }
 
         return targets;
+    }
+
+    private static GameObject GetSelectedEnemyRoot()
+    {
+        foreach (GameObject selected in Selection.gameObjects)
+        {
+            if (selected == null)
+            {
+                continue;
+            }
+
+            GameObject root = PrefabUtility.GetNearestPrefabInstanceRoot(selected);
+            if (root != null)
+            {
+                return root;
+            }
+        }
+
+        return null;
+    }
+
+    private static void ApplyRootToPrefab(GameObject root)
+    {
+        Undo.RegisterFullObjectHierarchyUndo(root, $"Apply {root.name} To Prefab");
+        PrefabUtility.ApplyPrefabInstance(root, InteractionMode.UserAction);
+        EditorUtility.SetDirty(root);
+        Debug.Log($"Applied scene instance '{root.name}' back to its prefab asset.", root);
     }
 
     private static bool IsDefaultEnemyRootName(string name)

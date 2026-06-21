@@ -126,7 +126,7 @@ public class RuntimeMenuBootstrapper : MonoBehaviour
 
     private UI_Options CreateOptionsPanel(Transform parent, GameObject mainPanel)
     {
-        GameObject panel = CreatePanel(parent, "OptionsPanel", new Vector2(0.5f, 0.5f), new Vector2(540f, 520f));
+        GameObject panel = CreatePanel(parent, "OptionsPanel", new Vector2(0.5f, 0.5f), new Vector2(540f, 640f));
         VerticalLayoutGroup layout = panel.AddComponent<VerticalLayoutGroup>();
         layout.childAlignment = TextAnchor.MiddleCenter;
         layout.childForceExpandHeight = false;
@@ -144,15 +144,16 @@ public class RuntimeMenuBootstrapper : MonoBehaviour
             .AddComponent<LayoutElement>().minHeight = 90f;
 
         UI_Options options = panel.AddComponent<UI_Options>();
-        GameObject volumeRow = CreateLabeledSlider(panel.transform, "Master Volume", out Slider volumeSlider);
-        GameObject fullscreenRow = CreateLabeledToggle(panel.transform, "Fullscreen", out Toggle fullscreenToggle);
+        CreateLabeledSlider(panel.transform, "Master Volume", out Slider volumeSlider);
+        CreateLabeledSlider(panel.transform, "BGM Volume", out Slider bgmSlider);
+        CreateLabeledSlider(panel.transform, "SFX Volume", out Slider sfxSlider);
+        CreateLabeledToggle(panel.transform, "Fullscreen", out Toggle fullscreenToggle);
 
-        options.Bind(volumeSlider, fullscreenToggle);
+        options.Bind(volumeSlider, bgmSlider, sfxSlider, fullscreenToggle);
 
-        volumeSlider.onValueChanged.AddListener(options.MasterVolumeValue);
-        fullscreenToggle.onValueChanged.AddListener(options.FullscreenValue);
-
+        Button resetButton = CreateButton(panel.transform, "ResetVolume", "Restore Defaults");
         Button backButton = CreateButton(panel.transform, "Back", "Back");
+        resetButton.onClick.AddListener(options.ResetVolumeDefaults);
         backButton.onClick.AddListener(() =>
         {
             options.CloseBTN();

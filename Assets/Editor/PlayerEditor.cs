@@ -12,6 +12,12 @@ public class PlayerEditor : Editor
     private static readonly SearchableSection[] Sections =
     {
         new SearchableSection(
+            "Damage Override Info",
+            "Temporary testing switches for forcing all player attack damage.",
+            new SearchableField("forceAllAttackDamageTo999", "Force All Attack Damage To 999", "999 damage test override"),
+            new SearchableField("forceAllAttackDamageTo1", "Force All Attack Damage To 1", "1 damage test override")
+        ),
+        new SearchableSection(
             "Move Info",
             "Basic ground and air movement tuning.",
             new SearchableField("moveSpeed", "Move Speed", "movement run walk"),
@@ -62,6 +68,7 @@ public class PlayerEditor : Editor
             new SearchableField("basicAttackMoveDistances", "Basic Attack Move Distances", "move distance"),
             new SearchableField("basicAttackKnockbackForces", "Basic Attack Knockback Forces", "knockback", true),
             new SearchableField("basicAttackData", "Basic Attack Data", "hitbox radius"),
+            new SearchableField("basicAttackDamages", "Basic Attack Damages", "damage hit power"),
             new SearchableField("basicAttackComboInputLeftWindows", "Basic Attack Combo Input Left Windows", "combo"),
             new SearchableField("basicAttackComboInputRightWindows", "Basic Attack Combo Input Right Windows", "combo"),
             new SearchableField("basicAttackTurnInputLeftWindows", "Basic Attack Turn Input Left Windows", "turn"),
@@ -80,6 +87,7 @@ public class PlayerEditor : Editor
             new SearchableField("airAttackMoveDistances", "Air Attack Move Distances", "air move"),
             new SearchableField("airAttackKnockbackForces", "Air Attack Knockback Forces", "air knockback", true),
             new SearchableField("airAttackData", "Air Attack Data", "air hitbox"),
+            new SearchableField("airAttackDamages", "Air Attack Damages", "air damage hit power"),
             new SearchableField("airAttackComboInputLeftWindows", "Air Attack Combo Input Left Windows", "air combo"),
             new SearchableField("airAttackComboInputRightWindows", "Air Attack Combo Input Right Windows", "air combo"),
             new SearchableField("airAttackTurnInputLeftWindows", "Air Attack Turn Input Left Windows", "air turn"),
@@ -106,6 +114,7 @@ public class PlayerEditor : Editor
             new SearchableField("fallAttackEndAnimationMaxSpeed", "Fall Attack End Animation Max Speed", "end speed"),
             new SearchableField("fallAttackEndAnimationLandingOffset", "Fall Attack End Animation Landing Offset", "landing"),
             new SearchableField("fallAttackData", "Fall Attack Data", "fall hitbox"),
+            new SearchableField("fallAttackDamage", "Fall Attack Damage", "fall damage"),
             new SearchableField("fallAttackExtendedData", "Fall Attack Extended Data", "extended fall hitbox")
         ),
         new SearchableSection(
@@ -180,9 +189,9 @@ public class PlayerEditor : Editor
             ref showOnlyMatches,
             SearchPrefsKey,
             "Player Inspector Search",
-            new[] { "Move", "Jump", "Dash", "Basic Attack", "Air Attack", "Fall Attack", "Stamina", "Healing Potion", "Death" }
+            new[] { "Move", "Jump", "Dash", "Basic Attack", "Air Attack", "Fall Attack", "Damage Override", "Stamina", "Healing Potion", "Death" }
         );
-        SearchableInspectorDrawer.DrawQuickFindButtons(SetSearch, "move", "jump", "dash", "basic attack", "air attack", "fall attack", "stamina", "healing potion", "death");
+        SearchableInspectorDrawer.DrawQuickFindButtons(SetSearch, "move", "jump", "dash", "basic attack", "air attack", "fall attack", "damage override", "stamina", "healing potion", "death");
 
         EditorGUILayout.Space();
         SearchableInspectorDrawer.DrawSections(serializedObject, Sections, searchQuery, showOnlyMatches);

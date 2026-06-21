@@ -311,12 +311,23 @@ public class ArenaFloatingPlatformControllerEditor : Editor
     {
         serializedObject.Update();
 
+        ArenaFloatingPlatformController platform = (ArenaFloatingPlatformController)target;
+
+        EditorGUILayout.Space(2f);
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Preview Rise Sequence", GUILayout.Height(26f)))
+            {
+                ArenaFloatingPlatformPreviewDriver.Play(platform, appearance: true);
+            }
+        }
+
+        EditorGUILayout.Space(4f);
         EditorGUILayout.HelpBox(
             "Paint each child Tilemap through Tile Palette:\n" +
-            "- Background1: first visible platform stage\n" +
-            "- Background2: second visible platform stage\n" +
-            "- Solid: final solid platform with collision\n" +
-            "During play, ArenaEncounterController will switch between the stages automatically.",
+            "- GroundReferencePoint: reference point for the ground line\n" +
+            "- Platform_1 / Platform_2 / Platform_3: three solid platform layers that rise in sequence\n" +
+            "During play, ArenaEncounterController will trigger the platform sequence automatically.",
             MessageType.Info);
 
         DrawDefaultInspector();
@@ -324,7 +335,6 @@ public class ArenaFloatingPlatformControllerEditor : Editor
         EditorGUILayout.Space(8f);
         EditorGUILayout.LabelField("Quick Select", EditorStyles.boldLabel);
 
-        ArenaFloatingPlatformController platform = (ArenaFloatingPlatformController)target;
         if (GUILayout.Button("Generate / Repair Template"))
         {
             GenerateOrRepairPlatformTemplate(platform);
@@ -339,23 +349,33 @@ public class ArenaFloatingPlatformControllerEditor : Editor
                 EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
             }
 
-            if (GUILayout.Button("Preview BG1"))
+            if (GUILayout.Button("Preview Platform 1"))
             {
-                platform.SetBackground1();
+                platform.SetPlatform1();
                 EditorUtility.SetDirty(platform);
                 EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
             }
 
-            if (GUILayout.Button("Preview BG2"))
+            if (GUILayout.Button("Preview Platform 2"))
             {
-                platform.SetBackground2();
+                platform.SetPlatform2();
                 EditorUtility.SetDirty(platform);
                 EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
             }
 
-            if (GUILayout.Button("Preview Solid"))
+            if (GUILayout.Button("Preview Platform 3"))
             {
-                platform.SetSolid();
+                platform.SetPlatform3();
+                EditorUtility.SetDirty(platform);
+                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+            }
+        }
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Preview All Visible"))
+            {
+                platform.SetAllVisible();
                 EditorUtility.SetDirty(platform);
                 EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
             }
@@ -374,9 +394,10 @@ public class ArenaFloatingPlatformControllerEditor : Editor
             }
         }
 
-        DrawSelectButton(platform.transform, "Background1");
-        DrawSelectButton(platform.transform, "Background2");
-        DrawSelectButton(platform.transform, "Solid");
+        DrawSelectButton(platform.transform, "GroundReferencePoint");
+        DrawSelectButton(platform.transform, "Platform_1");
+        DrawSelectButton(platform.transform, "Platform_2");
+        DrawSelectButton(platform.transform, "Platform_3");
 
         serializedObject.ApplyModifiedProperties();
     }
@@ -404,20 +425,48 @@ public class ArenaFloatingPlatformControllerEditor : Editor
         Transform root = platform.transform;
         Undo.RegisterFullObjectHierarchyUndo(platform.gameObject, "Generate Or Repair Arena Floating Platform");
 
-        GameObject background1 = EnsurePlatformLayer(root, "Background1", false, 3);
-        GameObject background2 = EnsurePlatformLayer(root, "Background2", false, 4);
-        GameObject solid = EnsurePlatformLayer(root, "Solid", true, 5);
+        GameObject groundReferencePoint = EnsureGroundReferencePoint(root);
+        GameObject platform1 = EnsurePlatformLayer(root, "Platform_1", true, 5);
+        GameObject platform2 = EnsurePlatformLayer(root, "Platform_2", true, 6);
+        GameObject platform3 = EnsurePlatformLayer(root, "Platform_3", true, 7);
+
+        RemoveChildIfExists(root, "Background1");
+        RemoveChildIfExists(root, "Background2");
 
         SerializedObject so = new SerializedObject(platform);
-        SetObjectReference(so, "background1Tilemap", background1 != null ? background1.GetComponent<Tilemap>() : null);
-        SetObjectReference(so, "background2Tilemap", background2 != null ? background2.GetComponent<Tilemap>() : null);
-        SetObjectReference(so, "solidTilemap", solid != null ? solid.GetComponent<Tilemap>() : null);
+        SetObjectReference(so, "groundReferencePoint", groundReferencePoint != null ? groundReferencePoint.transform : null);
+        SetObjectReference(so, "platform1Tilemap", platform1 != null ? platform1.GetComponent<Tilemap>() : null);
+        SetObjectReference(so, "platform2Tilemap", platform2 != null ? platform2.GetComponent<Tilemap>() : null);
+        SetObjectReference(so, "platform3Tilemap", platform3 != null ? platform3.GetComponent<Tilemap>() : null);
+        SetFloatValue(so, "platformRiseDuration", 0.85f);
         so.ApplyModifiedPropertiesWithoutUndo();
 
         EditorUtility.SetDirty(platform);
         EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
         Selection.activeGameObject = platform.gameObject;
         EditorGUIUtility.PingObject(platform.gameObject);
+    }
+
+    private static GameObject EnsureGroundReferencePoint(Transform parent)
+    {
+        if (parent == null)
+        {
+            return null;
+        }
+
+        Transform child = parent.Find("GroundReferencePoint");
+        GameObject childObject = child != null ? child.gameObject : new GameObject("GroundReferencePoint");
+        if (child == null)
+        {
+            Undo.RegisterCreatedObjectUndo(childObject, "Create GroundReferencePoint");
+            Undo.SetTransformParent(childObject.transform, parent, "Parent GroundReferencePoint");
+        }
+
+        childObject.transform.localPosition = Vector3.zero;
+        childObject.transform.localRotation = Quaternion.identity;
+        childObject.transform.localScale = Vector3.one;
+        childObject.layer = LayerMask.NameToLayer("Default");
+        return childObject;
     }
 
     private static GameObject EnsurePlatformLayer(Transform parent, string childName, bool includeCollider, int sortingOrder)
@@ -486,6 +535,20 @@ public class ArenaFloatingPlatformControllerEditor : Editor
         return childObject;
     }
 
+    private static void RemoveChildIfExists(Transform parent, string childName)
+    {
+        if (parent == null || string.IsNullOrWhiteSpace(childName))
+        {
+            return;
+        }
+
+        Transform child = parent.Find(childName);
+        if (child != null)
+        {
+            Undo.DestroyObjectImmediate(child.gameObject);
+        }
+    }
+
     private static void SetObjectReference(SerializedObject so, string propertyName, Object value)
     {
         if (so == null)
@@ -499,13 +562,28 @@ public class ArenaFloatingPlatformControllerEditor : Editor
             property.objectReferenceValue = value;
         }
     }
+
+    private static void SetFloatValue(SerializedObject so, string propertyName, float value)
+    {
+        if (so == null)
+        {
+            return;
+        }
+
+        SerializedProperty property = so.FindProperty(propertyName);
+        if (property != null && property.propertyType == SerializedPropertyType.Float)
+        {
+            property.floatValue = value;
+        }
+    }
 }
 
 internal static class ArenaFloatingPlatformPreviewDriver
 {
     private static readonly FieldInfo WaitSecondsField = typeof(WaitForSeconds).GetField("m_Seconds", BindingFlags.Instance | BindingFlags.NonPublic);
-    private static IEnumerator routine;
-    private static ArenaFloatingPlatformController platform;
+    private static readonly Stack<IEnumerator> routineStack = new Stack<IEnumerator>();
+    private static IArenaFloatingPlatformPreviewable platform;
+    private static MonoBehaviour platformBehaviour;
     private static double nextStepTime;
     private static bool waiting;
 
@@ -514,7 +592,7 @@ internal static class ArenaFloatingPlatformPreviewDriver
         EditorApplication.update += Tick;
     }
 
-    public static void Play(ArenaFloatingPlatformController targetPlatform, bool appearance)
+    public static void Play(IArenaFloatingPlatformPreviewable targetPlatform, bool appearance)
     {
         if (targetPlatform == null)
         {
@@ -522,9 +600,11 @@ internal static class ArenaFloatingPlatformPreviewDriver
         }
 
         platform = targetPlatform;
-        routine = appearance
+        platformBehaviour = targetPlatform as MonoBehaviour;
+        routineStack.Clear();
+        routineStack.Push(appearance
             ? targetPlatform.PlayAppearanceSequence()
-            : targetPlatform.PlayDisappearanceSequence();
+            : targetPlatform.PlayDisappearanceSequence());
         waiting = false;
         nextStepTime = 0d;
         Advance();
@@ -532,7 +612,7 @@ internal static class ArenaFloatingPlatformPreviewDriver
 
     private static void Tick()
     {
-        if (routine == null || platform == null)
+        if (routineStack.Count == 0 || platform == null)
         {
             return;
         }
@@ -548,35 +628,60 @@ internal static class ArenaFloatingPlatformPreviewDriver
 
     private static void Advance()
     {
-        if (routine == null || platform == null)
+        if (platform == null || routineStack.Count == 0)
         {
-            routine = null;
+            routineStack.Clear();
             platform = null;
+            platformBehaviour = null;
+            waiting = false;
             return;
         }
 
-        while (routine.MoveNext())
+        while (routineStack.Count > 0)
         {
+            IEnumerator routine = routineStack.Peek();
+            if (!routine.MoveNext())
+            {
+                routineStack.Pop();
+                continue;
+            }
+
             object yielded = routine.Current;
+            if (yielded is IEnumerator nested)
+            {
+                routineStack.Push(nested);
+                continue;
+            }
+
             if (yielded is WaitForSeconds wait)
             {
                 double seconds = GetSeconds(wait);
                 nextStepTime = EditorApplication.timeSinceStartup + seconds;
                 waiting = true;
-                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+                if (platformBehaviour != null)
+                {
+                    EditorSceneManager.MarkSceneDirty(platformBehaviour.gameObject.scene);
+                }
                 return;
             }
 
             if (yielded == null)
             {
-                EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
+                if (platformBehaviour != null)
+                {
+                    EditorSceneManager.MarkSceneDirty(platformBehaviour.gameObject.scene);
+                }
                 return;
             }
         }
 
-        EditorSceneManager.MarkSceneDirty(platform.gameObject.scene);
-        routine = null;
+        if (platformBehaviour != null)
+        {
+            EditorSceneManager.MarkSceneDirty(platformBehaviour.gameObject.scene);
+        }
+        routineStack.Clear();
         platform = null;
+        platformBehaviour = null;
         waiting = false;
     }
 

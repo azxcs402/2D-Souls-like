@@ -45,7 +45,7 @@ public class Player_GroundedState : EntityState
         }
 
         // Jump
-        if (player.input.Player.Jump.triggered && player.CanStartJump())
+        if (!player.IsMovementLocked && player.input.Player.Jump.triggered && player.CanStartJump())
         {
             player.TryConsumeJumpStamina();
             stateMachine.ChangeState(player.jumpState);

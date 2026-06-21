@@ -315,7 +315,14 @@ public class ArenaEncounterController : MonoBehaviour
                             yield return floatingPlatform.PlayDisappearanceSequence();
                             break;
                         default:
-                            yield return PlayLegacyPlatformTriggerIfNeeded();
+                            if (currentWaveIndex == 1)
+                            {
+                                yield return floatingPlatform.PlayAppearanceSequence();
+                            }
+                            else
+                            {
+                                yield return PlayLegacyPlatformTriggerIfNeeded();
+                            }
                             break;
                     }
                 }
@@ -668,37 +675,44 @@ public class ArenaEncounterController : MonoBehaviour
             yield return floatingPlatform.PlayDisappearanceSequence();
         }
     }
+
 }
 
 [DisallowMultipleComponent]
-public class ArenaFloatingPlatformController : MonoBehaviour
+public class ArenaFloatingPlatformController : MonoBehaviour, IArenaFloatingPlatformPreviewable
 {
     private const string GroundLayerName = "Ground";
+    private const int PlatformCount = 3;
 
-    [Header("Tilemaps")]
-    [SerializeField] private Tilemap background1Tilemap;
-    [SerializeField] private Tilemap background2Tilemap;
-    [SerializeField] private Tilemap solidTilemap;
+    [Header("References")]
+    [SerializeField] private Transform groundReferencePoint;
+    [SerializeField] private Tilemap platform1Tilemap;
+    [SerializeField] private Tilemap platform2Tilemap;
+    [SerializeField] private Tilemap platform3Tilemap;
 
     [Header("Appearance Sequence")]
-    [SerializeField, Min(0f)] private float hiddenToBackground1Delay = 1f;
-    [SerializeField, Min(0f)] private float background1ToBackground2Delay = 1f;
-    [SerializeField, Min(0f)] private float background2ToSolidDelay = 1f;
+    [SerializeField, Min(0f)] private float appearanceStartDelay = 0f;
+    [SerializeField, Min(0f)] private float platformRiseInterval = 0.7f;
+    [SerializeField, Min(0f)] private float platformRiseDistance = 1.5f;
+    [SerializeField, Min(0f)] private float platformRiseDuration = 0.85f;
+    [SerializeField] private AnimationCurve platformRiseCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
     [Header("Disappearance Sequence")]
-    [SerializeField, Min(0f)] private float solidToBackground2Delay = 1f;
-    [SerializeField, Min(0f)] private float background2ToBackground1Delay = 1f;
-    [SerializeField, Min(0f)] private float background1ToHiddenDelay = 1f;
+    [SerializeField, Min(0f)] private float disappearanceStartDelay = 0f;
 
     [Header("Editor")]
     [SerializeField] private bool startHidden = true;
 
-    private TilemapRenderer background1Renderer;
-    private TilemapRenderer background2Renderer;
-    private TilemapRenderer solidRenderer;
-    private TilemapCollider2D solidCollider;
-    private Rigidbody2D solidBody;
-    private CompositeCollider2D solidComposite;
+    private Tilemap[] platformTilemaps;
+    private TilemapRenderer[] platformRenderers;
+    private TilemapCollider2D[] platformColliders;
+    private Rigidbody2D[] platformBodies;
+    private CompositeCollider2D[] platformComposites;
+    private Vector3[] platformRestWorldPositions = new Vector3[PlatformCount];
+    private bool[] platformRestWorldPositionCached = new bool[PlatformCount];
+#if UNITY_EDITOR
+    private double lastEditorTimeSample;
+#endif
 
     public bool IsVisible { get; private set; }
 
@@ -712,7 +726,7 @@ public class ArenaFloatingPlatformController : MonoBehaviour
         }
         else
         {
-            SetSolid();
+            SetAllVisible();
         }
     }
 
@@ -720,121 +734,235 @@ public class ArenaFloatingPlatformController : MonoBehaviour
     {
         ResolveReferences();
 
-        hiddenToBackground1Delay = Mathf.Max(0f, hiddenToBackground1Delay);
-        background1ToBackground2Delay = Mathf.Max(0f, background1ToBackground2Delay);
-        background2ToSolidDelay = Mathf.Max(0f, background2ToSolidDelay);
-        solidToBackground2Delay = Mathf.Max(0f, solidToBackground2Delay);
-        background2ToBackground1Delay = Mathf.Max(0f, background2ToBackground1Delay);
-        background1ToHiddenDelay = Mathf.Max(0f, background1ToHiddenDelay);
+        appearanceStartDelay = Mathf.Max(0f, appearanceStartDelay);
+        platformRiseInterval = Mathf.Max(0f, platformRiseInterval);
+        platformRiseDistance = Mathf.Max(0f, platformRiseDistance);
+        platformRiseDuration = Mathf.Max(0f, platformRiseDuration);
+        disappearanceStartDelay = Mathf.Max(0f, disappearanceStartDelay);
+
+        if (!Application.isPlaying)
+        {
+            CachePlatformRestWorldPositions();
+        }
     }
 
     public IEnumerator PlayAppearanceSequence()
     {
         SetHidden();
-        if (hiddenToBackground1Delay > 0f)
+        if (appearanceStartDelay > 0f)
         {
-            yield return new WaitForSeconds(hiddenToBackground1Delay);
+            yield return new WaitForSeconds(appearanceStartDelay);
         }
 
-        SetBackground1();
-        if (background1ToBackground2Delay > 0f)
+        yield return PlayPlatformRiseSequence(0);
+        if (platformRiseInterval > 0f)
         {
-            yield return new WaitForSeconds(background1ToBackground2Delay);
+            yield return new WaitForSeconds(platformRiseInterval);
         }
 
-        SetBackground2();
-        if (background2ToSolidDelay > 0f)
+        yield return PlayPlatformRiseSequence(1);
+        if (platformRiseInterval > 0f)
         {
-            yield return new WaitForSeconds(background2ToSolidDelay);
+            yield return new WaitForSeconds(platformRiseInterval);
         }
 
-        SetSolid();
+        yield return PlayPlatformRiseSequence(2);
     }
 
     public IEnumerator PlayDisappearanceSequence()
     {
-        SetSolid();
-        if (solidToBackground2Delay > 0f)
+        SetAllVisible();
+        if (disappearanceStartDelay > 0f)
         {
-            yield return new WaitForSeconds(solidToBackground2Delay);
+            yield return new WaitForSeconds(disappearanceStartDelay);
         }
 
-        SetBackground2();
-        if (background2ToBackground1Delay > 0f)
+        yield return PlayPlatformSinkSequence(2);
+        if (platformRiseInterval > 0f)
         {
-            yield return new WaitForSeconds(background2ToBackground1Delay);
+            yield return new WaitForSeconds(platformRiseInterval);
         }
 
-        SetBackground1();
-        if (background1ToHiddenDelay > 0f)
+        yield return PlayPlatformSinkSequence(1);
+        if (platformRiseInterval > 0f)
         {
-            yield return new WaitForSeconds(background1ToHiddenDelay);
+            yield return new WaitForSeconds(platformRiseInterval);
         }
 
-        SetHidden();
+        yield return PlayPlatformSinkSequence(0);
     }
 
     public void SetHidden()
     {
         IsVisible = false;
-        SetRendererAndCollider(background1Renderer, null, false);
-        SetRendererAndCollider(background2Renderer, null, false);
-        SetRendererAndCollider(solidRenderer, solidCollider, false);
-        SetSolidPhysics(false);
+        ResetPlatformWorldPositions();
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            SetPlatformVisible(i, false);
+            SetPlatformPhysics(i, false);
+        }
     }
 
-    public void SetBackground1()
+    public void SetAllVisible()
     {
         IsVisible = true;
-        SetRendererAndCollider(background1Renderer, null, true);
-        SetRendererAndCollider(background2Renderer, null, false);
-        SetRendererAndCollider(solidRenderer, solidCollider, false);
-        SetSolidPhysics(false);
+        ResetPlatformWorldPositions();
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            SetPlatformVisible(i, true);
+            SetPlatformPhysics(i, true);
+        }
     }
 
-    public void SetBackground2()
+    public void SetPlatform1()
     {
-        IsVisible = true;
-        SetRendererAndCollider(background1Renderer, null, false);
-        SetRendererAndCollider(background2Renderer, null, true);
-        SetRendererAndCollider(solidRenderer, solidCollider, false);
-        SetSolidPhysics(false);
+        SetOnlyPlatformVisible(0);
     }
 
-    public void SetSolid()
+    public void SetPlatform2()
     {
-        IsVisible = true;
-        SetRendererAndCollider(background1Renderer, null, false);
-        SetRendererAndCollider(background2Renderer, null, false);
-        SetRendererAndCollider(solidRenderer, solidCollider, true);
-        SetSolidPhysics(true);
+        SetOnlyPlatformVisible(1);
+    }
+
+    public void SetPlatform3()
+    {
+        SetOnlyPlatformVisible(2);
+    }
+
+    private IEnumerator PlayPlatformRiseSequence(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            yield break;
+        }
+
+        Tilemap tilemap = platformTilemaps[platformIndex];
+        if (tilemap == null)
+        {
+            yield break;
+        }
+
+        Vector3 restPosition = GetPlatformRestWorldPosition(platformIndex);
+        Vector3 startPosition = GetPlatformRiseStartWorldPosition(platformIndex, restPosition);
+
+        if (platformRiseDistance <= 0f || platformRiseDuration <= 0f)
+        {
+            tilemap.transform.position = restPosition;
+            SetPlatformVisible(platformIndex, true);
+            SetPlatformPhysics(platformIndex, true);
+            yield break;
+        }
+
+        tilemap.transform.position = startPosition;
+        SetPlatformVisible(platformIndex, true);
+        SetPlatformPhysics(platformIndex, false);
+        BeginPlatformRiseTiming();
+
+        float elapsed = 0f;
+        while (elapsed < platformRiseDuration)
+        {
+            elapsed += GetPlatformRiseDeltaTime();
+            float t = Mathf.Clamp01(elapsed / platformRiseDuration);
+            float easedT = EvaluatePlatformRiseCurve(t);
+            tilemap.transform.position = Vector3.LerpUnclamped(startPosition, restPosition, easedT);
+            yield return null;
+        }
+
+        tilemap.transform.position = restPosition;
+        SetPlatformPhysics(platformIndex, true);
+    }
+
+    private IEnumerator PlayPlatformSinkSequence(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            yield break;
+        }
+
+        Tilemap tilemap = platformTilemaps[platformIndex];
+        if (tilemap == null)
+        {
+            yield break;
+        }
+
+        Vector3 restPosition = GetPlatformRestWorldPosition(platformIndex);
+        Vector3 startPosition = GetPlatformRiseStartWorldPosition(platformIndex, restPosition);
+
+        if (platformRiseDistance <= 0f || platformRiseDuration <= 0f)
+        {
+            tilemap.transform.position = restPosition;
+            SetPlatformVisible(platformIndex, false);
+            SetPlatformPhysics(platformIndex, false);
+            yield break;
+        }
+
+        tilemap.transform.position = restPosition;
+        SetPlatformVisible(platformIndex, true);
+        SetPlatformPhysics(platformIndex, false);
+        BeginPlatformRiseTiming();
+
+        float elapsed = 0f;
+        while (elapsed < platformRiseDuration)
+        {
+            elapsed += GetPlatformRiseDeltaTime();
+            float t = Mathf.Clamp01(elapsed / platformRiseDuration);
+            float easedT = EvaluatePlatformRiseCurve(t);
+            tilemap.transform.position = Vector3.LerpUnclamped(restPosition, startPosition, easedT);
+            yield return null;
+        }
+
+        tilemap.transform.position = restPosition;
+        SetPlatformVisible(platformIndex, false);
+        SetPlatformPhysics(platformIndex, false);
     }
 
     private void ResolveReferences()
     {
-        if (background1Tilemap == null)
+        if (groundReferencePoint == null)
         {
-            background1Tilemap = FindTilemap("Background1");
+            Transform child = transform.Find("GroundReferencePoint");
+            if (child != null)
+            {
+                groundReferencePoint = child;
+            }
         }
 
-        if (background2Tilemap == null)
+        if (platform1Tilemap == null)
         {
-            background2Tilemap = FindTilemap("Background2");
+            platform1Tilemap = FindTilemap("Platform_1");
         }
 
-        if (solidTilemap == null)
+        if (platform2Tilemap == null)
         {
-            solidTilemap = FindTilemap("Solid");
+            platform2Tilemap = FindTilemap("Platform_2");
         }
 
-        background1Renderer = background1Tilemap != null ? background1Tilemap.GetComponent<TilemapRenderer>() : null;
-        background2Renderer = background2Tilemap != null ? background2Tilemap.GetComponent<TilemapRenderer>() : null;
-        solidRenderer = solidTilemap != null ? solidTilemap.GetComponent<TilemapRenderer>() : null;
-        solidCollider = solidTilemap != null ? solidTilemap.GetComponent<TilemapCollider2D>() : null;
-        solidBody = solidTilemap != null ? solidTilemap.GetComponent<Rigidbody2D>() : null;
-        solidComposite = solidTilemap != null ? solidTilemap.GetComponent<CompositeCollider2D>() : null;
+        if (platform3Tilemap == null)
+        {
+            platform3Tilemap = FindTilemap("Platform_3");
+        }
 
-        EnsureSolidUsesGroundLayer();
+        platformTilemaps ??= new Tilemap[PlatformCount];
+        platformRenderers ??= new TilemapRenderer[PlatformCount];
+        platformColliders ??= new TilemapCollider2D[PlatformCount];
+        platformBodies ??= new Rigidbody2D[PlatformCount];
+        platformComposites ??= new CompositeCollider2D[PlatformCount];
+
+        platformTilemaps[0] = platform1Tilemap;
+        platformTilemaps[1] = platform2Tilemap;
+        platformTilemaps[2] = platform3Tilemap;
+
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            Tilemap tilemap = platformTilemaps[i];
+            platformRenderers[i] = tilemap != null ? tilemap.GetComponent<TilemapRenderer>() : null;
+            platformColliders[i] = tilemap != null ? tilemap.GetComponent<TilemapCollider2D>() : null;
+            platformBodies[i] = tilemap != null ? tilemap.GetComponent<Rigidbody2D>() : null;
+            platformComposites[i] = tilemap != null ? tilemap.GetComponent<CompositeCollider2D>() : null;
+            EnsurePlatformUsesGroundLayer(tilemap);
+        }
+
+        CachePlatformRestWorldPositions();
     }
 
     private Tilemap FindTilemap(string childName)
@@ -856,35 +984,161 @@ public class ArenaFloatingPlatformController : MonoBehaviour
         }
     }
 
-    private void SetSolidPhysics(bool enabled)
+    private void SetPlatformVisible(int platformIndex, bool visible)
     {
-        if (solidCollider != null)
+        if (!IsValidPlatformIndex(platformIndex))
         {
-            solidCollider.enabled = enabled;
+            return;
         }
 
-        if (solidComposite != null)
+        TilemapRenderer renderer = platformRenderers[platformIndex];
+        TilemapCollider2D collider2D = platformColliders[platformIndex];
+        SetRendererAndCollider(renderer, collider2D, visible);
+    }
+
+    private void SetPlatformPhysics(int platformIndex, bool enabled)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
         {
-            solidComposite.enabled = enabled;
+            return;
         }
 
-        if (solidBody != null)
+        TilemapCollider2D collider2D = platformColliders[platformIndex];
+        if (collider2D != null)
         {
-            solidBody.simulated = enabled;
+            collider2D.enabled = enabled;
+        }
+
+        CompositeCollider2D composite = platformComposites[platformIndex];
+        if (composite != null)
+        {
+            composite.enabled = enabled;
+        }
+
+        Rigidbody2D body = platformBodies[platformIndex];
+        if (body != null)
+        {
+            body.simulated = enabled;
         }
     }
 
-    private void EnsureSolidUsesGroundLayer()
+    private void SetOnlyPlatformVisible(int platformIndex)
     {
-        if (solidTilemap == null)
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            return;
+        }
+
+        IsVisible = true;
+        ResetPlatformWorldPositions();
+
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            bool visible = i == platformIndex;
+            SetPlatformVisible(i, visible);
+            SetPlatformPhysics(i, visible);
+        }
+    }
+
+    private void ResetPlatformWorldPositions()
+    {
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (platformTilemaps[i] != null)
+            {
+                platformTilemaps[i].transform.position = GetPlatformRestWorldPosition(i);
+            }
+        }
+    }
+
+    private Vector3 GetPlatformRestWorldPosition(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            return Vector3.zero;
+        }
+
+        if (!platformRestWorldPositionCached[platformIndex])
+        {
+            CachePlatformRestWorldPositions();
+        }
+
+        return platformRestWorldPositions[platformIndex];
+    }
+
+    private Vector3 GetPlatformRiseStartWorldPosition(int platformIndex, Vector3 restPosition)
+    {
+        float groundY = groundReferencePoint != null ? groundReferencePoint.position.y : restPosition.y;
+        return new Vector3(restPosition.x, groundY - platformRiseDistance, restPosition.z);
+    }
+
+    private void CachePlatformRestWorldPositions()
+    {
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (platformTilemaps != null && i < platformTilemaps.Length && platformTilemaps[i] != null)
+            {
+                platformRestWorldPositions[i] = platformTilemaps[i].transform.position;
+                platformRestWorldPositionCached[i] = true;
+            }
+            else
+            {
+                platformRestWorldPositions[i] = Vector3.zero;
+                platformRestWorldPositionCached[i] = false;
+            }
+        }
+    }
+
+    private void BeginPlatformRiseTiming()
+    {
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            lastEditorTimeSample = EditorApplication.timeSinceStartup;
+        }
+#endif
+    }
+
+    private float GetPlatformRiseDeltaTime()
+    {
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            double now = EditorApplication.timeSinceStartup;
+            float delta = lastEditorTimeSample > 0d ? (float)(now - lastEditorTimeSample) : 0f;
+            lastEditorTimeSample = now;
+            return Mathf.Max(0f, delta);
+        }
+#endif
+        return Time.deltaTime;
+    }
+
+    private float EvaluatePlatformRiseCurve(float t)
+    {
+        if (platformRiseCurve == null || platformRiseCurve.length == 0)
+        {
+            return Mathf.SmoothStep(0f, 1f, t);
+        }
+
+        return Mathf.Clamp01(platformRiseCurve.Evaluate(Mathf.Clamp01(t)));
+    }
+
+    private void EnsurePlatformUsesGroundLayer(Tilemap tilemap)
+    {
+        if (tilemap == null)
         {
             return;
         }
 
         int groundLayer = LayerMask.NameToLayer(GroundLayerName);
-        if (groundLayer >= 0 && solidTilemap.gameObject.layer != groundLayer)
+        if (groundLayer >= 0 && tilemap.gameObject.layer != groundLayer)
         {
-            solidTilemap.gameObject.layer = groundLayer;
+            tilemap.gameObject.layer = groundLayer;
         }
+    }
+
+    private bool IsValidPlatformIndex(int platformIndex)
+    {
+        return platformIndex >= 0 && platformIndex < PlatformCount;
     }
 }

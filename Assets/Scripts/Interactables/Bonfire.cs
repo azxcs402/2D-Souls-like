@@ -31,6 +31,13 @@ public class Bonfire : MonoBehaviour, ISaveable
     [SerializeField, Min(0f)] private float restDelay = 0.05f;
     [SerializeField] private bool startLit = false;
 
+    [Header("Audio")]
+    [SerializeField] private string igniteSfx = "bonfire_ignite";
+    [SerializeField] private string restSfx = "bonfire_rest";
+    [SerializeField] private string travelMenuOpenSfx = "bonfire_menu_open";
+    [SerializeField] private string travelMenuCloseSfx = "bonfire_menu_close";
+    [SerializeField] private string travelConfirmSfx = "bonfire_travel";
+
     [Header("Animation")]
     [SerializeField] private Sprite[] flameFrames;
     [SerializeField, Min(1f)] private float framesPerSecond = 8f;
@@ -286,6 +293,7 @@ public class Bonfire : MonoBehaviour, ISaveable
                 }
                 else
                 {
+                    PlayAudio(travelMenuOpenSfx);
                     BonfireTravelMenu.Open(this);
                 }
             }
@@ -332,6 +340,8 @@ public class Bonfire : MonoBehaviour, ISaveable
             return;
         }
 
+        PlayAudio(restSfx);
+
         if (!bonfireActivated)
         {
             SetActivated(true);
@@ -371,6 +381,7 @@ public class Bonfire : MonoBehaviour, ISaveable
         {
             SetActivated(true);
             SetLit(true, true);
+            PlayAudio(igniteSfx);
         }
 
         Player player = currentPlayer;
@@ -417,6 +428,16 @@ public class Bonfire : MonoBehaviour, ISaveable
 
         RefreshInteractionPrompt();
         isResting = false;
+    }
+
+    public void PlayTravelMenuClosedSfx()
+    {
+        PlayAudio(travelMenuCloseSfx);
+    }
+
+    public void PlayTravelConfirmSfx()
+    {
+        PlayAudio(travelConfirmSfx);
     }
 
     public void LoadData(GameData data)
@@ -1128,6 +1149,22 @@ public class Bonfire : MonoBehaviour, ISaveable
         ignitePromptText.horizontalOverflow = HorizontalWrapMode.Overflow;
         ignitePromptText.verticalOverflow = VerticalWrapMode.Overflow;
         ignitePromptText.text = ignitePrompt;
+    }
+
+    private static void PlayAudio(string audioKey)
+    {
+        if (string.IsNullOrWhiteSpace(audioKey) || AudioManager.instance == null)
+        {
+            return;
+        }
+
+        if (AudioKeyMap.TryParse(audioKey, out AudioKey parsedKey))
+        {
+            AudioManager.instance.PlayGlobalSFX(parsedKey);
+            return;
+        }
+
+        AudioManager.instance.PlayGlobalSFX(audioKey);
     }
 
     private void EnsureLitPromptVisual()

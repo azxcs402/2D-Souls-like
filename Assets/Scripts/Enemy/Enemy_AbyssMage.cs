@@ -1,9 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
+using System;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 [RequireComponent(typeof(Rigidbody2D), typeof(CapsuleCollider2D))]
-public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder
+public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBossSkillPointSource
 {
     private static readonly int BattleAnimHash = Animator.StringToHash("battle");
     private static readonly int XVelocityAnimHash = Animator.StringToHash("xVelocity");
@@ -108,6 +110,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder
     [SerializeField, Min(0f)] private float deadDropThroughDelay = 0f;
     [SerializeField, Min(0f)] private float deadDisappearDelay = 4f;
     [SerializeField, Range(0f, 180f)] private float deadFallAngle = 90f;
+    [SerializeField] private bool defeatIsPermanent = true;
 
     public Enemy_AbyssMageGroundedState groundedState { get; private set; }
     public Enemy_AbyssMageIdleState idleState { get; private set; }
@@ -205,6 +208,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder
     public float DeadDropThroughDelay => deadDropThroughDelay;
     public float DeadDisappearDelay => deadDisappearDelay;
     public float DeadFallAngle => deadFallAngle;
+    public bool DefeatIsPermanent => defeatIsPermanent;
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
@@ -222,6 +226,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder
     public bool IsSpellCasting => stateMachine != null && stateMachine.CurrentState == spellCastState;
     public bool SpellCastPerformed => spellCastPerformed;
     public Entity_Combat Combat { get; private set; }
+    public event Action MeleeAttackCompleted;
 
     private Transform playerTarget;
     private bool isAlerted;
@@ -302,6 +307,11 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder
         base.Update();
     }
 
+    protected override void Die(bool allowRevive)
+    {
+        base.Die(defeatIsPermanent ? false : allowRevive);
+    }
+
     protected override void SyncAnimationState()
     {
         if (IsDead
@@ -351,6 +361,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder
     public void CompleteAttackState()
     {
         StartAttackCooldown();
+        MeleeAttackCompleted?.Invoke();
 
         if (stateMachine == null)
         {

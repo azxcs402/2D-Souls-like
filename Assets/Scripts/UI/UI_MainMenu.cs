@@ -26,6 +26,11 @@ public class UI_MainMenu : MonoBehaviour
 
     private void Start()
     {
+        if (AudioManager.instance != null)
+        {
+            AudioManager.instance.StartBGM(AudioKey.PlaylistMainMenu);
+        }
+
         ResolveHierarchyReferences();
         WireButtons();
 
@@ -48,6 +53,8 @@ public class UI_MainMenu : MonoBehaviour
 
     public void PlayBTN()
     {
+        PlayButtonClick();
+
         if (GameManager.instance == null)
         {
             return;
@@ -64,6 +71,8 @@ public class UI_MainMenu : MonoBehaviour
 
     public void NewGameBTN()
     {
+        PlayButtonClick();
+
         if (GameManager.instance == null)
         {
             return;
@@ -74,6 +83,8 @@ public class UI_MainMenu : MonoBehaviour
 
     public void ContinueBTN()
     {
+        PlayButtonClick();
+
         if (GameManager.instance == null)
         {
             return;
@@ -84,6 +95,8 @@ public class UI_MainMenu : MonoBehaviour
 
     public void OptionsBTN()
     {
+        PlayButtonClick();
+
         if (mainPanel != null)
         {
             mainPanel.SetActive(false);
@@ -97,6 +110,8 @@ public class UI_MainMenu : MonoBehaviour
 
     public void QuitGameBTN()
     {
+        PlayButtonClick();
+
         if (GameManager.instance != null)
         {
             GameManager.instance.QuitGame();
@@ -219,5 +234,13 @@ public class UI_MainMenu : MonoBehaviour
         }
 
         return null;
+    }
+
+    private static void PlayButtonClick()
+    {
+        if (AudioManager.instance != null)
+        {
+            AudioManager.instance.PlayGlobalSFX(AudioKey.ButtonClick);
+        }
     }
 }

@@ -45,6 +45,7 @@ public class Entity_Combat : MonoBehaviour
 
     private Entity owner;
     private Entity_VFX vfx;
+    private Entity_SFX sfx;
     private readonly Dictionary<Entity_Combat, int> receivedAttackIdsByAttacker = new Dictionary<Entity_Combat, int>();
 
     private void Awake()
@@ -52,6 +53,11 @@ public class Entity_Combat : MonoBehaviour
         owner = GetComponent<Entity>();
         EnsureVfxComponent();
         vfx = GetComponent<Entity_VFX>();
+        sfx = GetComponent<Entity_SFX>();
+        if (sfx == null)
+        {
+            sfx = gameObject.AddComponent<Entity_SFX>();
+        }
         if (autoEnsureHealthComponent)
         {
             EnsureHealthComponent();
@@ -121,6 +127,15 @@ public class Entity_Combat : MonoBehaviour
                 attackId,
                 strictLayerMatch: false
             );
+        }
+
+        if (hitAnyTarget)
+        {
+            sfx?.PlayAttackHit();
+        }
+        else
+        {
+            sfx?.PlayAttackMiss();
         }
 
         return hitAnyTarget;

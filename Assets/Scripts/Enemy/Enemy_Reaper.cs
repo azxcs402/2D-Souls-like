@@ -1,12 +1,14 @@
+using System;
 using System.Collections;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
 [RequireComponent(typeof(Rigidbody2D), typeof(CapsuleCollider2D))]
-public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
+public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder, IBossSkillPointSource
 {
     private static readonly int XVelocityAnimHash = Animator.StringToHash("xVelocity");
     private static readonly int BattleAnimHash = Animator.StringToHash("battle");
@@ -180,6 +182,7 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
     public bool TeleportTriggered => teleporTrigger;
     public bool CanBeCountered => canBeStunned;
     public Entity_Combat CombatComponent { get; private set; }
+    public event Action MeleeAttackCompleted;
 
     private Transform playerTarget;
     private bool isAlerted;
@@ -809,6 +812,7 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder
     public void CompleteAttackState()
     {
         attackCooldownTimer = attackCooldown;
+        MeleeAttackCompleted?.Invoke();
     }
 
     public void StartAttackCooldown()
