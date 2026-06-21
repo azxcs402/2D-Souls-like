@@ -194,6 +194,7 @@ MonoBehaviour:
   splitChildDamageMultiplier: 0.7
   splitSpawnHorizontalOffset: 0.55
   splitSpawnVerticalOffset: 0.2
+  splitChildAttackLockDuration: 0.8
   stunnedCollider: {fileID: 7777777777777777779}
   slimeAttackData:
     targetCheckOffset: {x: 0.7, y: 0}

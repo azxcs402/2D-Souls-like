@@ -31,6 +31,7 @@ public class Player_CounterAttackState : EntityState
         player.SetCounterAttackPerformed(false);
         player.SetCounterAttack(true);
         player.SetVelocity(0f, player.GroundDetected() ? 0f : player.rb.velocity.y);
+        player.PlayPlayerCombatAudio(AudioKey.PlayerBlock);
 
         PlayAnimation(player.CounterAttackAnimationState);
     }

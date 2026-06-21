@@ -236,6 +236,7 @@ public static class EnemySlimeAnimatorConfigurator
                 SetString(serializedSlime, "battleAnimationState", "slimeBattle - idle/move");
                 SetString(serializedSlime, "stunnedAnimationState", "slimeStunned");
                 SetString(serializedSlime, "stunRecoveryAnimationState", "slimeStunRecovery");
+                SetFloat(serializedSlime, "splitChildAttackLockDuration", 0.8f);
                 serializedSlime.ApplyModifiedPropertiesWithoutUndo();
                 EditorUtility.SetDirty(slime);
             }
@@ -254,6 +255,15 @@ public static class EnemySlimeAnimatorConfigurator
         if (property != null)
         {
             property.stringValue = value;
+        }
+    }
+
+    private static void SetFloat(SerializedObject serializedObject, string propertyName, float value)
+    {
+        SerializedProperty property = serializedObject.FindProperty(propertyName);
+        if (property != null)
+        {
+            property.floatValue = value;
         }
     }
 }

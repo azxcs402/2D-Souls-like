@@ -192,6 +192,16 @@ MonoBehaviour:
   hoverDuration: 1
   homingDuration: 0.5
   flightSpeed: 10
+  useHybridOrbitVisuals: 0
+  orbitVisualRoot: {fileID: 0}
+  orbitRotationSpeed: 180
+  hybridOrbHitboxRadius: 0.32
+  hybridOrbHitCooldown: 0.18
+  hybridSharedPlayerHitCooldown: 0.3
+  hybridOuterOrbDamageMultiplier: 0.5
+  hybridCoreOrbDamageMultiplier: 2
+  hybridTrackingTurnSpeed: 1440
+  hybridCoreOrbitRadiusScale: 1.1
   hoverDriftRadius: 0.18
   hoverDriftChangeInterval: 0.18
   hoverDriftMoveSpeed: 1.6
@@ -200,6 +210,17 @@ MonoBehaviour:
     m_Bits: 192
   impactKnockback: {x: 4, y: 2}
   destroyDelayAfterImpact: 2
+  collisionArmDistance: 0.45
+  explosionSfxKey: 12
+  explosionAudioMaxDistance: 12
+  windLoopSfxKey: 26
+  windLoopClip: {fileID: 8300000, guid: a156455f8f1b41aba66ea5a837d322e6, type: 3}
+  windLoopVolume: 0.8
+  windLoopMinDistance: 0.5
+  windLoopMaxDistance: 8
+  breakRangeCollider: {fileID: 0}
+  breakRangeRadius: 0.6
+  breakRangeOffset: {x: 0, y: 0}
 --- !u!58 &6910203080990270239
 CircleCollider2D:
   m_ObjectHideFlags: 0
@@ -275,7 +296,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   damage: 8
-  showCombatDebugLogs: 0
   targetCheck: {fileID: 3264820721899666613}
   targetCheckRadius: 0.6
   whatIsTarget:

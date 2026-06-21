@@ -128,9 +128,7 @@ public class Enemy_AttackState : Enemy_GroundedState
             ? skeleton.SkeletonAttackData
             : new Entity_AttackData(Vector2.zero, .6f, Vector2.zero);
 
-        bool hitPlayer = combat.AttackTriggerFromTargetCheck(
-            attackData.TargetCheckRadius,
-            attackData.KnockbackForce);
+        bool hitPlayer = combat.AttackTrigger(attackData);
 
         return hitPlayer;
     }

@@ -69,6 +69,7 @@ public class UI_Options : MonoBehaviour
 
     public void ResetVolumeDefaults()
     {
+        UIAudio.PlayButtonClick();
         ApplyVolumeState(new VolumeState(AudioVolumeDefaults.Master, AudioVolumeDefaults.Bgm, AudioVolumeDefaults.Sfx));
     }
 
@@ -81,6 +82,8 @@ public class UI_Options : MonoBehaviour
 
     public void GoMainMenuBTN()
     {
+        UIAudio.PlayButtonClick();
+
         if (GameManager.instance != null)
         {
             GameManager.instance.LoadMainMenu();
@@ -89,6 +92,8 @@ public class UI_Options : MonoBehaviour
 
     public void CloseBTN()
     {
+        UIAudio.PlayButtonClick();
+
         gameObject.SetActive(false);
         if (mainPanel != null)
         {
@@ -269,7 +274,6 @@ public class UI_Options : MonoBehaviour
         bgmVolumeSlider?.SetValueWithoutNotify(state.bgm);
         sfxVolumeSlider?.SetValueWithoutNotify(state.sfx);
     }
-
     private readonly struct VolumeState
     {
         public readonly float master;

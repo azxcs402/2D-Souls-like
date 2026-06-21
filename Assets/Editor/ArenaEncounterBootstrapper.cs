@@ -965,10 +965,6 @@ public static class ArenaEncounterBootstrapper
             return null;
         }
 
-        powersRoot.transform.localPosition = Vector3.zero;
-        powersRoot.transform.localRotation = Quaternion.identity;
-        powersRoot.transform.localScale = Vector3.one;
-
         for (int i = 0; i < 6; i++)
         {
             string childName = $"{AbyssPowerRootName}_{i + 1}";
@@ -1071,39 +1067,8 @@ public static class ArenaEncounterBootstrapper
             return;
         }
 
-        powerRoot.layer = LayerMask.NameToLayer("Default");
+        powerRoot.layer = LayerMask.NameToLayer("Ignore Raycast");
         powerRoot.SetActive(true);
-
-        SpriteRenderer existingSpriteRenderer = powerRoot.GetComponent<SpriteRenderer>();
-        if (existingSpriteRenderer != null)
-        {
-            if (Application.isPlaying)
-            {
-                Object.Destroy(existingSpriteRenderer);
-            }
-            else
-            {
-                Undo.DestroyObjectImmediate(existingSpriteRenderer);
-            }
-        }
-
-        TilemapCollider2D existingCollider = powerRoot.GetComponent<TilemapCollider2D>();
-        if (existingCollider != null)
-        {
-            Undo.DestroyObjectImmediate(existingCollider);
-        }
-
-        Rigidbody2D existingBody = powerRoot.GetComponent<Rigidbody2D>();
-        if (existingBody != null)
-        {
-            Undo.DestroyObjectImmediate(existingBody);
-        }
-
-        CompositeCollider2D existingComposite = powerRoot.GetComponent<CompositeCollider2D>();
-        if (existingComposite != null)
-        {
-            Undo.DestroyObjectImmediate(existingComposite);
-        }
 
         if (powerRoot.GetComponent<Tilemap>() == null)
         {
@@ -1118,6 +1083,33 @@ public static class ArenaEncounterBootstrapper
 
         renderer.sortingLayerName = "Background";
         renderer.sortingOrder = 12;
+
+        if (created)
+        {
+            powerRoot.transform.localPosition = BossAbyssPowerLocalPosition;
+            powerRoot.transform.localRotation = Quaternion.identity;
+            powerRoot.transform.localScale = Vector3.one;
+        }
+
+        Collider2D[] colliders = powerRoot.GetComponentsInChildren<Collider2D>(true);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider2D collider = colliders[i];
+            if (collider != null)
+            {
+                collider.isTrigger = true;
+            }
+        }
+
+        Rigidbody2D[] bodies = powerRoot.GetComponentsInChildren<Rigidbody2D>(true);
+        for (int i = 0; i < bodies.Length; i++)
+        {
+            Rigidbody2D body = bodies[i];
+            if (body != null)
+            {
+                Undo.DestroyObjectImmediate(body);
+            }
+        }
 
         if (powerRoot.GetComponent<AbyssPower>() == null)
         {

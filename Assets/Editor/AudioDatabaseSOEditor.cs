@@ -24,14 +24,22 @@ public class AudioDatabaseSOEditor : Editor
         new("Player SFX", "player", new[]
         {
             AudioKey.PlayerAttackHit,
-            AudioKey.PlayerAttackMiss
+            AudioKey.PlayerAttackMiss,
+            AudioKey.PlayerBlock,
+            AudioKey.PlayerCounterSuccess,
+            AudioKey.PlayerDash,
+            AudioKey.PlayerPotionUse,
+            AudioKey.PlayerPotionComplete,
+            AudioKey.PlayerJump
         }),
         new("Combat SFX", "combatAudio", new[]
         {
             AudioKey.PlayerHurt,
             AudioKey.PlayerDeath,
             AudioKey.EnemyHurt,
-            AudioKey.EnemyDeath
+            AudioKey.EnemyDeath,
+            AudioKey.AbyssMageFireballExplosion,
+            AudioKey.SpellWindLoop
         }),
         new("UI Audio", "uiAudio", new[]
         {
@@ -43,7 +51,9 @@ public class AudioDatabaseSOEditor : Editor
             AudioKey.BonfireRest,
             AudioKey.BonfireMenuOpen,
             AudioKey.BonfireMenuClose,
-            AudioKey.BonfireTravel
+            AudioKey.BonfireTravel,
+            AudioKey.BonfireFlameLoop,
+            AudioKey.AbyssFireFlameLoop
         }),
         new("Main Menu BGM", "mainMenuMusic", new[]
         {
@@ -65,6 +75,14 @@ public class AudioDatabaseSOEditor : Editor
         serializedObject.Update();
 
         SearchableInspectorDrawer.DrawScriptField(serializedObject);
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Open Audio Hub"))
+            {
+                AudioHubWindow.Open();
+            }
+        }
 
         EditorGUILayout.HelpBox(
             "Use AudioKey names as lookup keys in audioName. Each group below can be filled from defaults or edited manually.",
@@ -175,6 +193,7 @@ public class AudioDatabaseSOEditor : Editor
             SerializedProperty audioNameProperty = element.FindPropertyRelative("audioName");
             SerializedProperty clips = element.FindPropertyRelative("clips");
             SerializedProperty maxVolume = element.FindPropertyRelative("maxVolume");
+            SerializedProperty maxHearDistance = element.FindPropertyRelative("maxHearDistance");
 
             if (audioNameProperty != null)
             {
@@ -190,6 +209,11 @@ public class AudioDatabaseSOEditor : Editor
             {
                 maxVolume.floatValue = 1f;
             }
+
+            if (maxHearDistance != null)
+            {
+                maxHearDistance.floatValue = 12f;
+            }
         }
     }
 
@@ -200,6 +224,7 @@ public class AudioDatabaseSOEditor : Editor
         SerializedProperty audioName = newElement.FindPropertyRelative("audioName");
         SerializedProperty clips = newElement.FindPropertyRelative("clips");
         SerializedProperty maxVolume = newElement.FindPropertyRelative("maxVolume");
+        SerializedProperty maxHearDistance = newElement.FindPropertyRelative("maxHearDistance");
 
         if (audioName != null)
         {
@@ -216,6 +241,11 @@ public class AudioDatabaseSOEditor : Editor
         if (maxVolume != null)
         {
             maxVolume.floatValue = 1f;
+        }
+
+        if (maxHearDistance != null)
+        {
+            maxHearDistance.floatValue = 12f;
         }
     }
 
@@ -234,6 +264,7 @@ public class AudioDatabaseSOEditor : Editor
                 SerializedProperty audioName = element.FindPropertyRelative("audioName");
                 SerializedProperty clips = element.FindPropertyRelative("clips");
                 SerializedProperty maxVolume = element.FindPropertyRelative("maxVolume");
+                SerializedProperty maxHearDistance = element.FindPropertyRelative("maxHearDistance");
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -252,6 +283,11 @@ public class AudioDatabaseSOEditor : Editor
                 if (maxVolume != null)
                 {
                     maxVolume.floatValue = EditorGUILayout.Slider("Volume", maxVolume.floatValue, 0f, 1f);
+                }
+
+                if (maxHearDistance != null)
+                {
+                    maxHearDistance.floatValue = EditorGUILayout.Slider("Max Hear Distance", maxHearDistance.floatValue, 0.01f, 50f);
                 }
 
                 if (clips != null)
@@ -326,6 +362,12 @@ public class AudioDatabaseSOEditor : Editor
             if (maxVolume != null)
             {
                 maxVolume.floatValue = Mathf.Clamp01(maxVolume.floatValue);
+            }
+
+            SerializedProperty maxHearDistance = element.FindPropertyRelative("maxHearDistance");
+            if (maxHearDistance != null)
+            {
+                maxHearDistance.floatValue = Mathf.Max(0.01f, maxHearDistance.floatValue);
             }
         }
     }

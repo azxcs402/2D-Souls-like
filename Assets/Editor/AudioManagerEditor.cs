@@ -11,6 +11,14 @@ public class AudioManagerEditor : Editor
 
         SearchableInspectorDrawer.DrawScriptField(serializedObject);
 
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Open Audio Hub"))
+            {
+                AudioHubWindow.Open();
+            }
+        }
+
         SerializedProperty audioDbProperty = serializedObject.FindProperty("audioDB");
         SerializedProperty audioMixerProperty = serializedObject.FindProperty("audioMixer");
         SerializedProperty bgmMixerGroupProperty = serializedObject.FindProperty("bgmMixerGroup");

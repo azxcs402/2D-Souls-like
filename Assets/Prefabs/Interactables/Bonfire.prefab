@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4281167935145217655}
   - component: {fileID: 5031414432284345624}
   - component: {fileID: 4005322381595484111}
+  - component: {fileID: -8456843912325403927}
   m_Layer: 0
   m_Name: Bonfire
   m_TagString: Untagged
@@ -74,9 +75,9 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 10
+  m_SortingOrder: 12
   m_Sprite: {fileID: 21300000, guid: ced35fa70821d904aa4cbd5d4b2a4dca, type: 3}
-  m_Color: {r: 0.65, g: 0.65, b: 0.65, a: 0.9}
+  m_Color: {r: 1, g: 0.92, b: 0.78, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -143,11 +144,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 32b15e5bd4e69284987145b14a489238, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  bonfireActivated: 1
   bonfireId: bonfire_default
+  bonfireDisplayName: 
   restorePlayerOnRest: 1
   reloadSceneOnRest: 1
   restDelay: 0.05
   startLit: 0
+  igniteSfxKey: 18
+  restSfxKey: 19
+  travelMenuOpenSfxKey: 20
+  travelMenuCloseSfxKey: 21
+  travelConfirmSfxKey: 22
+  flameLoopSfxKey: 24
+  flameLoopVolume: 1
+  flameLoopMinDistance: 0.75
+  flameLoopMaxDistance: 4
   flameFrames:
   - {fileID: 21300000, guid: ced35fa70821d904aa4cbd5d4b2a4dca, type: 3}
   - {fileID: 21300000, guid: 402a814b7c874f74090b8006b9ed458a, type: 3}
@@ -160,11 +172,153 @@ MonoBehaviour:
   litTint: {r: 1, g: 0.92, b: 0.78, a: 1}
   ignitePulseScale: 1.1
   ignitePulseDuration: 0.35
-  interactPrompt: Press F to rest
+  promptFont: {fileID: 0}
+  restPrompt: "\u4F11\u606F"
+  travelPrompt: "\u4F20\u9001"
   ignitePrompt: Press F to light
+  promptCursorSymbol: '>'
+  restPromptIcon: {fileID: 0}
+  travelPromptIcon: {fileID: 0}
+  ignitePromptIcon: {fileID: 0}
+  promptIconSize: 22
+  promptRowHeight: 56
+  promptRowSpacing: 8
+  promptRowPaddingX: 14
+  promptRowPaddingY: 4
+  promptRowBackground: {r: 0, g: 0, b: 0, a: 0}
+  promptRowSelectedBackground: {r: 0.34, g: 0.34, b: 0.12, a: 0.35}
   playerSortingOrderOffset: 10
   promptLocalOffset: {x: 0, y: 1.2, z: 0}
   promptFontSize: 24
   promptColor: {r: 1, g: 1, b: 1, a: 1}
+  selectedPromptColor: {r: 1, g: 0.92, b: 0.48, a: 1}
+  unselectedPromptColor: {r: 1, g: 1, b: 1, a: 0.82}
+  travelMenuFont: {fileID: 0}
+  travelMenuTitle: "\u4F20\u9001\u5730\u70B9"
+  travelMenuHint: "W/S \u9009\u62E9  F \u4F20\u9001  ESC \u5173\u95ED  \u9F20\u6807\u70B9\u51FB\u53EF\u9009\u4E2D"
+  travelMenuEmptyText: "\u6CA1\u6709\u53EF\u4F20\u9001\u7684\u7BDD\u706B"
+  travelMenuCloseLabel: X
+  travelMenuCursorSymbol: '>'
+  travelMenuCloseIcon: {fileID: 0}
+  travelMenuCloseButtonColor: {r: 0.25, g: 0.25, b: 0.3, a: 0.95}
+  travelMenuBackdropColor: {r: 0.18, g: 0.18, b: 0.2, a: 0.72}
+  travelMenuPanelColor: {r: 0.08, g: 0.08, b: 0.1, a: 0.96}
+  travelMenuListColor: {r: 0.09, g: 0.09, b: 0.11, a: 0.98}
+  travelMenuRowColor: {r: 0.19, g: 0.19, b: 0.24, a: 1}
+  travelMenuRowSelectedColor: {r: 0.42, g: 0.42, b: 0.16, a: 1}
+  travelMenuTitleColor: {r: 1, g: 1, b: 1, a: 1}
+  travelMenuHintColor: {r: 1, g: 1, b: 1, a: 0.84}
+  travelMenuEmptyColor: {r: 1, g: 1, b: 1, a: 0.88}
+  travelMenuCursorColor: {r: 1, g: 0.92, b: 0.48, a: 1}
+  travelMenuLabelSelectedColor: {r: 1, g: 1, b: 1, a: 1}
+  travelMenuLabelUnselectedColor: {r: 1, g: 1, b: 1, a: 0.82}
+  travelMenuRootSize: {x: 900, y: 840}
+  travelMenuListSize: {x: 780, y: 620}
+  travelMenuCloseButtonSize: {x: 56, y: 56}
+  travelMenuCloseButtonOffset: {x: -28, y: -28}
+  travelMenuItemHeight: 72
+  travelMenuItemSpacing: 10
+  travelMenuTitleFontSize: 54
+  travelMenuHintFontSize: 24
+  travelMenuItemFontSize: 30
+  travelMenuCloseFontSize: 28
   flameRenderer: {fileID: 4281167935145217655}
   interactionCollider: {fileID: 5031414432284345624}
+  flameLoopSource: {fileID: -8456843912325403927}
+  bonfireInstanceGuid: 1473a86ba54f4966b85c75febe3a183e
+--- !u!82 &-8456843912325403927
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4907309644804524526}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 0}
+  m_PlayOnAwake: 0
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 1
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 0
+  MinDistance: 0.75
+  MaxDistance: 4
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4

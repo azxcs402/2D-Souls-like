@@ -32,11 +32,20 @@ public class Bonfire : MonoBehaviour, ISaveable
     [SerializeField] private bool startLit = false;
 
     [Header("Audio")]
-    [SerializeField] private string igniteSfx = "bonfire_ignite";
-    [SerializeField] private string restSfx = "bonfire_rest";
-    [SerializeField] private string travelMenuOpenSfx = "bonfire_menu_open";
-    [SerializeField] private string travelMenuCloseSfx = "bonfire_menu_close";
-    [SerializeField] private string travelConfirmSfx = "bonfire_travel";
+    [SerializeField] private AudioKey igniteSfxKey = AudioKey.BonfireIgnite;
+    [SerializeField] private AudioKey restSfxKey = AudioKey.BonfireRest;
+    [SerializeField] private AudioKey travelMenuOpenSfxKey = AudioKey.BonfireMenuOpen;
+    [SerializeField] private AudioKey travelMenuCloseSfxKey = AudioKey.BonfireMenuClose;
+    [SerializeField] private AudioKey travelConfirmSfxKey = AudioKey.BonfireTravel;
+
+    [Header("Flame Audio")]
+    [SerializeField] private AudioKey flameLoopSfxKey = AudioKey.AbyssFireFlameLoop;
+    [SerializeField, Range(0f, 1f), Tooltip("Volume multiplier for the flame loop.")]
+    private float flameLoopVolume = 1f;
+    [SerializeField, Min(0f), Tooltip("Distance where the flame loop remains at full volume.")]
+    private float flameLoopMinDistance = 0.75f;
+    [SerializeField, Min(0f), Tooltip("Distance where the flame loop fades to silence.")]
+    private float flameLoopMaxDistance = 4f;
 
     [Header("Animation")]
     [SerializeField] private Sprite[] flameFrames;
@@ -106,6 +115,7 @@ public class Bonfire : MonoBehaviour, ISaveable
     [Header("References")]
     [SerializeField] private SpriteRenderer flameRenderer;
     [SerializeField] private BoxCollider2D interactionCollider;
+    [SerializeField] private AudioSource flameLoopSource;
     [SerializeField, HideInInspector] private string bonfireInstanceGuid = string.Empty;
 
     public string BonfireId => bonfireId;
@@ -204,8 +214,14 @@ public class Bonfire : MonoBehaviour, ISaveable
         bonfireActivated = bonfireActivated || startLit;
         isLit = bonfireActivated || startLit;
         ApplyLitVisuals();
+        UpdateFlameLoopAudio();
         UpdatePromptVisual();
         ApplyFrame(0);
+    }
+
+    private void OnEnable()
+    {
+        UpdateFlameLoopAudio();
     }
 
     private void OnValidate()
@@ -216,6 +232,7 @@ public class Bonfire : MonoBehaviour, ISaveable
         ResolveActivationDuplicate();
         bonfireActivated = bonfireActivated || startLit;
         isLit = bonfireActivated;
+        flameLoopMaxDistance = Mathf.Max(flameLoopMinDistance, flameLoopMaxDistance);
         framesPerSecond = Mathf.Max(1f, framesPerSecond);
         promptFontSize = Mathf.Max(1, promptFontSize);
         ignitePulseScale = Mathf.Max(1f, ignitePulseScale);
@@ -228,6 +245,7 @@ public class Bonfire : MonoBehaviour, ISaveable
 
         TryLoadDefaultFrames();
         ApplyLitVisuals();
+        UpdateFlameLoopAudio();
         if (promptRoot != null)
         {
             EnsurePromptVisual();
@@ -293,7 +311,7 @@ public class Bonfire : MonoBehaviour, ISaveable
                 }
                 else
                 {
-                    PlayAudio(travelMenuOpenSfx);
+                    PlayAudio(travelMenuOpenSfxKey);
                     BonfireTravelMenu.Open(this);
                 }
             }
@@ -340,7 +358,7 @@ public class Bonfire : MonoBehaviour, ISaveable
             return;
         }
 
-        PlayAudio(restSfx);
+        PlayAudio(restSfxKey);
 
         if (!bonfireActivated)
         {
@@ -381,7 +399,7 @@ public class Bonfire : MonoBehaviour, ISaveable
         {
             SetActivated(true);
             SetLit(true, true);
-            PlayAudio(igniteSfx);
+            PlayAudio(igniteSfxKey);
         }
 
         Player player = currentPlayer;
@@ -432,12 +450,92 @@ public class Bonfire : MonoBehaviour, ISaveable
 
     public void PlayTravelMenuClosedSfx()
     {
-        PlayAudio(travelMenuCloseSfx);
+        PlayAudio(travelMenuCloseSfxKey);
     }
 
     public void PlayTravelConfirmSfx()
     {
-        PlayAudio(travelConfirmSfx);
+        PlayAudio(travelConfirmSfxKey);
+    }
+
+    private void UpdateFlameLoopAudio()
+    {
+        if (!bonfireActivated || !isLit)
+        {
+            StopFlameLoopAudio();
+            return;
+        }
+
+        EnsureFlameLoopSource();
+        if (flameLoopSource == null)
+        {
+            return;
+        }
+
+        AudioManager.instance?.PlayLoopingSFX(flameLoopSfxKey, flameLoopSource, flameLoopVolume);
+    }
+
+    private void StopFlameLoopAudio()
+    {
+        if (flameLoopSource == null)
+        {
+            return;
+        }
+
+        if (AudioManager.instance != null)
+        {
+            AudioManager.instance.StopLoopingSFX(flameLoopSource);
+            return;
+        }
+
+        if (flameLoopSource.isPlaying)
+        {
+            flameLoopSource.Stop();
+        }
+    }
+
+    public void CopyFlameAudioSettingsFrom(Bonfire source)
+    {
+        if (source == null || source == this)
+        {
+            return;
+        }
+
+        flameLoopSfxKey = source.flameLoopSfxKey;
+        flameLoopVolume = source.flameLoopVolume;
+        flameLoopMinDistance = source.flameLoopMinDistance;
+        flameLoopMaxDistance = source.flameLoopMaxDistance;
+
+        if (Application.isPlaying)
+        {
+            UpdateFlameLoopAudio();
+        }
+    }
+
+    private void EnsureFlameLoopSource()
+    {
+        if (flameLoopSource == null)
+        {
+            flameLoopSource = GetComponent<AudioSource>();
+        }
+
+        if (flameLoopSource == null && Application.isPlaying)
+        {
+            flameLoopSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        if (flameLoopSource == null)
+        {
+            return;
+        }
+
+        flameLoopSource.playOnAwake = false;
+        flameLoopSource.loop = true;
+        flameLoopSource.spatialBlend = 1f;
+        flameLoopSource.rolloffMode = AudioRolloffMode.Logarithmic;
+        flameLoopSource.dopplerLevel = 0f;
+        flameLoopSource.minDistance = flameLoopMinDistance;
+        flameLoopSource.maxDistance = flameLoopMaxDistance;
     }
 
     public void LoadData(GameData data)
@@ -509,6 +607,7 @@ public class Bonfire : MonoBehaviour, ISaveable
         }
 
         ApplyLitVisuals();
+        UpdateFlameLoopAudio();
     }
 
     public void SaveData(ref GameData data)
@@ -800,6 +899,8 @@ public class Bonfire : MonoBehaviour, ISaveable
         {
             igniteCoroutine = StartCoroutine(IgnitePulseCo());
         }
+
+        UpdateFlameLoopAudio();
     }
 
     private void SetActivated(bool activated, bool synchronizeLit = true)
@@ -823,6 +924,8 @@ public class Bonfire : MonoBehaviour, ISaveable
             StopCoroutine(igniteCoroutine);
             igniteCoroutine = null;
         }
+
+        UpdateFlameLoopAudio();
     }
 
     private IEnumerator IgnitePulseCo()
@@ -1151,16 +1254,16 @@ public class Bonfire : MonoBehaviour, ISaveable
         ignitePromptText.text = ignitePrompt;
     }
 
-    private static void PlayAudio(string audioKey)
+    private void PlayAudio(AudioKey audioKey)
     {
-        if (string.IsNullOrWhiteSpace(audioKey) || AudioManager.instance == null)
+        if (AudioManager.instance == null)
         {
             return;
         }
 
-        if (AudioKeyMap.TryParse(audioKey, out AudioKey parsedKey))
+        EnsureFlameLoopSource();
+        if (flameLoopSource != null && AudioManager.instance.PlayLocalizedSFX(audioKey, flameLoopSource, flameLoopMaxDistance))
         {
-            AudioManager.instance.PlayGlobalSFX(parsedKey);
             return;
         }
 
@@ -1391,11 +1494,13 @@ public class Bonfire : MonoBehaviour, ISaveable
     private void OnDisable()
     {
         RestorePlayerForeground();
+        StopFlameLoopAudio();
         UpdatePromptVisual();
     }
 
     private void OnDestroy()
     {
         RestorePlayerForeground();
+        StopFlameLoopAudio();
     }
 }

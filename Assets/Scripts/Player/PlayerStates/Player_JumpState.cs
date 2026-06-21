@@ -13,6 +13,7 @@ public class Player_JumpState : Player_AirState
         base.Enter();
 
         player.Jump();
+        player.PlayPlayerCombatAudio(AudioKey.PlayerJump);
     }
 
     public override void Exit()

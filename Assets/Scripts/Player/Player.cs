@@ -371,6 +371,17 @@ public class Player : Entity
         && !hazardRecoveryActive;
     public Sprite HealingPotionWorldIconSprite => healingPotionWorldIconSprite;
     public Vector3 HealingPotionWorldIconOffset => healingPotionWorldIconOffset;
+
+    public bool PlayPlayerCombatAudio(AudioKey audioKey)
+    {
+        if (AudioManager.instance == null)
+        {
+            return false;
+        }
+
+        AudioManager.instance.PlayGlobalSFX(audioKey);
+        return true;
+    }
     public void SetHealingPotionWorldIconSprite(Sprite sprite)
     {
         if (sprite == null)
@@ -732,6 +743,7 @@ public class Player : Entity
     public bool TryConsumeCounterAttackSuccessStamina()
     {
         ConsumeStamina(counterAttackSuccessStaminaCost, counterAttackStaminaRecoveryDelay);
+        PlayCounterSuccessSfx();
         return true;
     }
 
@@ -748,7 +760,13 @@ public class Player : Entity
         }
 
         ConsumeStamina(projectileBlockStaminaCost, counterAttackStaminaRecoveryDelay);
+        PlayCounterSuccessSfx();
         return true;
+    }
+
+    private void PlayCounterSuccessSfx()
+    {
+        PlayPlayerCombatAudio(AudioKey.PlayerCounterSuccess);
     }
 
     public bool TryConsumeBasicAttackStamina(int attackIndex)
@@ -1722,6 +1740,7 @@ public class Player : Entity
 
         healingPotionInUse = true;
         healingPotionUseTimer = Mathf.Max(.01f, healingPotionUseDuration);
+        PlayHealingPotionAudio(AudioKey.PlayerPotionUse);
         NotifyHealingPotionChanged();
         EnsureHealingPotionWorldIcon();
         if (healingPotionWorldIcon != null)
@@ -1765,6 +1784,8 @@ public class Player : Entity
         {
             playerHealth.Heal(Mathf.RoundToInt(healingPotionHealAmount));
         }
+
+        PlayHealingPotionAudio(AudioKey.PlayerPotionComplete);
 
         if (healingPotionWorldIcon != null)
         {
@@ -1838,6 +1859,16 @@ public class Player : Entity
     private void NotifyHealingPotionChanged()
     {
         OnHealingPotionChanged?.Invoke(this);
+    }
+
+    private void PlayHealingPotionAudio(AudioKey audioKey)
+    {
+        if (AudioManager.instance == null)
+        {
+            return;
+        }
+
+        AudioManager.instance.PlayGlobalSFX(audioKey);
     }
 
     private void EnsureHealingPotionWorldIcon()

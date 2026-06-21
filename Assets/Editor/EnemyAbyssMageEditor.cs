@@ -34,11 +34,12 @@ public class EnemyAbyssMageEditor : Editor
     {
         new Section(
             "Core",
-            "Enemy base settings. Use this for health, ground checks, and wall checks.",
+            "Enemy base settings. Use this for health, audio range, ground checks, and wall checks.",
             new[]
             {
                 new FieldInfo("maxHealth", "Max Health", "health hit points hp"),
                 new FieldInfo("canTakeDamage", "Can Take Damage", "damage invulnerable"),
+                new FieldInfo("combatSoundDistance", "Combat Sound Distance", "audio range sound distance"),
                 new FieldInfo("groundCheckDistance", "Ground Check Distance", "ground floor check"),
                 new FieldInfo("whatIsGround", "What Is Ground", "ground layer mask"),
                 new FieldInfo("wallCheckDistance", "Wall Check Distance", "wall obstacle"),
@@ -134,6 +135,7 @@ public class EnemyAbyssMageEditor : Editor
             new[]
             {
                 new FieldInfo("spellPrefab", "Spell Prefab", "projectile fireball"),
+                new FieldInfo("mixedSpellPrefab", "Mixed Spell Prefab", "skill2 hybrid fireball"),
                 new FieldInfo("spellStartPosition1", "Spell Start Point 1", "left spawn point"),
                 new FieldInfo("spellStartPosition2", "Spell Start Point 2", "right spawn point"),
                 new FieldInfo("amountToCast", "Amount To Cast Per Side", "projectile count per side"),
@@ -145,6 +147,21 @@ public class EnemyAbyssMageEditor : Editor
                 new FieldInfo("teleportAreaAnchor", "Teleport Area Anchor", "drag this child transform to move teleport area"),
                 new FieldInfo("projectileHoverMinSeparation", "Projectile Hover Min Separation", "min distance between hover points"),
                 new FieldInfo("projectileHoverMaxPlacementAttempts", "Projectile Hover Max Placement Attempts", "random placement attempts"),
+                new FieldInfo("giantFireballHoverDuration", "Giant Fireball Hover Duration", "skill3 hover time ceiling"),
+                new FieldInfo("giantFireballScaleMultiplier", "Giant Fireball Scale Multiplier", "skill3 scale giant"),
+                new FieldInfo("giantFireballDamageMultiplier", "Giant Fireball Damage Multiplier", "skill3 damage"),
+                new FieldInfo("giantFireballFallSpeedMultiplier", "Giant Fireball Fall Speed Multiplier", "skill3 fall speed"),
+                new FieldInfo("giantFireballFollowSpeed", "Giant Fireball Follow Speed", "skill3 track x"),
+                new FieldInfo("skill1FireballDamageMultiplier", "Skill1 Fireball Damage Multiplier", "skill1 fireball damage normal"),
+                new FieldInfo("specialAttackLockDuration", "Special Attack Lock Duration", "skill3 lock cooldown"),
+                new FieldInfo("skill3CooldownDuration", "Skill3 Cooldown Duration", "skill3 cooldown lock reuse"),
+                new FieldInfo("hybridOrbHitboxRadius", "Hybrid Orb Hitbox Radius", "skill2 orb hitbox"),
+                new FieldInfo("hybridOrbHitCooldown", "Hybrid Orb Hit Cooldown", "skill2 orb cooldown"),
+                new FieldInfo("hybridSharedPlayerHitCooldown", "Hybrid Shared Player Hit Cooldown", "skill2 shared hit interval"),
+                new FieldInfo("hybridOuterOrbDamageMultiplier", "Hybrid Outer Orb Damage Multiplier", "skill2 orb damage normal fireball"),
+                new FieldInfo("hybridCoreOrbDamageMultiplier", "Hybrid Core Orb Damage Multiplier", "skill2 core damage triple fireball"),
+                new FieldInfo("hybridCoreOrbitRadiusScale", "Hybrid Core Orbit Radius Scale", "skill2 core size"),
+                new FieldInfo("hybridTrackingTurnSpeed", "Hybrid Tracking Turn Speed", "skill2 tracking"),
                 new FieldInfo("behindCollisionCheck", "Behind Collision Check", "retreat wall check"),
                 new FieldInfo("hasRecoveryAnimation", "Has Recovery Animation", "stun recovery"),
                 new FieldInfo("canBeKnockedBack", "Can Be Knocked Back", "knockback")
@@ -192,6 +209,7 @@ public class EnemyAbyssMageEditor : Editor
         serializedObject.Update();
 
         SearchableInspectorDrawer.DrawScriptField(serializedObject);
+        EnemyInspectorActionDrawer.DrawKillEnemyButton(target as Enemy);
         if (GUILayout.Button("Move Script Component Up"))
         {
             EnemyComponentOrderTools.MoveComponentToTop((Component)target);
@@ -957,6 +975,7 @@ public static class EnemyAbyssMageSceneConfigurator
     private const string BossSpritePath = "Assets/Graphics/Characters/Boss/AbyssMage/Enemy_AbyssMage.png";
     private const string BossControllerPath = "Assets/Animations/AnimatorControllers/Characters/Boss/Enemy_AbyssMage.controller";
     private const string BossFireballPrefabPath = "Assets/Prefabs/Enemy/Boss/Enemy_AbyssMage_Fireball.prefab";
+    private const string BossMixedFireballPrefabPath = "Assets/Prefabs/Enemy/Boss/Enemy_AbyssMage_MixedFireball.prefab";
 
     private static readonly string[] SpellStartPointNames =
     {
@@ -1088,6 +1107,7 @@ public static class EnemyAbyssMageSceneConfigurator
         }
 
         GameObject fireballPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BossFireballPrefabPath);
+        GameObject mixedFireballPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(BossMixedFireballPrefabPath);
 
         Transform targetCheck = EnsureChild(root.transform, "TargetCheck", Vector3.zero);
         Transform behindCheck = EnsureChild(root.transform, "BehindCheck", new Vector3(-0.93f, -0.73f, 0f));
@@ -1104,6 +1124,7 @@ public static class EnemyAbyssMageSceneConfigurator
         SerializedObject mageSo = new SerializedObject(mage);
         SetObjectReference(mageSo, "playerCheck", targetCheck);
         SetObjectReference(mageSo, "spellPrefab", fireballPrefab);
+        SetObjectReference(mageSo, "mixedSpellPrefab", mixedFireballPrefab);
         SetObjectReference(mageSo, "spellStartPosition1", spellStartPoint1);
         SetObjectReference(mageSo, "spellStartPosition2", spellStartPoint2);
         SetObjectReference(mageSo, "projectileHoverAreaAnchor1", hoverArea1);

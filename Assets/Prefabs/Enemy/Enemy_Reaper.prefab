@@ -101,6 +101,7 @@ MonoBehaviour:
   secondaryWallCheck: {fileID: 1000000000000000015}
   maxHealth: 90
   canTakeDamage: 1
+  combatSoundDistance: 12
   stunAttackRecoveryDelay: 0.6
   avoidPitAndSpikeHazards: 1
   hazardLookAheadOffset: 0.12

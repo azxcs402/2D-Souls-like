@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Tilemaps;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -13,6 +14,18 @@ using UnityEditor;
 [RequireComponent(typeof(BoxCollider2D))]
 public class ArenaBossEncounterController : MonoBehaviour
 {
+    public static ArenaBossEncounterController Instance { get; private set; }
+    public static ArenaBossEncounterController GetActiveInstance()
+    {
+        if (Instance != null)
+        {
+            return Instance;
+        }
+
+        Instance = FindObjectOfType<ArenaBossEncounterController>(true);
+        return Instance;
+    }
+
     [Serializable]
     public class BossPhaseState
     {
@@ -58,6 +71,13 @@ public class ArenaBossEncounterController : MonoBehaviour
         Platform6 = 7
     }
 
+    public enum AbyssMageSkillPointPacePreset
+    {
+        Conservative = 0,
+        Standard = 1,
+        Aggressive = 2
+    }
+
     [Header("Boss")]
     [SerializeField] private Enemy bossEnemy;
     [SerializeField] private GameObject bossPrefab;
@@ -76,6 +96,16 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     [Header("Abyss Power")]
     [SerializeField] private AbyssPower[] abyssPowers = Array.Empty<AbyssPower>();
+
+    [Header("Abyss Mage Skill Point")]
+    [SerializeField] private AbyssMageSkillPointPacePreset abyssMageSkillPointPacePreset = AbyssMageSkillPointPacePreset.Standard;
+    [SerializeField, Range(0f, 100f)] private float abyssMageMeleeSkillPointChance = 35f;
+    [SerializeField, Range(0f, 100f)] private float abyssMageFireballSummonSkillPointChance = 20f;
+    [SerializeField, Min(0f)] private float abyssMageFireballSummonSkillPointCooldown = 4f;
+    [SerializeField, Min(0f)] private float abyssMageFireballPlayerInteractionSkillPointCooldown = 6f;
+    [SerializeField, Range(0f, 100f)] private float abyssMagePassiveSkillPointInitialChance = 1f;
+    [SerializeField, Min(0f)] private float abyssMagePassiveSkillPointChanceIncrement = 2f;
+    [SerializeField, Min(0.1f)] private float abyssMagePassiveSkillPointCheckInterval = 1f;
 
     [Header("Skill Point Backgrounds")]
     [SerializeField] private GameObject[] skillPointBackgrounds = Array.Empty<GameObject>();
@@ -129,19 +159,28 @@ public class ArenaBossEncounterController : MonoBehaviour
     private bool bossCameraOriginalFollowTargetCached;
     private Transform bossCameraFollowProxy;
     private Enemy spawnedBossInstance;
+    private Enemy_AbyssMage bossAbyssMage;
     private Entity_Health bossHealth;
     private IBossSkillPointSource bossSkillPointSource;
     private bool encounterStarted;
     private bool encounterCompleted;
     private int currentBossPhase = 1;
     private int currentSkillPoints;
+    private float passiveSkillPointTimer;
+    private float passiveSkillPointChance = 1f;
+    private float lastFireballSummonSkillPointTime = float.NegativeInfinity;
+    private float lastFireballPlayerInteractionSkillPointTime = float.NegativeInfinity;
+    private bool pendingAbyssMageHybridSpellCastRequest;
+    private bool pendingAbyssMageGiantSpellCastRequest;
 
     public int CurrentBossPhase => currentBossPhase;
     public int CurrentSkillPoints => currentSkillPoints;
+    public AbyssMageSkillPointPacePreset AbyssMageSkillPointPace => abyssMageSkillPointPacePreset;
     public string ActiveEnemySummary => BuildActiveEnemySummary();
 
     private void Awake()
     {
+        Instance = this;
         triggerCollider = GetComponent<BoxCollider2D>();
         if (triggerCollider != null)
         {
@@ -176,16 +215,33 @@ public class ArenaBossEncounterController : MonoBehaviour
         ResolveReferences();
     }
 
+    private void Update()
+    {
+        TryBeginEncounterFromPlayerPresence();
+        HandleAbyssMageForceSpellCastInput();
+        HandleAbyssMageForceGiantSpellCastInput();
+        HandleAbyssMageManualSpellCastInput();
+        UpdatePassiveAbyssMageSkillPointChance();
+    }
+
     private void OnDisable()
     {
         UnbindBossEnemy();
         StopAllInternalRoutines();
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 
     private void OnDestroy()
     {
         UnbindBossEnemy();
         StopAllInternalRoutines();
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -228,6 +284,7 @@ public class ArenaBossEncounterController : MonoBehaviour
         encounterCompleted = false;
         currentBossPhase = Mathf.Clamp(currentBossPhase, 1, Mathf.Max(1, bossPhaseCount));
         currentSkillPoints = 0;
+        ResetPassiveAbyssMageSkillPointState();
 
         SetDoorsLocked(lockDoorsWhenEncounterStarts);
         SetAbyssFireVisibleCount(0);
@@ -274,6 +331,40 @@ public class ArenaBossEncounterController : MonoBehaviour
         }
     }
 
+    private void TryBeginEncounterFromPlayerPresence()
+    {
+        if (encounterStarted || (encounterCompleted && startOnlyOnce))
+        {
+            return;
+        }
+
+        ResolveReferences();
+
+        if (triggerCollider == null)
+        {
+            triggerCollider = GetComponent<BoxCollider2D>();
+            if (triggerCollider != null)
+            {
+                triggerCollider.isTrigger = true;
+            }
+        }
+
+        if (triggerCollider == null)
+        {
+            return;
+        }
+
+        if (!TryGetPlayerEncounterBounds(out Bounds playerBounds))
+        {
+            return;
+        }
+
+        if (triggerCollider.bounds.Intersects(playerBounds))
+        {
+            BeginEncounter();
+        }
+    }
+
     public void ResetEncounter()
     {
         StopAllInternalRoutines();
@@ -283,6 +374,7 @@ public class ArenaBossEncounterController : MonoBehaviour
         encounterCompleted = false;
         currentBossPhase = 1;
         currentSkillPoints = 0;
+        ResetPassiveAbyssMageSkillPointState();
 
         SetDoorsLocked(false);
         SetAbyssFireVisibleCount(0);
@@ -401,6 +493,14 @@ public class ArenaBossEncounterController : MonoBehaviour
             abyssPowers = Array.Empty<AbyssPower>();
         }
 
+        abyssMageMeleeSkillPointChance = Mathf.Clamp(abyssMageMeleeSkillPointChance, 0f, 100f);
+        abyssMageFireballSummonSkillPointChance = Mathf.Clamp(abyssMageFireballSummonSkillPointChance, 0f, 100f);
+        abyssMageFireballSummonSkillPointCooldown = Mathf.Max(0f, abyssMageFireballSummonSkillPointCooldown);
+        abyssMageFireballPlayerInteractionSkillPointCooldown = Mathf.Max(0f, abyssMageFireballPlayerInteractionSkillPointCooldown);
+        abyssMagePassiveSkillPointInitialChance = Mathf.Clamp(abyssMagePassiveSkillPointInitialChance, 0f, 100f);
+        abyssMagePassiveSkillPointChanceIncrement = Mathf.Max(0f, abyssMagePassiveSkillPointChanceIncrement);
+        abyssMagePassiveSkillPointCheckInterval = Mathf.Max(0.1f, abyssMagePassiveSkillPointCheckInterval);
+
         if (skillPointBackgrounds == null)
         {
             skillPointBackgrounds = Array.Empty<GameObject>();
@@ -418,6 +518,11 @@ public class ArenaBossEncounterController : MonoBehaviour
             {
                 player = playerObject.GetComponent<Player>();
             }
+        }
+
+        if (player == null)
+        {
+            player = FindObjectOfType<Player>(true);
         }
 
         if (bossTarget == null)
@@ -472,6 +577,7 @@ public class ArenaBossEncounterController : MonoBehaviour
         }
 
         abyssFireRevealDelay = Mathf.Max(0f, abyssFireRevealDelay);
+        abyssMageSkillPointPacePreset = ClampPreset(abyssMageSkillPointPacePreset);
         bossIntroMoveDistance = Mathf.Max(0f, bossIntroMoveDistance);
         bossIntroMoveSpeedMultiplier = Mathf.Max(0f, bossIntroMoveSpeedMultiplier);
         cameraMoveToBossDuration = Mathf.Max(0f, cameraMoveToBossDuration);
@@ -499,6 +605,54 @@ public class ArenaBossEncounterController : MonoBehaviour
         {
             bossPhaseStates[i] ??= new BossPhaseState();
         }
+    }
+
+    public void ApplyAbyssMageSkillPointPreset(AbyssMageSkillPointPacePreset preset)
+    {
+        abyssMageSkillPointPacePreset = ClampPreset(preset);
+
+        switch (abyssMageSkillPointPacePreset)
+        {
+            case AbyssMageSkillPointPacePreset.Conservative:
+                abyssMageMeleeSkillPointChance = 25f;
+                abyssMageFireballSummonSkillPointChance = 12f;
+                abyssMageFireballSummonSkillPointCooldown = 5f;
+                abyssMageFireballPlayerInteractionSkillPointCooldown = 8f;
+                abyssMagePassiveSkillPointInitialChance = 1f;
+                abyssMagePassiveSkillPointChanceIncrement = 1f;
+                abyssMagePassiveSkillPointCheckInterval = 1.25f;
+                break;
+            case AbyssMageSkillPointPacePreset.Aggressive:
+                abyssMageMeleeSkillPointChance = 50f;
+                abyssMageFireballSummonSkillPointChance = 30f;
+                abyssMageFireballSummonSkillPointCooldown = 3f;
+                abyssMageFireballPlayerInteractionSkillPointCooldown = 4f;
+                abyssMagePassiveSkillPointInitialChance = 2f;
+                abyssMagePassiveSkillPointChanceIncrement = 3f;
+                abyssMagePassiveSkillPointCheckInterval = 1f;
+                break;
+            case AbyssMageSkillPointPacePreset.Standard:
+            default:
+                abyssMageMeleeSkillPointChance = 35f;
+                abyssMageFireballSummonSkillPointChance = 20f;
+                abyssMageFireballSummonSkillPointCooldown = 4f;
+                abyssMageFireballPlayerInteractionSkillPointCooldown = 6f;
+                abyssMagePassiveSkillPointInitialChance = 1f;
+                abyssMagePassiveSkillPointChanceIncrement = 2f;
+                abyssMagePassiveSkillPointCheckInterval = 1f;
+                break;
+        }
+    }
+
+    private static AbyssMageSkillPointPacePreset ClampPreset(AbyssMageSkillPointPacePreset preset)
+    {
+        return preset switch
+        {
+            AbyssMageSkillPointPacePreset.Conservative => AbyssMageSkillPointPacePreset.Conservative,
+            AbyssMageSkillPointPacePreset.Standard => AbyssMageSkillPointPacePreset.Standard,
+            AbyssMageSkillPointPacePreset.Aggressive => AbyssMageSkillPointPacePreset.Aggressive,
+            _ => AbyssMageSkillPointPacePreset.Standard
+        };
     }
 
     private void CacheAndBindBossEnemy(Enemy enemy)
@@ -546,7 +700,22 @@ public class ArenaBossEncounterController : MonoBehaviour
             bossHealth.OnHealthChanged += HandleBossHealthChanged;
         }
 
-        if (enemy is IBossSkillPointSource skillPointSource)
+        if (enemy is Enemy_AbyssMage abyssMage)
+        {
+            bossAbyssMage = abyssMage;
+            bossSkillPointSource = abyssMage;
+
+            bossSkillPointSource.MeleeAttackCompleted -= HandleBossMeleeAttackCompleted;
+            bossSkillPointSource.MeleeAttackCompleted += HandleBossMeleeAttackCompleted;
+
+            bossAbyssMage.FireballSummoned -= HandleBossFireballSummoned;
+            bossAbyssMage.FireballSummoned += HandleBossFireballSummoned;
+            bossAbyssMage.FireballPlayerInteracted -= HandleBossFireballPlayerInteracted;
+            bossAbyssMage.FireballPlayerInteracted += HandleBossFireballPlayerInteracted;
+
+            ResetPassiveAbyssMageSkillPointState();
+        }
+        else if (enemy is IBossSkillPointSource skillPointSource)
         {
             bossSkillPointSource = skillPointSource;
             bossSkillPointSource.MeleeAttackCompleted -= HandleBossMeleeAttackCompleted;
@@ -561,6 +730,15 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void UnbindBossEnemy()
     {
+        pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageGiantSpellCastRequest = false;
+
+        if (bossAbyssMage != null)
+        {
+            bossAbyssMage.FireballSummoned -= HandleBossFireballSummoned;
+            bossAbyssMage.FireballPlayerInteracted -= HandleBossFireballPlayerInteracted;
+        }
+
         if (bossEnemy != null)
         {
             bossEnemy.OnDied -= HandleBossDied;
@@ -576,8 +754,10 @@ public class ArenaBossEncounterController : MonoBehaviour
             bossSkillPointSource.MeleeAttackCompleted -= HandleBossMeleeAttackCompleted;
         }
 
+        bossAbyssMage = null;
         bossSkillPointSource = null;
         bossHealth = null;
+        ResetPassiveAbyssMageSkillPointState();
 
         if (bossEnemy != null)
         {
@@ -1264,7 +1444,66 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleBossMeleeAttackCompleted()
     {
+        if (bossAbyssMage != null)
+        {
+            TryAwardSkillPointFromMeleeAttack();
+            return;
+        }
+
         AddSkillPoint(1);
+    }
+
+    private void HandleBossFireballSummoned()
+    {
+        TryAwardSkillPointFromFireballSummon();
+    }
+
+    private void HandleBossFireballPlayerInteracted()
+    {
+        TryAwardSkillPointFromFireballPlayerInteraction();
+    }
+
+    private void HandleAbyssMageManualSpellCastInput()
+    {
+        bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.iKey.wasPressedThisFrame;
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.I);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        TryForceAbyssMageHybridSpellCast();
+    }
+
+    private void HandleAbyssMageForceSpellCastInput()
+    {
+        bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.oKey.wasPressedThisFrame;
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.O);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        string bossName = bossAbyssMage != null ? bossAbyssMage.name : "null";
+        LogAbyssMageDebug($"O pressed. currentSkillPoints={currentSkillPoints}, boss={bossName}");
+        TryForceAbyssMageHybridSpellCast(true);
+    }
+
+    private void HandleAbyssMageForceGiantSpellCastInput()
+    {
+        bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame;
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.L);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        string bossName = bossAbyssMage != null ? bossAbyssMage.name : "null";
+        LogAbyssMageDebug($"L pressed. currentSkillPoints={currentSkillPoints}, boss={bossName}");
+        TryForceAbyssMageGiantSpellCast(true);
     }
 
     private void AddSkillPoint(int amount)
@@ -1278,6 +1517,313 @@ public class ArenaBossEncounterController : MonoBehaviour
         currentSkillPoints = Mathf.Clamp(currentSkillPoints + amount, 0, maxSkillPoints);
         SetSkillPointBackgroundVisibleCount(currentSkillPoints);
         RevealRandomAbyssPower();
+    }
+
+    private bool TrySpendSkillPoints(int amount)
+    {
+        if (amount <= 0 || currentSkillPoints < amount)
+        {
+            return false;
+        }
+
+        currentSkillPoints -= amount;
+        SetSkillPointBackgroundVisibleCount(currentSkillPoints);
+        ConsumeRandomAbyssPowers(amount);
+        return true;
+    }
+
+    public bool TryPrepareAbyssMageSpecialAttack(Enemy_AbyssMage mage, out Enemy_AbyssMage.AbyssMageSpecialAttackType attackType)
+    {
+        attackType = Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill1Fireball;
+
+        if (!CanProcessAbyssMageSkillPointSource() || mage == null || mage != bossAbyssMage)
+        {
+            return false;
+        }
+
+        if (currentSkillPoints >= 3)
+        {
+            if (TryRollPercent(50f) && TrySpendSkillPoints(2))
+            {
+                attackType = Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball;
+                return true;
+            }
+        }
+
+        if (currentSkillPoints >= 2 && !mage.IsSkill3OnCooldown && TrySpendSkillPoints(1))
+        {
+            attackType = Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill3GiantAbyssFireball;
+        }
+
+        return true;
+    }
+
+    public bool TryForceAbyssMageHybridSpellCast(bool ignoreRestrictions = false)
+    {
+        if (!CanProcessAbyssMageSkillPointSource() || bossAbyssMage == null)
+        {
+            LogAbyssMageDebug($"Force hybrid failed. CanProcess={CanProcessAbyssMageSkillPointSource()}, bossNull={(bossAbyssMage == null)}");
+            return false;
+        }
+
+        if (ignoreRestrictions)
+        {
+            pendingAbyssMageHybridSpellCastRequest = false;
+            pendingAbyssMageGiantSpellCastRequest = false;
+            LogAbyssMageDebug("Force hybrid requested. Triggering boss ForceSpecialAttack(skill2).");
+            bossAbyssMage.ForceSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball);
+            return true;
+        }
+
+        if (currentSkillPoints < 3)
+        {
+            LogAbyssMageDebug($"Hybrid request rejected. currentSkillPoints={currentSkillPoints}");
+            return false;
+        }
+
+        pendingAbyssMageHybridSpellCastRequest = true;
+        pendingAbyssMageGiantSpellCastRequest = false;
+
+        if (!bossAbyssMage.CanEnterSpellCastState || !bossAbyssMage.CanSpellCast)
+        {
+            return true;
+        }
+
+        return bossAbyssMage.TryStartSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball);
+    }
+
+    public bool TryForceAbyssMageGiantSpellCast(bool ignoreRestrictions = false)
+    {
+        if (!CanProcessAbyssMageSkillPointSource() || bossAbyssMage == null)
+        {
+            LogAbyssMageDebug($"Force giant failed. CanProcess={CanProcessAbyssMageSkillPointSource()}, bossNull={(bossAbyssMage == null)}");
+            return false;
+        }
+
+        if (ignoreRestrictions)
+        {
+            if (bossAbyssMage.IsSkill3OnCooldown)
+            {
+                LogAbyssMageDebug("Force giant rejected. Skill3 is on cooldown.");
+                return false;
+            }
+
+            pendingAbyssMageHybridSpellCastRequest = false;
+            pendingAbyssMageGiantSpellCastRequest = false;
+            LogAbyssMageDebug("Force giant requested. Triggering boss ForceSpecialAttack(skill3).");
+            bossAbyssMage.ForceSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill3GiantAbyssFireball);
+            return true;
+        }
+
+        if (bossAbyssMage.IsSkill3OnCooldown)
+        {
+            LogAbyssMageDebug("Giant request rejected. Skill3 is on cooldown.");
+            return false;
+        }
+
+        if (currentSkillPoints < 2)
+        {
+            LogAbyssMageDebug($"Giant request rejected. currentSkillPoints={currentSkillPoints}");
+            return false;
+        }
+
+        pendingAbyssMageGiantSpellCastRequest = true;
+        pendingAbyssMageHybridSpellCastRequest = false;
+
+        if (!bossAbyssMage.CanEnterSpellCastState || !bossAbyssMage.CanSpellCast)
+        {
+            return true;
+        }
+
+        return bossAbyssMage.TryStartSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill3GiantAbyssFireball);
+    }
+
+    public bool PreviewAbyssMageGiantSpellCast()
+    {
+        if (bossAbyssMage == null)
+        {
+            LogAbyssMageDebug("Preview giant failed. bossNull=True");
+            return false;
+        }
+
+        Transform previewTarget = player != null ? player.transform : bossTarget;
+        bool spawned = bossAbyssMage.PreviewGiantAbyssFireball(previewTarget);
+        LogAbyssMageDebug($"Preview giant requested. spawned={spawned}");
+        return spawned;
+    }
+
+    private void LogAbyssMageDebug(string message)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[AbyssMageBoss] {message}", this);
+#endif
+    }
+
+    public Enemy_AbyssMage.AbyssMageSpecialAttackType ResolveAbyssMageSpecialAttackType(Enemy_AbyssMage mage)
+    {
+        if (mage == null)
+        {
+            return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill1Fireball;
+        }
+
+        ArenaBossEncounterController activeController = GetActiveInstance();
+        if (activeController != this)
+        {
+            return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill1Fireball;
+        }
+
+        if (!CanProcessAbyssMageSkillPointSource() || mage == null || mage != bossAbyssMage)
+        {
+            return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill1Fireball;
+        }
+
+        if (pendingAbyssMageHybridSpellCastRequest)
+        {
+            if (currentSkillPoints >= 3 && TrySpendSkillPoints(2))
+            {
+                pendingAbyssMageHybridSpellCastRequest = false;
+                return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball;
+            }
+
+            pendingAbyssMageHybridSpellCastRequest = false;
+        }
+
+        if (pendingAbyssMageGiantSpellCastRequest)
+        {
+            if (!mage.IsSkill3OnCooldown && currentSkillPoints >= 2 && TrySpendSkillPoints(1))
+            {
+                pendingAbyssMageGiantSpellCastRequest = false;
+                return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill3GiantAbyssFireball;
+            }
+
+            pendingAbyssMageGiantSpellCastRequest = false;
+        }
+
+        if (currentSkillPoints >= 3)
+        {
+            if (TryRollPercent(50f) && TrySpendSkillPoints(2))
+            {
+                return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball;
+            }
+        }
+
+        if (!mage.IsSkill3OnCooldown && currentSkillPoints >= 2 && TrySpendSkillPoints(1))
+        {
+            return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill3GiantAbyssFireball;
+        }
+
+        return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill1Fireball;
+    }
+
+    private void TryAwardSkillPointFromMeleeAttack()
+    {
+        if (!CanProcessAbyssMageSkillPointSource())
+        {
+            return;
+        }
+
+        if (TryRollPercent(abyssMageMeleeSkillPointChance))
+        {
+            AddSkillPoint(1);
+        }
+    }
+
+    private void TryAwardSkillPointFromFireballSummon()
+    {
+        if (!CanProcessAbyssMageSkillPointSource())
+        {
+            return;
+        }
+
+        if (Time.time < lastFireballSummonSkillPointTime + abyssMageFireballSummonSkillPointCooldown)
+        {
+            return;
+        }
+
+        if (TryRollPercent(abyssMageFireballSummonSkillPointChance))
+        {
+            lastFireballSummonSkillPointTime = Time.time;
+            AddSkillPoint(1);
+        }
+    }
+
+    private void TryAwardSkillPointFromFireballPlayerInteraction()
+    {
+        if (!CanProcessAbyssMageSkillPointSource())
+        {
+            return;
+        }
+
+        if (Time.time < lastFireballPlayerInteractionSkillPointTime + abyssMageFireballPlayerInteractionSkillPointCooldown)
+        {
+            return;
+        }
+
+        lastFireballPlayerInteractionSkillPointTime = Time.time;
+        AddSkillPoint(1);
+    }
+
+    private void UpdatePassiveAbyssMageSkillPointChance()
+    {
+        if (!CanProcessAbyssMageSkillPointSource())
+        {
+            return;
+        }
+
+        passiveSkillPointTimer += Time.deltaTime;
+        while (passiveSkillPointTimer >= abyssMagePassiveSkillPointCheckInterval)
+        {
+            passiveSkillPointTimer -= abyssMagePassiveSkillPointCheckInterval;
+
+            if (TryRollPercent(passiveSkillPointChance))
+            {
+                AddSkillPoint(1);
+                passiveSkillPointChance = abyssMagePassiveSkillPointInitialChance;
+                continue;
+            }
+
+            passiveSkillPointChance = Mathf.Min(100f, passiveSkillPointChance + abyssMagePassiveSkillPointChanceIncrement);
+        }
+    }
+
+    private bool CanProcessAbyssMageSkillPointSource()
+    {
+        return encounterStarted
+            && !encounterCompleted
+            && bossAbyssMage != null
+            && bossAbyssMage.gameObject != null
+            && bossAbyssMage.gameObject.activeInHierarchy
+            && !bossAbyssMage.IsDead;
+    }
+
+    private void ResetPassiveAbyssMageSkillPointState()
+    {
+        passiveSkillPointTimer = 0f;
+        passiveSkillPointChance = abyssMagePassiveSkillPointInitialChance;
+        lastFireballSummonSkillPointTime = float.NegativeInfinity;
+        lastFireballPlayerInteractionSkillPointTime = float.NegativeInfinity;
+        pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageGiantSpellCastRequest = false;
+    }
+
+    private static bool TryRollPercent(float chancePercent)
+    {
+        return UnityEngine.Random.value <= Mathf.Clamp01(chancePercent / 100f);
+    }
+
+    public Transform GetAbyssMageCeilingReferencePoint()
+    {
+        if (bossFloatingPlatform != null)
+        {
+            Transform referencePoint = bossFloatingPlatform.transform.Find("CeilingReferencePoint");
+            if (referencePoint != null)
+            {
+                return referencePoint;
+            }
+        }
+
+        GameObject ceilingObject = GameObject.Find("CeilingReferencePoint");
+        return ceilingObject != null ? ceilingObject.transform : null;
     }
 
     private void RevealRandomAbyssPower()
@@ -1303,6 +1849,34 @@ public class ArenaBossEncounterController : MonoBehaviour
 
         int chosenIndex = hiddenIndices[UnityEngine.Random.Range(0, hiddenIndices.Count)];
         SetAbyssPowerVisible(chosenIndex, true);
+    }
+
+    private void ConsumeRandomAbyssPowers(int amount)
+    {
+        if (amount <= 0 || abyssPowers == null || abyssPowers.Length == 0)
+        {
+            return;
+        }
+
+        for (int consumed = 0; consumed < amount; consumed++)
+        {
+            List<int> visibleIndices = new List<int>();
+            for (int i = 0; i < abyssPowers.Length; i++)
+            {
+                if (IsAbyssPowerVisible(abyssPowers[i]))
+                {
+                    visibleIndices.Add(i);
+                }
+            }
+
+            if (visibleIndices.Count == 0)
+            {
+                return;
+            }
+
+            int chosenIndex = visibleIndices[UnityEngine.Random.Range(0, visibleIndices.Count)];
+            SetAbyssPowerVisible(chosenIndex, false);
+        }
     }
 
     private IEnumerator RevealAbyssFiresRoutine()
@@ -1709,7 +2283,9 @@ public class ArenaBossEncounterController : MonoBehaviour
             return false;
         }
 
-        if (player != null && other.GetComponentInParent<Player>() == player)
+        Player otherPlayer = other.GetComponentInParent<Player>();
+
+        if (player != null && otherPlayer == player)
         {
             return true;
         }
@@ -1719,7 +2295,51 @@ public class ArenaBossEncounterController : MonoBehaviour
             return true;
         }
 
-        return other.GetComponentInParent<Player>() != null;
+        return otherPlayer != null;
+    }
+
+    private bool TryGetPlayerEncounterBounds(out Bounds bounds)
+    {
+        bounds = default;
+
+        if (player == null)
+        {
+            player = FindObjectOfType<Player>(true);
+        }
+
+        if (player == null)
+        {
+            return false;
+        }
+
+        if (player.TryGetActiveColliderBounds(out bounds))
+        {
+            return true;
+        }
+
+        Collider2D[] colliders = player.GetComponentsInChildren<Collider2D>(true);
+        bool hasBounds = false;
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider2D collider = colliders[i];
+            if (collider == null || !collider.enabled)
+            {
+                continue;
+            }
+
+            if (!hasBounds)
+            {
+                bounds = collider.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(collider.bounds);
+            }
+        }
+
+        return hasBounds;
     }
 
     private static Transform FindDeepChild(Transform parent, string childName)

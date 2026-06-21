@@ -79,6 +79,8 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     [SerializeField, Min(.01f)] private float splitChildDamageMultiplier = .7f;
     [SerializeField, Min(0f)] private float splitSpawnHorizontalOffset = .55f;
     [SerializeField, Min(0f)] private float splitSpawnVerticalOffset = .2f;
+    [SerializeField, Min(0f), Tooltip("New split child slimes cannot attack for this many seconds after spawning.")]
+    private float splitChildAttackLockDuration = 0.8f;
 
     [Header("Stunned Collider")]
     [SerializeField] private CapsuleCollider2D stunnedCollider;
@@ -158,10 +160,11 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     public int SplitGeneration => splitGeneration;
     public int MaxSplitGenerations => maxSplitGenerations;
     public bool CanSplitOnDeath => splitOnDeath && splitGeneration + 1 < maxSplitGenerations;
+    public float SplitChildAttackLockDuration => splitChildAttackLockDuration;
 
     public bool IsAlerted => isAlerted;
     public bool ShouldReturnToPatrol => shouldReturnToPatrol;
-    public bool CanAttack => attackCooldownTimer <= 0f && !IsStunAttackRecoveryActive;
+    public bool CanAttack => attackCooldownTimer <= 0f && spawnAttackLockTimer <= 0f && !IsStunAttackRecoveryActive;
     public bool IsCounterWindowActive => counterWindowActive;
     public int PlayerTargetDirection => playerTargetDirection;
     public Transform PlayerTarget => playerTarget;
@@ -181,6 +184,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
     private int playerTargetDirection = 1;
     private float lastTimeSeenPlayer;
     private float attackCooldownTimer;
+    private float spawnAttackLockTimer;
     private float battleAnimSpeedMultiplier = 1f;
     private float defaultAnimatorSpeed = 1f;
     private CapsuleCollider2D aliveCollider;
@@ -196,6 +200,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         NormalizeAnimationStateNames();
         defaultAnimatorSpeed = anim != null ? anim.speed : 1f;
         battleAnimSpeedMultiplier = CalculateBattleAnimSpeedMultiplier();
+        spawnAttackLockTimer = 0f;
 
         idleState = new Enemy_SlimeIdleState(this, stateMachine);
         moveState = new Enemy_SlimeMoveState(this, stateMachine);
@@ -227,6 +232,11 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         if (attackCooldownTimer > 0f)
         {
             attackCooldownTimer -= Time.deltaTime;
+        }
+
+        if (spawnAttackLockTimer > 0f)
+        {
+            spawnAttackLockTimer -= Time.deltaTime;
         }
 
         battleAnimSpeedMultiplier = CalculateBattleAnimSpeedMultiplier();
@@ -597,6 +607,7 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
         splitChildDamageMultiplier = Mathf.Max(.01f, splitChildDamageMultiplier);
         splitSpawnHorizontalOffset = Mathf.Max(0f, splitSpawnHorizontalOffset);
         splitSpawnVerticalOffset = Mathf.Max(0f, splitSpawnVerticalOffset);
+        splitChildAttackLockDuration = Mathf.Max(0f, splitChildAttackLockDuration);
         deadFallSpeed = Mathf.Max(0f, deadFallSpeed);
         deadSlideSpeed = Mathf.Max(0f, deadSlideSpeed);
         deadSlideAcceleration = Mathf.Max(0f, deadSlideAcceleration);
@@ -1069,10 +1080,17 @@ public class Enemy_Slime : Enemy, ICounterable, IEnemyBattleResponder
             anim.speed = 1f;
         }
 
+        StartSpawnAttackLock(splitChildAttackLockDuration);
+
         if (stateMachine != null && stateMachine.CurrentState == null && idleState != null)
         {
             stateMachine.Initialize(idleState);
         }
+    }
+
+    public void StartSpawnAttackLock(float duration)
+    {
+        spawnAttackLockTimer = Mathf.Max(0f, duration);
     }
 
     private void ApplySlimeVisualFacingCorrection()

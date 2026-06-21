@@ -19,8 +19,20 @@ public class AbyssFire : MonoBehaviour
     [SerializeField] private bool autoLoadDefaultFrames = true;
     [SerializeField] private Color flameTint = new Color(1f, 0.92f, 0.78f, 1f);
 
+    [Header("Audio")]
+    [SerializeField] private AudioKey flameLoopSfxKey = AudioKey.AbyssFireFlameLoop;
+
+    [Header("Flame Audio")]
+    [SerializeField, Range(0f, 1f), Tooltip("Volume multiplier for the abyss fire loop.")]
+    private float flameLoopVolume = 0.35f;
+    [SerializeField, Min(0f), Tooltip("Distance where the abyss fire loop remains at full volume.")]
+    private float flameLoopMinDistance = 0.75f;
+    [SerializeField, Min(0f), Tooltip("Distance where the abyss fire loop fades to silence.")]
+    private float flameLoopMaxDistance = 3.5f;
+
     [Header("References")]
     [SerializeField] private SpriteRenderer flameRenderer;
+    [SerializeField] private AudioSource flameLoopSource;
 
     private int currentFrameIndex;
     private float frameTimer;
@@ -30,14 +42,30 @@ public class AbyssFire : MonoBehaviour
         CacheReferences();
         TryLoadDefaultFrames();
         ApplyVisuals(0);
+        UpdateFlameLoopAudio();
     }
 
     private void OnValidate()
     {
         CacheReferences();
         framesPerSecond = Mathf.Max(1f, framesPerSecond);
+        flameLoopMaxDistance = Mathf.Max(flameLoopMinDistance, flameLoopMaxDistance);
         TryLoadDefaultFrames();
         ApplyVisuals(0);
+        if (Application.isPlaying)
+        {
+            UpdateFlameLoopAudio();
+        }
+    }
+
+    private void OnEnable()
+    {
+        UpdateFlameLoopAudio();
+    }
+
+    private void OnDisable()
+    {
+        StopFlameLoopAudio();
     }
 
     private void Update()
@@ -52,6 +80,26 @@ public class AbyssFire : MonoBehaviour
             flameRenderer = GetComponent<SpriteRenderer>();
         }
 
+        if (flameLoopSource == null)
+        {
+            flameLoopSource = GetComponent<AudioSource>();
+        }
+
+        if (flameLoopSource == null && Application.isPlaying)
+        {
+            flameLoopSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        if (flameLoopSource != null)
+        {
+            flameLoopSource.playOnAwake = false;
+            flameLoopSource.loop = true;
+            flameLoopSource.spatialBlend = 1f;
+            flameLoopSource.rolloffMode = AudioRolloffMode.Logarithmic;
+            flameLoopSource.dopplerLevel = 0f;
+            flameLoopSource.minDistance = flameLoopMinDistance;
+            flameLoopSource.maxDistance = flameLoopMaxDistance;
+        }
     }
 
     private void UpdateAnimation()
@@ -120,6 +168,53 @@ public class AbyssFire : MonoBehaviour
             flameRenderer.color = flameTint;
         }
 
+    }
+
+    private void UpdateFlameLoopAudio()
+    {
+        if (flameLoopSource == null)
+        {
+            return;
+        }
+
+        AudioManager.instance?.PlayLoopingSFX(flameLoopSfxKey, flameLoopSource, flameLoopVolume);
+    }
+
+    private void StopFlameLoopAudio()
+    {
+        if (flameLoopSource == null)
+        {
+            return;
+        }
+
+        if (AudioManager.instance != null)
+        {
+            AudioManager.instance.StopLoopingSFX(flameLoopSource);
+            return;
+        }
+
+        if (flameLoopSource.isPlaying)
+        {
+            flameLoopSource.Stop();
+        }
+    }
+
+    public void CopyFlameAudioSettingsFrom(AbyssFire source)
+    {
+        if (source == null || source == this)
+        {
+            return;
+        }
+
+        flameLoopSfxKey = source.flameLoopSfxKey;
+        flameLoopVolume = source.flameLoopVolume;
+        flameLoopMinDistance = source.flameLoopMinDistance;
+        flameLoopMaxDistance = source.flameLoopMaxDistance;
+
+        if (Application.isPlaying)
+        {
+            UpdateFlameLoopAudio();
+        }
     }
 
     private void TryLoadDefaultFrames()

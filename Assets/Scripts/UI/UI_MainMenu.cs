@@ -53,7 +53,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void PlayBTN()
     {
-        PlayButtonClick();
+        UIAudio.PlayButtonClick();
 
         if (GameManager.instance == null)
         {
@@ -71,7 +71,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void NewGameBTN()
     {
-        PlayButtonClick();
+        UIAudio.PlayButtonClick();
 
         if (GameManager.instance == null)
         {
@@ -83,7 +83,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void ContinueBTN()
     {
-        PlayButtonClick();
+        UIAudio.PlayButtonClick();
 
         if (GameManager.instance == null)
         {
@@ -95,7 +95,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void OptionsBTN()
     {
-        PlayButtonClick();
+        UIAudio.PlayButtonClick();
 
         if (mainPanel != null)
         {
@@ -110,7 +110,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void QuitGameBTN()
     {
-        PlayButtonClick();
+        UIAudio.PlayButtonClick();
 
         if (GameManager.instance != null)
         {
@@ -235,8 +235,11 @@ public class UI_MainMenu : MonoBehaviour
 
         return null;
     }
+}
 
-    private static void PlayButtonClick()
+public static class UIAudio
+{
+    public static void PlayButtonClick()
     {
         if (AudioManager.instance != null)
         {

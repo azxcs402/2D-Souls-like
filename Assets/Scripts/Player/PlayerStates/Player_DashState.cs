@@ -31,6 +31,7 @@ public class Player_DashState : EntityState
         player.SetDash(true);
         player.SetYVelocity(0f);
         player.SetVelocity(dashDirection * player.DashSpeed, 0f);
+        player.PlayPlayerCombatAudio(AudioKey.PlayerDash);
     }
 
     public override void Update()

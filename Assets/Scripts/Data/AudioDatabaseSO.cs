@@ -73,6 +73,7 @@ public class AudioClipData
     public string audioName;
     public List<AudioClip> clips = new List<AudioClip>();
     [Range(0f, 1f)] public float maxVolume = 1f;
+    [Min(0.01f)] public float maxHearDistance = 12f;
 
     public bool TryGetRandomClip(out AudioClip clip)
     {

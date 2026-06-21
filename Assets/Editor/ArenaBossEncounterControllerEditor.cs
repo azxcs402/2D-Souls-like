@@ -12,9 +12,22 @@ public class ArenaBossEncounterControllerEditor : Editor
 {
     private const string GroundLayerName = "Ground";
     private const string AbyssPowerRootName = "AbyssPower";
+    private const double PreviewCleanupFallbackSeconds = 4.0;
 
     private static int previewBackgroundCount;
     private static int previewAbyssPowerCount;
+    private static readonly List<PreviewCleanupEntry> previewCleanupEntries = new List<PreviewCleanupEntry>();
+
+    private struct PreviewCleanupEntry
+    {
+        public Object ObjectReference;
+        public double ExpireAt;
+    }
+
+    static ArenaBossEncounterControllerEditor()
+    {
+        EditorApplication.update += UpdatePreviewCleanup;
+    }
     private SerializedProperty bossEnemyProperty;
     private SerializedProperty bossPrefabProperty;
     private SerializedProperty bossPhaseCountProperty;
@@ -26,6 +39,14 @@ public class ArenaBossEncounterControllerEditor : Editor
     private SerializedProperty abyssFiresProperty;
     private SerializedProperty abyssFireRevealDelayProperty;
     private SerializedProperty abyssPowersProperty;
+    private SerializedProperty abyssMageSkillPointPacePresetProperty;
+    private SerializedProperty abyssMageMeleeSkillPointChanceProperty;
+    private SerializedProperty abyssMageFireballSummonSkillPointChanceProperty;
+    private SerializedProperty abyssMageFireballSummonSkillPointCooldownProperty;
+    private SerializedProperty abyssMageFireballPlayerInteractionSkillPointCooldownProperty;
+    private SerializedProperty abyssMagePassiveSkillPointInitialChanceProperty;
+    private SerializedProperty abyssMagePassiveSkillPointChanceIncrementProperty;
+    private SerializedProperty abyssMagePassiveSkillPointCheckIntervalProperty;
     private SerializedProperty skillPointBackgroundsProperty;
     private SerializedProperty bossHealthBarProperty;
     private SerializedProperty bossTargetProperty;
@@ -57,6 +78,14 @@ public class ArenaBossEncounterControllerEditor : Editor
         abyssFiresProperty = serializedObject.FindProperty("abyssFires");
         abyssFireRevealDelayProperty = serializedObject.FindProperty("abyssFireRevealDelay");
         abyssPowersProperty = serializedObject.FindProperty("abyssPowers");
+        abyssMageSkillPointPacePresetProperty = serializedObject.FindProperty("abyssMageSkillPointPacePreset");
+        abyssMageMeleeSkillPointChanceProperty = serializedObject.FindProperty("abyssMageMeleeSkillPointChance");
+        abyssMageFireballSummonSkillPointChanceProperty = serializedObject.FindProperty("abyssMageFireballSummonSkillPointChance");
+        abyssMageFireballSummonSkillPointCooldownProperty = serializedObject.FindProperty("abyssMageFireballSummonSkillPointCooldown");
+        abyssMageFireballPlayerInteractionSkillPointCooldownProperty = serializedObject.FindProperty("abyssMageFireballPlayerInteractionSkillPointCooldown");
+        abyssMagePassiveSkillPointInitialChanceProperty = serializedObject.FindProperty("abyssMagePassiveSkillPointInitialChance");
+        abyssMagePassiveSkillPointChanceIncrementProperty = serializedObject.FindProperty("abyssMagePassiveSkillPointChanceIncrement");
+        abyssMagePassiveSkillPointCheckIntervalProperty = serializedObject.FindProperty("abyssMagePassiveSkillPointCheckInterval");
         skillPointBackgroundsProperty = serializedObject.FindProperty("skillPointBackgrounds");
         bossHealthBarProperty = serializedObject.FindProperty("bossHealthBar");
         bossTargetProperty = serializedObject.FindProperty("bossTarget");
@@ -84,6 +113,9 @@ public class ArenaBossEncounterControllerEditor : Editor
         DrawRuntimeSummary();
         EditorGUILayout.Space(6f);
 
+        DrawToolsSection();
+        EditorGUILayout.Space(8f);
+
         DrawBossSection();
         EditorGUILayout.Space(8f);
 
@@ -94,6 +126,9 @@ public class ArenaBossEncounterControllerEditor : Editor
         EditorGUILayout.Space(8f);
 
         DrawAbyssPowerSection();
+        EditorGUILayout.Space(8f);
+
+        DrawAbyssMageSkillPointSection();
         EditorGUILayout.Space(8f);
 
         DrawSkillPointBackgroundSection();
@@ -136,6 +171,7 @@ public class ArenaBossEncounterControllerEditor : Editor
         message.AppendLine($"Abyss Fires: {abyssFireCount}/6");
         message.AppendLine($"Skill Backgrounds: {backgroundCount}/6");
         message.AppendLine($"Boss Floating Platform: {(bossFloatingPlatformProperty != null && bossFloatingPlatformProperty.objectReferenceValue != null ? "Assigned" : "Missing")}");
+        message.AppendLine($"Abyss Mage Pace: {(controller != null ? controller.AbyssMageSkillPointPace.ToString() : "N/A")}");
         message.AppendLine(controller != null ? $"Current Boss Phase: {controller.CurrentBossPhase}" : "Current Boss Phase: N/A");
         message.AppendLine(controller != null ? $"Current Skill Points: {controller.CurrentSkillPoints}" : "Current Skill Points: N/A");
         message.AppendLine(controller != null ? $"Active Enemy: {controller.ActiveEnemySummary}" : "Active Enemy: N/A");
@@ -144,12 +180,36 @@ public class ArenaBossEncounterControllerEditor : Editor
         MessageType messageType = bossEnemy != null ? MessageType.Info : MessageType.Warning;
         EditorGUILayout.HelpBox(message.ToString(), messageType);
 
-        if (controller != null && GUILayout.Button("Reset Boss Encounter"))
+    }
+
+    private void DrawToolsSection()
+    {
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("Tools", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(
+            "Utility actions for repairing and resetting the arena setup. These do not change the scripted tuning values.",
+            MessageType.Info);
+
+        using (new EditorGUILayout.HorizontalScope())
         {
-            Undo.RecordObject(controller, "Reset Boss Encounter");
-            controller.ResetEncounter();
-            EditorUtility.SetDirty(controller);
+            if (GUILayout.Button("Reset Boss Encounter"))
+            {
+                ArenaBossEncounterController controller = target as ArenaBossEncounterController;
+                if (controller != null)
+                {
+                    Undo.RecordObject(controller, "Reset Boss Encounter");
+                    controller.ResetEncounter();
+                    EditorUtility.SetDirty(controller);
+                }
+            }
+
+            if (GUILayout.Button("Create / Repair AbyssPower Group"))
+            {
+                CreateOrRepairAbyssPowerGroup();
+            }
         }
+
+        EditorGUILayout.EndVertical();
     }
 
     private void DrawBossSection()
@@ -382,11 +442,6 @@ public class ArenaBossEncounterControllerEditor : Editor
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("Create / Repair Group"))
-                {
-                    CreateOrRepairAbyssPowerGroup();
-                }
-
                 if (GUILayout.Button("Fill From Selection (Sort X)"))
                 {
                     FillAbyssPowersFromSelection();
@@ -452,6 +507,209 @@ public class ArenaBossEncounterControllerEditor : Editor
         }
 
         EditorGUILayout.EndVertical();
+    }
+
+    private void DrawAbyssMageSkillPointSection()
+    {
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("Abyss Mage Skill Point", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(
+            "These values tune the Abyss Mage skill point economy. Melee, fireball summon, fireball hit/block, and passive ramp-up are all controlled here.",
+            MessageType.Info);
+
+        EditorGUILayout.PropertyField(abyssMageSkillPointPacePresetProperty, new GUIContent("Battle Pace Preset"));
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Apply Conservative"))
+            {
+                ApplyAbyssMageSkillPointPreset(ArenaBossEncounterController.AbyssMageSkillPointPacePreset.Conservative);
+            }
+
+            if (GUILayout.Button("Apply Standard"))
+            {
+                ApplyAbyssMageSkillPointPreset(ArenaBossEncounterController.AbyssMageSkillPointPacePreset.Standard);
+            }
+
+            if (GUILayout.Button("Apply Aggressive"))
+            {
+                ApplyAbyssMageSkillPointPreset(ArenaBossEncounterController.AbyssMageSkillPointPacePreset.Aggressive);
+            }
+        }
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Preview Skill3 Giant Fireball"))
+            {
+                if (Application.isPlaying)
+                {
+                    ArenaBossEncounterController controller = target as ArenaBossEncounterController;
+                    if (controller != null)
+                    {
+                        controller.PreviewAbyssMageGiantSpellCast();
+                    }
+                }
+                else
+                {
+                    PreviewAbyssMageGiantSpellCastInEditMode();
+                }
+            }
+        }
+
+        EditorGUILayout.HelpBox(
+            "Preview Skill3 Giant Fireball works in Play Mode and Edit Mode. In Edit Mode it auto-deletes after a short delay.",
+            MessageType.Info);
+
+        EditorGUILayout.PropertyField(abyssMageMeleeSkillPointChanceProperty, new GUIContent("Melee Skill Point Chance"));
+        EditorGUILayout.PropertyField(abyssMageFireballSummonSkillPointChanceProperty, new GUIContent("Fireball Summon Skill Point Chance"));
+        EditorGUILayout.PropertyField(abyssMageFireballSummonSkillPointCooldownProperty, new GUIContent("Fireball Summon Skill Point Cooldown"));
+        EditorGUILayout.PropertyField(abyssMageFireballPlayerInteractionSkillPointCooldownProperty, new GUIContent("Fireball Player Interaction Skill Point Cooldown"));
+        EditorGUILayout.PropertyField(abyssMagePassiveSkillPointInitialChanceProperty, new GUIContent("Passive Skill Point Initial Chance"));
+        EditorGUILayout.PropertyField(abyssMagePassiveSkillPointChanceIncrementProperty, new GUIContent("Passive Skill Point Chance Increment"));
+        EditorGUILayout.PropertyField(abyssMagePassiveSkillPointCheckIntervalProperty, new GUIContent("Passive Skill Point Check Interval"));
+
+        EditorGUILayout.EndVertical();
+    }
+
+    private void PreviewAbyssMageGiantSpellCastInEditMode()
+    {
+        ArenaBossEncounterController controller = target as ArenaBossEncounterController;
+        Enemy_AbyssMage mage = bossEnemyProperty != null ? bossEnemyProperty.objectReferenceValue as Enemy_AbyssMage : null;
+
+        if (mage == null)
+        {
+            mage = controller != null ? controller.GetComponentInChildren<Enemy_AbyssMage>(true) : null;
+        }
+
+        if (mage == null)
+        {
+            mage = Object.FindObjectOfType<Enemy_AbyssMage>(true);
+        }
+
+        if (mage == null)
+        {
+            Debug.LogWarning("[AbyssMageBoss] Edit-mode preview failed because no Enemy_AbyssMage was found.", controller);
+            return;
+        }
+
+        Enemy_AbyssMageFireball previewProjectile = mage.SpawnPreviewGiantAbyssFireball();
+        if (previewProjectile == null)
+        {
+            Debug.LogWarning("[AbyssMageBoss] Edit-mode preview failed because the giant fireball could not be spawned.", mage);
+            return;
+        }
+
+        GameObject previewObject = previewProjectile.gameObject;
+        Undo.RegisterCreatedObjectUndo(previewObject, "Preview Skill3 Giant Fireball");
+        RegisterPreviewCleanup(previewObject, Mathf.Max(2f, mage.GiantFireballHoverDuration + 2f));
+        SceneView.RepaintAll();
+    }
+
+    private static void RegisterPreviewCleanup(Object previewObject, float lifetime)
+    {
+        if (previewObject == null)
+        {
+            return;
+        }
+
+        previewCleanupEntries.Add(new PreviewCleanupEntry
+        {
+            ObjectReference = previewObject,
+            ExpireAt = EditorApplication.timeSinceStartup + Mathf.Max(0.1f, lifetime)
+        });
+    }
+
+    private static void UpdatePreviewCleanup()
+    {
+        if (previewCleanupEntries.Count == 0)
+        {
+            return;
+        }
+
+        double now = EditorApplication.timeSinceStartup;
+        for (int i = previewCleanupEntries.Count - 1; i >= 0; i--)
+        {
+            PreviewCleanupEntry entry = previewCleanupEntries[i];
+            if (entry.ObjectReference == null || now >= entry.ExpireAt)
+            {
+                if (entry.ObjectReference != null)
+                {
+                    Object.DestroyImmediate(entry.ObjectReference);
+                    SceneView.RepaintAll();
+                }
+
+                previewCleanupEntries.RemoveAt(i);
+            }
+        }
+    }
+
+    private void ApplyAbyssMageSkillPointPreset(ArenaBossEncounterController.AbyssMageSkillPointPacePreset preset)
+    {
+        if (serializedObject == null)
+        {
+            return;
+        }
+
+        Undo.RecordObjects(targets, $"Apply Abyss Mage Skill Point Preset ({preset})");
+
+        if (abyssMageSkillPointPacePresetProperty != null)
+        {
+            abyssMageSkillPointPacePresetProperty.enumValueIndex = (int)preset;
+        }
+
+        switch (preset)
+        {
+            case ArenaBossEncounterController.AbyssMageSkillPointPacePreset.Conservative:
+                SetSkillPointPresetValues(25f, 12f, 5f, 8f, 1f, 1f, 1.25f);
+                break;
+            case ArenaBossEncounterController.AbyssMageSkillPointPacePreset.Aggressive:
+                SetSkillPointPresetValues(50f, 30f, 3f, 4f, 2f, 3f, 1f);
+                break;
+            case ArenaBossEncounterController.AbyssMageSkillPointPacePreset.Standard:
+            default:
+                SetSkillPointPresetValues(35f, 20f, 4f, 6f, 1f, 2f, 1f);
+                break;
+        }
+
+        serializedObject.ApplyModifiedProperties();
+    }
+
+    private void SetSkillPointPresetValues(float meleeChance, float summonChance, float summonCooldown, float playerInteractionCooldown, float passiveInitialChance, float passiveIncrement, float passiveInterval)
+    {
+        if (abyssMageMeleeSkillPointChanceProperty != null)
+        {
+            abyssMageMeleeSkillPointChanceProperty.floatValue = meleeChance;
+        }
+
+        if (abyssMageFireballSummonSkillPointChanceProperty != null)
+        {
+            abyssMageFireballSummonSkillPointChanceProperty.floatValue = summonChance;
+        }
+
+        if (abyssMageFireballSummonSkillPointCooldownProperty != null)
+        {
+            abyssMageFireballSummonSkillPointCooldownProperty.floatValue = summonCooldown;
+        }
+
+        if (abyssMageFireballPlayerInteractionSkillPointCooldownProperty != null)
+        {
+            abyssMageFireballPlayerInteractionSkillPointCooldownProperty.floatValue = playerInteractionCooldown;
+        }
+
+        if (abyssMagePassiveSkillPointInitialChanceProperty != null)
+        {
+            abyssMagePassiveSkillPointInitialChanceProperty.floatValue = passiveInitialChance;
+        }
+
+        if (abyssMagePassiveSkillPointChanceIncrementProperty != null)
+        {
+            abyssMagePassiveSkillPointChanceIncrementProperty.floatValue = passiveIncrement;
+        }
+
+        if (abyssMagePassiveSkillPointCheckIntervalProperty != null)
+        {
+            abyssMagePassiveSkillPointCheckIntervalProperty.floatValue = passiveInterval;
+        }
     }
 
     private void DrawUiSection()
@@ -589,6 +847,11 @@ public class ArenaBossEncounterControllerEditor : Editor
         if (changed)
         {
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Scene scene = SceneManager.GetActiveScene();
+            if (scene.IsValid())
+            {
+                EditorSceneManager.SaveScene(scene);
+            }
         }
     }
 
@@ -827,6 +1090,55 @@ public class ArenaBossEncounterControllerEditor : Editor
         }
     }
 
+    [MenuItem("Tools/Arena Encounter/Reset Boss Encounter")]
+    private static void MenuResetBossEncounter()
+    {
+        if (!TryGetSelectedArenaBossEncounterController(out ArenaBossEncounterController controller))
+        {
+            Debug.LogWarning("[ArenaBossEncounter] No ArenaBossEncounterController found for Reset Boss Encounter.");
+            return;
+        }
+
+        Undo.RecordObject(controller, "Reset Boss Encounter");
+        controller.ResetEncounter();
+        EditorUtility.SetDirty(controller);
+        EditorSceneManager.MarkSceneDirty(controller.gameObject.scene);
+        if (controller.gameObject.scene.IsValid())
+        {
+            EditorSceneManager.SaveScene(controller.gameObject.scene);
+        }
+    }
+
+    [MenuItem("Tools/Arena Encounter/Create / Repair AbyssPower Group")]
+    private static void MenuCreateOrRepairAbyssPowerGroup()
+    {
+        if (!TryGetSelectedArenaBossEncounterController(out ArenaBossEncounterController controller))
+        {
+            Debug.LogWarning("[ArenaBossEncounter] No ArenaBossEncounterController found for AbyssPower repair.");
+            return;
+        }
+
+        CreateOrRepairAbyssPowerGroup(controller);
+    }
+
+    private static bool TryGetSelectedArenaBossEncounterController(out ArenaBossEncounterController controller)
+    {
+        controller = null;
+
+        if (Selection.activeGameObject != null)
+        {
+            controller = Selection.activeGameObject.GetComponentInParent<ArenaBossEncounterController>(true);
+        }
+
+        if (controller != null)
+        {
+            return true;
+        }
+
+        controller = Object.FindObjectOfType<ArenaBossEncounterController>(true);
+        return controller != null;
+    }
+
     private void CreateOrRepairAbyssPowerGroup()
     {
         bool changed = false;
@@ -838,88 +1150,7 @@ public class ArenaBossEncounterControllerEditor : Editor
                 continue;
             }
 
-            Transform root = controller.transform;
-            Undo.RegisterFullObjectHierarchyUndo(root.gameObject, "Create Or Repair AbyssPower Group");
-
-            GameObject group = FindDeepChild(root, AbyssPowerRootName)?.gameObject;
-            if (group == null)
-            {
-                group = new GameObject(AbyssPowerRootName);
-                Undo.RegisterCreatedObjectUndo(group, "Create AbyssPower Group");
-                Undo.SetTransformParent(group.transform, root, "Parent AbyssPower Group");
-            }
-
-            group.transform.localPosition = Vector3.zero;
-            group.transform.localRotation = Quaternion.identity;
-            group.transform.localScale = Vector3.one;
-
-            for (int i = 0; i < 6; i++)
-            {
-                string childName = $"{AbyssPowerRootName}_{i + 1}";
-                Transform child = group.transform.Find(childName);
-                GameObject childObject;
-                if (child != null)
-                {
-                    childObject = child.gameObject;
-                }
-                else
-                {
-                    childObject = new GameObject(childName);
-                    Undo.RegisterCreatedObjectUndo(childObject, $"Create {childName}");
-                    Undo.SetTransformParent(childObject.transform, group.transform, $"Parent {childName}");
-                }
-
-                childObject.layer = group.layer;
-                childObject.transform.localPosition = new Vector3(-3f + i * 1.2f, 1.8f, 0f);
-                childObject.transform.localRotation = Quaternion.identity;
-                childObject.transform.localScale = Vector3.one;
-
-                if (childObject.GetComponent<AbyssPower>() == null)
-                {
-                    Undo.AddComponent<AbyssPower>(childObject);
-                }
-
-                SpriteRenderer existingSpriteRenderer = childObject.GetComponent<SpriteRenderer>();
-                if (existingSpriteRenderer != null)
-                {
-                    Undo.DestroyObjectImmediate(existingSpriteRenderer);
-                }
-
-                TilemapCollider2D existingCollider = childObject.GetComponent<TilemapCollider2D>();
-                if (existingCollider != null)
-                {
-                    Undo.DestroyObjectImmediate(existingCollider);
-                }
-
-                Rigidbody2D existingBody = childObject.GetComponent<Rigidbody2D>();
-                if (existingBody != null)
-                {
-                    Undo.DestroyObjectImmediate(existingBody);
-                }
-
-                CompositeCollider2D existingComposite = childObject.GetComponent<CompositeCollider2D>();
-                if (existingComposite != null)
-                {
-                    Undo.DestroyObjectImmediate(existingComposite);
-                }
-
-                if (childObject.GetComponent<Tilemap>() == null)
-                {
-                    Undo.AddComponent<Tilemap>(childObject);
-                }
-
-                TilemapRenderer renderer = childObject.GetComponent<TilemapRenderer>();
-                if (renderer == null)
-                {
-                    renderer = Undo.AddComponent<TilemapRenderer>(childObject);
-                }
-
-                renderer.sortingLayerName = "Background";
-                renderer.sortingOrder = 12;
-                childObject.SetActive(true);
-            }
-
-            EditorUtility.SetDirty(controller);
+            CreateOrRepairAbyssPowerGroup(controller);
             changed = true;
         }
 
@@ -927,6 +1158,110 @@ public class ArenaBossEncounterControllerEditor : Editor
         {
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
         }
+    }
+
+    private static void CreateOrRepairAbyssPowerGroup(ArenaBossEncounterController controller)
+    {
+        if (controller == null || controller.transform == null)
+        {
+            return;
+        }
+
+        Transform root = controller.transform;
+        Undo.RegisterFullObjectHierarchyUndo(root.gameObject, "Create Or Repair AbyssPower Group");
+
+        GameObject group = FindDeepChild(root, AbyssPowerRootName)?.gameObject;
+        bool groupCreated = false;
+        if (group == null)
+        {
+            group = new GameObject(AbyssPowerRootName);
+            Undo.RegisterCreatedObjectUndo(group, "Create AbyssPower Group");
+            Undo.SetTransformParent(group.transform, root, "Parent AbyssPower Group");
+            groupCreated = true;
+        }
+
+        int ignoreRaycastLayer = LayerMask.NameToLayer("Ignore Raycast");
+        if (ignoreRaycastLayer >= 0)
+        {
+            group.layer = ignoreRaycastLayer;
+        }
+
+        if (groupCreated)
+        {
+            group.transform.localPosition = Vector3.zero;
+            group.transform.localRotation = Quaternion.identity;
+            group.transform.localScale = Vector3.one;
+        }
+
+        for (int i = 0; i < 6; i++)
+        {
+            string childName = $"{AbyssPowerRootName}_{i + 1}";
+            Transform child = group.transform.Find(childName);
+            GameObject childObject;
+            bool childCreated = false;
+            if (child != null)
+            {
+                childObject = child.gameObject;
+            }
+            else
+            {
+                childObject = new GameObject(childName);
+                Undo.RegisterCreatedObjectUndo(childObject, $"Create {childName}");
+                Undo.SetTransformParent(childObject.transform, group.transform, $"Parent {childName}");
+                childCreated = true;
+            }
+
+            childObject.layer = group.layer;
+            if (childCreated)
+            {
+                childObject.transform.localPosition = new Vector3(-3f + i * 1.2f, 1.8f, 0f);
+                childObject.transform.localRotation = Quaternion.identity;
+                childObject.transform.localScale = Vector3.one;
+            }
+
+            if (childObject.GetComponent<AbyssPower>() == null)
+            {
+                Undo.AddComponent<AbyssPower>(childObject);
+            }
+
+            Collider2D[] colliders = childObject.GetComponentsInChildren<Collider2D>(true);
+            for (int colliderIndex = 0; colliderIndex < colliders.Length; colliderIndex++)
+            {
+                Collider2D collider = colliders[colliderIndex];
+                if (collider != null)
+                {
+                    collider.isTrigger = true;
+                }
+            }
+
+            Rigidbody2D[] bodies = childObject.GetComponentsInChildren<Rigidbody2D>(true);
+            for (int bodyIndex = 0; bodyIndex < bodies.Length; bodyIndex++)
+            {
+                Rigidbody2D body = bodies[bodyIndex];
+                if (body != null)
+                {
+                    Undo.DestroyObjectImmediate(body);
+                }
+            }
+
+            if (childObject.GetComponent<Tilemap>() == null)
+            {
+                Undo.AddComponent<Tilemap>(childObject);
+            }
+
+            TilemapRenderer renderer = childObject.GetComponent<TilemapRenderer>();
+            if (renderer == null)
+            {
+                renderer = Undo.AddComponent<TilemapRenderer>(childObject);
+            }
+
+            renderer.sortingLayerName = "Background";
+            renderer.sortingOrder = 12;
+            childObject.SetActive(true);
+        }
+
+        EditorUtility.SetDirty(controller);
+        EditorSceneManager.MarkSceneDirty(controller.gameObject.scene);
     }
 
     private void ApplyObjectArrayToTargets(string propertyName, Object[] objects, int desiredSize)

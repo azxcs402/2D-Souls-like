@@ -769,6 +769,11 @@ public class BonfireTravelMenu : MonoBehaviour
         button.transition = Selectable.Transition.None;
         button.onClick.AddListener(() =>
         {
+            if (instance != null && instance.sourceBonfire != null)
+            {
+                instance.sourceBonfire.PlayTravelMenuClosedSfx();
+            }
+
             if (instance != null)
             {
                 instance.CloseMenu(true);

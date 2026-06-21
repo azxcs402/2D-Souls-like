@@ -7,6 +7,13 @@ using Random = UnityEngine.Random;
 [RequireComponent(typeof(Rigidbody2D), typeof(CapsuleCollider2D))]
 public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBossSkillPointSource
 {
+    public enum AbyssMageSpecialAttackType
+    {
+        Skill1Fireball = 0,
+        Skill2MixedFireball = 1,
+        Skill3GiantAbyssFireball = 2
+    }
+
     private static readonly int BattleAnimHash = Animator.StringToHash("battle");
     private static readonly int XVelocityAnimHash = Animator.StringToHash("xVelocity");
     private static readonly int MoveAnimSpeedMultiplierHash = Animator.StringToHash("moveAnimSpeedMultiplier");
@@ -78,6 +85,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
     [Header("AbyssMage Info")]
     [SerializeField] private GameObject spellPrefab;
+    [SerializeField] private GameObject mixedSpellPrefab;
     [SerializeField] private Transform spellStartPosition1;
     [SerializeField] private Transform spellStartPosition2;
     [SerializeField, Min(0)] private int amountToCast = 2;
@@ -88,6 +96,14 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     [SerializeField, Min(.1f)] private Vector2 projectileHoverAreaSize = new Vector2(4f, 1.8f);
     [SerializeField, Min(0f)] private float projectileHoverMinSeparation = .72f;
     [SerializeField, Min(1)] private int projectileHoverMaxPlacementAttempts = 24;
+    [SerializeField, Min(0f)] private float giantFireballHoverDuration = 2f;
+    [SerializeField, Min(1f)] private float giantFireballScaleMultiplier = 10f;
+    [SerializeField, Min(1f)] private float giantFireballDamageMultiplier = 5f;
+    [SerializeField, Min(0f)] private float giantFireballFallSpeedMultiplier = 3f;
+    [SerializeField, Min(0f)] private float giantFireballFollowSpeed = 18f;
+    [SerializeField, Min(0f)] private float skill1FireballDamageMultiplier = .5f;
+    [SerializeField, Min(0f)] private float specialAttackLockDuration = 3f;
+    [SerializeField, Min(0f)] private float skill3CooldownDuration = 10f;
     [SerializeField] private Transform behindCollisionCheck;
     [SerializeField] private bool hasRecoveryAnimation = true;
     [SerializeField] private bool canBeKnockedBack = true;
@@ -190,6 +206,14 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     public Vector2 ProjectileHoverAreaCenter => (Vector2)transform.position + GetProjectileHoverAreaLocalCenter(0);
     public float ProjectileHoverMinSeparation => projectileHoverMinSeparation;
     public int ProjectileHoverMaxPlacementAttempts => projectileHoverMaxPlacementAttempts;
+    public float GiantFireballHoverDuration => giantFireballHoverDuration;
+    public float GiantFireballScaleMultiplier => giantFireballScaleMultiplier;
+    public float GiantFireballDamageMultiplier => giantFireballDamageMultiplier;
+    public float GiantFireballFallSpeedMultiplier => giantFireballFallSpeedMultiplier;
+    public float GiantFireballFollowSpeed => giantFireballFollowSpeed;
+    public float Skill1FireballDamageMultiplier => skill1FireballDamageMultiplier;
+    public float SpecialAttackLockDuration => specialAttackLockDuration;
+    public float Skill3CooldownDuration => skill3CooldownDuration;
     public Transform BehindCollisionCheck => behindCollisionCheck;
     public bool HasRecoveryAnimation => hasRecoveryAnimation;
     public bool CanBeKnockedBack => canBeKnockedBack;
@@ -225,8 +249,21 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     public bool IsStunned => stateMachine != null && stateMachine.CurrentState == stunnedState;
     public bool IsSpellCasting => stateMachine != null && stateMachine.CurrentState == spellCastState;
     public bool SpellCastPerformed => spellCastPerformed;
+    public bool CanEnterSpellCastState =>
+        stateMachine != null
+        && spellCastState != null
+        && !IsDead
+        && !IsSpecialAttackLocked
+        && stateMachine.CurrentState != attackState
+        && stateMachine.CurrentState != retreatState
+        && stateMachine.CurrentState != stunnedState
+        && stateMachine.CurrentState != stunRecoveryState
+        && stateMachine.CurrentState != spellCastState;
+    public bool IsSkill3OnCooldown => Time.time < skill3CooldownUntilTime;
     public Entity_Combat Combat { get; private set; }
     public event Action MeleeAttackCompleted;
+    public event Action FireballSummoned;
+    public event Action FireballPlayerInteracted;
 
     private Transform playerTarget;
     private bool isAlerted;
@@ -246,6 +283,12 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     private float currentRangeTeleportChance;
     private float rangeTeleportTimer;
     private bool spellCastPerformed;
+    private bool hasQueuedSpecialAttackType;
+    private AbyssMageSpecialAttackType queuedSpecialAttackType = AbyssMageSpecialAttackType.Skill1Fireball;
+    private bool hasForcedSpecialAttackType;
+    private AbyssMageSpecialAttackType forcedSpecialAttackType = AbyssMageSpecialAttackType.Skill1Fireball;
+    private float specialAttackLockedUntilTime = float.NegativeInfinity;
+    private float skill3CooldownUntilTime = float.NegativeInfinity;
     private bool halfHealthTeleportTriggered;
     private bool hasQueuedTeleportDestination;
     private Vector2 queuedTeleportDestination;
@@ -564,6 +607,58 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         spellCastPerformed = performed;
     }
 
+    public void ForceSpecialAttack(AbyssMageSpecialAttackType attackType)
+    {
+        if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball && IsSkill3OnCooldown)
+        {
+            LogSpecialAttackDebug("ForceSpecialAttack(skill3) ignored because skill3 is on cooldown.");
+            return;
+        }
+
+        forcedSpecialAttackType = attackType;
+        hasForcedSpecialAttackType = true;
+
+        LogSpecialAttackDebug($"ForceSpecialAttack queued: {attackType}");
+
+        if (stateMachine != null && spellCastState != null)
+        {
+            stateMachine.ChangeState(spellCastState);
+        }
+    }
+
+    public void QueueSpecialAttackType(AbyssMageSpecialAttackType attackType)
+    {
+        queuedSpecialAttackType = attackType;
+        hasQueuedSpecialAttackType = true;
+    }
+
+    public void ClearQueuedSpecialAttackType()
+    {
+        hasQueuedSpecialAttackType = false;
+        queuedSpecialAttackType = AbyssMageSpecialAttackType.Skill1Fireball;
+    }
+
+    public bool TryStartSpecialAttack(AbyssMageSpecialAttackType attackType)
+    {
+        if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball && IsSkill3OnCooldown)
+        {
+            return false;
+        }
+
+        if (IsSpecialAttackLocked || !CanEnterSpellCastState)
+        {
+            return false;
+        }
+
+        stateMachine.ChangeState(spellCastState);
+        return true;
+    }
+
+    public void NotifyFireballPlayerInteracted()
+    {
+        FireballPlayerInteracted?.Invoke();
+    }
+
     public void EnableCounterWindow()
     {
         counterWindowActive = true;
@@ -609,23 +704,119 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
         if (spellCastCoroutine != null)
         {
+            LogSpecialAttackDebug("SpecialAttack ignored because spellCastCoroutine already running.");
             return;
         }
 
-        if (spellPrefab == null || AmountToCast <= 0)
+        AbyssMageSpecialAttackType attackType = ConsumeForcedSpecialAttackType();
+        if (attackType == AbyssMageSpecialAttackType.Skill1Fireball)
         {
+            attackType = GetSpecialAttackTypeForCurrentCast();
+        }
+
+        LogSpecialAttackDebug($"SpecialAttack resolved: {attackType}, forced={(attackType != AbyssMageSpecialAttackType.Skill1Fireball ? "maybe" : "no")}");
+
+        if (attackType == AbyssMageSpecialAttackType.Skill2MixedFireball && mixedSpellPrefab == null)
+        {
+            LogSpecialAttackDebug("Skill2 requested but mixedSpellPrefab is null; falling back to Skill1.");
+            attackType = AbyssMageSpecialAttackType.Skill1Fireball;
+        }
+
+        if (attackType == AbyssMageSpecialAttackType.Skill1Fireball && (spellPrefab == null || AmountToCast <= 0))
+        {
+            LogSpecialAttackDebug("Skill1 aborted because spellPrefab is null or AmountToCast <= 0.");
             SetSpellCastPerformed(true);
             return;
+        }
+
+        if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball && spellPrefab == null)
+        {
+            LogSpecialAttackDebug("Skill3 aborted because spellPrefab is null.");
+            SetSpellCastPerformed(true);
+            return;
+        }
+
+        if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball)
+        {
+            if (IsSkill3OnCooldown)
+            {
+                LogSpecialAttackDebug("Skill3 aborted because it is on cooldown.");
+                SetSpellCastPerformed(true);
+                return;
+            }
+
+            LockSpecialAttackForDuration(specialAttackLockDuration);
         }
 
         Transform target = GetPlayerReference();
         if (target == null)
         {
+            LogSpecialAttackDebug("SpecialAttack aborted because target is null.");
             SetSpellCastPerformed(true);
             return;
         }
 
-        spellCastCoroutine = StartCoroutine(CastSpellCo(target));
+        if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball)
+        {
+            LockSkill3Cooldown(skill3CooldownDuration);
+        }
+
+        LogSpecialAttackDebug($"Starting CastSpellCo with {attackType}.");
+        spellCastCoroutine = StartCoroutine(CastSpellCo(target, attackType));
+    }
+
+    public Enemy_AbyssMageFireball SpawnPreviewGiantAbyssFireball(Transform previewTarget = null)
+    {
+        if (spellPrefab == null)
+        {
+            LogSpecialAttackDebug("Preview giant fireball aborted because spellPrefab is null.");
+            return null;
+        }
+
+        Transform target = previewTarget != null ? previewTarget : GetPlayerReference();
+        Transform ceilingReferencePoint = GetAbyssMageCeilingReferencePoint();
+        Vector3 spawnPosition = GetGiantSpellSpawnPosition(target, ceilingReferencePoint);
+
+        LogSpecialAttackDebug(
+            $"Preview giant abyss fireball spawned at {spawnPosition}, ceilingY={(ceilingReferencePoint != null ? ceilingReferencePoint.position.y.ToString("0.###") : "null")}"
+        );
+
+        GameObject projectileObject = Instantiate(spellPrefab, spawnPosition, Quaternion.identity);
+        Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
+
+        if (projectile == null)
+        {
+            Destroy(projectileObject);
+            return null;
+        }
+
+        Entity_Combat combatComponent = Combat != null ? Combat : GetComponent<Entity_Combat>();
+        projectile.SetupProjectile(this, target, combatComponent, -1, -1, Vector2.zero);
+        projectile.ConfigureGiantFireball(
+            ceilingReferencePoint,
+            giantFireballHoverDuration,
+            giantFireballScaleMultiplier,
+            giantFireballDamageMultiplier,
+            giantFireballFallSpeedMultiplier,
+            giantFireballFollowSpeed
+        );
+        return projectile;
+    }
+
+    public bool PreviewGiantAbyssFireball(Transform previewTarget = null)
+    {
+        return SpawnPreviewGiantAbyssFireball(previewTarget) != null;
+    }
+
+    public AbyssMageSpecialAttackType GetSpecialAttackTypeForCurrentCast()
+    {
+        ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+        if (controller != null)
+        {
+            return controller.ResolveAbyssMageSpecialAttackType(this);
+        }
+
+        return AbyssMageSpecialAttackType.Skill1Fireball;
     }
 
     protected override void OnValidate()
@@ -675,6 +866,14 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         spellCastCooldown = Mathf.Max(0f, spellCastCooldown);
         projectileHoverMinSeparation = Mathf.Max(0f, projectileHoverMinSeparation);
         projectileHoverMaxPlacementAttempts = Mathf.Max(1, projectileHoverMaxPlacementAttempts);
+        giantFireballHoverDuration = Mathf.Max(0f, giantFireballHoverDuration);
+        giantFireballScaleMultiplier = Mathf.Max(1f, giantFireballScaleMultiplier);
+        giantFireballDamageMultiplier = Mathf.Max(1f, giantFireballDamageMultiplier);
+        giantFireballFallSpeedMultiplier = Mathf.Max(0f, giantFireballFallSpeedMultiplier);
+        giantFireballFollowSpeed = Mathf.Max(0f, giantFireballFollowSpeed);
+        skill1FireballDamageMultiplier = Mathf.Max(0f, skill1FireballDamageMultiplier);
+        specialAttackLockDuration = Mathf.Max(0f, specialAttackLockDuration);
+        skill3CooldownDuration = Mathf.Max(0f, skill3CooldownDuration);
         retreatCooldown = Mathf.Max(0f, retreatCooldown);
         retreatMaxDistance = Mathf.Max(0f, retreatMaxDistance);
         retreatSpeed = Mathf.Max(0f, retreatSpeed);
@@ -704,49 +903,211 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         }
     }
 
-    private IEnumerator CastSpellCo(Transform target)
+    private IEnumerator CastSpellCo(Transform target, AbyssMageSpecialAttackType attackType)
     {
         SetSpellCastPerformed(false);
+        PlayCombatAudio(AudioKey.MageSpellCast);
 
-        if (spellPrefab == null || target == null)
+        LogSpecialAttackDebug($"CastSpellCo begin: {attackType}");
+
+        if (target == null)
         {
             SetSpellCastPerformed(true);
             spellCastCoroutine = null;
             yield break;
         }
 
-        for (int castIndex = 0; castIndex < amountToCast; castIndex++)
+        if (attackType == AbyssMageSpecialAttackType.Skill2MixedFireball)
         {
-            for (int laneIndex = 0; laneIndex < 2; laneIndex++)
+            Vector3 spawnPosition = GetMixedSpellSpawnPosition();
+            LogSpecialAttackDebug($"Spawning Skill2 mixed fireball at {spawnPosition}");
+            GameObject projectileObject = Instantiate(mixedSpellPrefab, spawnPosition, Quaternion.identity);
+            Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
+
+            if (projectile != null)
             {
-                bool reservedHoverSlot = TryReserveProjectileHoverSlot(laneIndex, out int hoverReservationId, out Vector2 hoverOffset);
-                Vector3 spawnPosition = GetSpellSpawnPosition(laneIndex);
+                projectile.SetupProjectile(this, target, Combat, -1, -1, Vector2.zero);
+            }
+            else
+            {
+                Destroy(projectileObject);
+            }
 
-                GameObject projectileObject = Instantiate(spellPrefab, spawnPosition, Quaternion.identity);
-                Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
+            if (spellCastCooldown > 0f)
+            {
+                yield return new WaitForSeconds(spellCastCooldown);
+            }
+            else
+            {
+                yield return null;
+            }
+        }
+        else if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball)
+        {
+            Transform ceilingReferencePoint = GetAbyssMageCeilingReferencePoint();
+            Vector3 spawnPosition = GetGiantSpellSpawnPosition(target, ceilingReferencePoint);
+            LogSpecialAttackDebug(
+                $"Spawning Skill3 giant abyss fireball at {spawnPosition}, ceilingY={(ceilingReferencePoint != null ? ceilingReferencePoint.position.y.ToString("0.###") : "null")}"
+            );
+            GameObject projectileObject = Instantiate(spellPrefab, spawnPosition, Quaternion.identity);
+            Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
 
-                if (projectile != null)
-                {
-                    projectile.SetupProjectile(this, target, Combat, laneIndex, reservedHoverSlot ? hoverReservationId : -1, hoverOffset);
-                }
-                else
-                {
-                    Destroy(projectileObject);
-                }
+            if (projectile != null)
+            {
+                projectile.SetupProjectile(this, target, Combat, -1, -1, Vector2.zero);
+                projectile.ConfigureGiantFireball(
+                    ceilingReferencePoint,
+                    giantFireballHoverDuration,
+                    giantFireballScaleMultiplier,
+                    giantFireballDamageMultiplier,
+                    giantFireballFallSpeedMultiplier,
+                    giantFireballFollowSpeed
+                );
+            }
+            else
+            {
+                Destroy(projectileObject);
+            }
 
-                if (spellCastCooldown > 0f)
+            if (spellCastCooldown > 0f)
+            {
+                yield return new WaitForSeconds(spellCastCooldown);
+            }
+            else
+            {
+                yield return null;
+            }
+        }
+        else
+        {
+            LogSpecialAttackDebug($"Spawning Skill1 fireballs. amountToCast={amountToCast}");
+            if (spellPrefab == null || AmountToCast <= 0)
+            {
+                SetSpellCastPerformed(true);
+                spellCastCoroutine = null;
+                yield break;
+            }
+
+            for (int castIndex = 0; castIndex < amountToCast; castIndex++)
+            {
+                for (int laneIndex = 0; laneIndex < 2; laneIndex++)
                 {
-                    yield return new WaitForSeconds(spellCastCooldown);
-                }
-                else
-                {
-                    yield return null;
+                    bool reservedHoverSlot = TryReserveProjectileHoverSlot(laneIndex, out int hoverReservationId, out Vector2 hoverOffset);
+                    Vector3 spawnPosition = GetSpellSpawnPosition(laneIndex);
+
+                    GameObject projectileObject = Instantiate(spellPrefab, spawnPosition, Quaternion.identity);
+                    Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
+
+                    if (projectile != null)
+                    {
+                        projectile.SetupProjectile(this, target, Combat, laneIndex, reservedHoverSlot ? hoverReservationId : -1, hoverOffset);
+                        projectile.ConfigureRegularFireballDamage(skill1FireballDamageMultiplier);
+                        FireballSummoned?.Invoke();
+                    }
+                    else
+                    {
+                        Destroy(projectileObject);
+                    }
+
+                    if (spellCastCooldown > 0f)
+                    {
+                        yield return new WaitForSeconds(spellCastCooldown);
+                    }
+                    else
+                    {
+                        yield return null;
+                    }
                 }
             }
         }
 
         SetSpellCastPerformed(true);
         spellCastCoroutine = null;
+    }
+
+    private void LogSpecialAttackDebug(string message)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[AbyssMage] {message}", this);
+#endif
+    }
+
+    private AbyssMageSpecialAttackType ConsumeQueuedSpecialAttackType()
+    {
+        if (!hasQueuedSpecialAttackType)
+        {
+            return AbyssMageSpecialAttackType.Skill1Fireball;
+        }
+
+        AbyssMageSpecialAttackType attackType = queuedSpecialAttackType;
+        ClearQueuedSpecialAttackType();
+        return attackType;
+    }
+
+    private AbyssMageSpecialAttackType ConsumeForcedSpecialAttackType()
+    {
+        if (!hasForcedSpecialAttackType)
+        {
+            return AbyssMageSpecialAttackType.Skill1Fireball;
+        }
+
+        hasForcedSpecialAttackType = false;
+        return forcedSpecialAttackType;
+    }
+
+    private void LockSpecialAttackForDuration(float duration)
+    {
+        if (duration <= 0f)
+        {
+            return;
+        }
+
+        specialAttackLockedUntilTime = Mathf.Max(specialAttackLockedUntilTime, Time.time + duration);
+    }
+
+    private void LockSkill3Cooldown(float duration)
+    {
+        if (duration <= 0f)
+        {
+            return;
+        }
+
+        skill3CooldownUntilTime = Mathf.Max(skill3CooldownUntilTime, Time.time + duration);
+    }
+
+    private bool IsSpecialAttackLocked => Time.time < specialAttackLockedUntilTime;
+
+    private Vector3 GetMixedSpellSpawnPosition()
+    {
+        if (spellStartPosition1 != null && spellStartPosition2 != null)
+        {
+            return (spellStartPosition1.position + spellStartPosition2.position) * 0.5f;
+        }
+
+        if (spellStartPosition1 != null)
+        {
+            return spellStartPosition1.position;
+        }
+
+        if (spellStartPosition2 != null)
+        {
+            return spellStartPosition2.position;
+        }
+
+        return transform.position;
+    }
+
+    private Vector3 GetGiantSpellSpawnPosition(Transform target, Transform ceilingReferencePoint)
+    {
+        float ceilingY = ceilingReferencePoint != null ? ceilingReferencePoint.position.y : transform.position.y + 4f;
+        float spawnX = target != null ? target.position.x : transform.position.x;
+        return new Vector3(spawnX, ceilingY, transform.position.z);
+    }
+
+    private Transform GetAbyssMageCeilingReferencePoint()
+    {
+        ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+        return controller != null ? controller.GetAbyssMageCeilingReferencePoint() : null;
     }
 
     private void UpdatePlayerPerception()

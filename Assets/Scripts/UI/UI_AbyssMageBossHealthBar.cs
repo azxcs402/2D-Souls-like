@@ -6,6 +6,8 @@ using UnityEngine.UI;
 [ExecuteAlways]
 public class UI_AbyssMageBossHealthBar : MonoBehaviour
 {
+    private const string ChineseFallbackFontResourcePath = "Fonts & Materials/BossChineseFallback SDF";
+
     [Header("References")]
     [SerializeField] private RectTransform rootRect;
     [SerializeField] private Slider healthSlider;
@@ -18,7 +20,7 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
     [SerializeField] private CanvasGroup canvasGroup;
 
     [Header("Text")]
-    [SerializeField] private string bossDisplayName = "\u6df1\u6e0a\u6cd5\u5e08";
+    [SerializeField] private string bossDisplayName = "Abyss Mage";
     [SerializeField] private Color bossNameColor = new Color(1f, 0.95f, 0.88f, 1f);
 
     [Header("Animation")]
@@ -68,6 +70,7 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
         bossNameText = nameText;
         canvasGroup = group;
         CacheReferences();
+        ApplyBossNameFont();
         RefreshVisibleState();
         ApplyImmediateState();
     }
@@ -80,7 +83,6 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
 
         if (bossNameText != null)
         {
-            bossNameText.text = bossDisplayName;
             bossNameText.color = bossNameColor;
         }
 
@@ -101,7 +103,6 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
 
         if (bossNameText != null)
         {
-            bossNameText.text = bossDisplayName;
             bossNameText.color = bossNameColor;
         }
 
@@ -144,6 +145,7 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
     private void Awake()
     {
         CacheReferences();
+        ApplyBossNameFont();
         RefreshVisibleState();
         ApplyImmediateState();
     }
@@ -151,6 +153,7 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
     private void OnEnable()
     {
         CacheReferences();
+        ApplyBossNameFont();
 
         if (bossHealth != null)
         {
@@ -245,6 +248,20 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
         }
     }
 
+    private void ApplyBossNameFont()
+    {
+        if (bossNameText == null)
+        {
+            return;
+        }
+
+        TMP_FontAsset chineseFallbackFont = Resources.Load<TMP_FontAsset>(ChineseFallbackFontResourcePath);
+        if (chineseFallbackFont != null)
+        {
+            bossNameText.font = chineseFallbackFont;
+        }
+    }
+
     private void HandleBossHealthChanged(Entity_Health health)
     {
         if (health == bossHealth)
@@ -281,7 +298,6 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
 
         if (bossNameText != null)
         {
-            bossNameText.text = bossDisplayName;
             bossNameText.color = bossNameColor;
         }
 
@@ -451,6 +467,7 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
     private void ApplyEditorPreviewState()
     {
         CacheReferences();
+        ApplyBossNameFont();
 
         isVisible = true;
         visibilityT = 1f;
@@ -478,7 +495,10 @@ public class UI_AbyssMageBossHealthBar : MonoBehaviour
 
         if (bossNameText != null)
         {
-            bossNameText.text = bossDisplayName;
+            if (string.IsNullOrWhiteSpace(bossNameText.text))
+            {
+                bossNameText.text = bossDisplayName;
+            }
             bossNameText.color = bossNameColor;
         }
 

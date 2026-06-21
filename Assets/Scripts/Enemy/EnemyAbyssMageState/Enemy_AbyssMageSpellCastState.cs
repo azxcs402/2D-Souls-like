@@ -25,6 +25,7 @@ public class Enemy_AbyssMageSpellCastState : EnemyState
         if (mage != null)
         {
             mage.SetSpellCastPerformed(false);
+
             enemy.SetAnimation(false, false, false);
             mage.SetBattleAnimation(false, 0f);
             mage.SetAttackAnimationSpeed(1f);

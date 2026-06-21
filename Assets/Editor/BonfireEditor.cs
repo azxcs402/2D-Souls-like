@@ -1,4 +1,5 @@
 ﻿using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 [CustomEditor(typeof(Bonfire))]
@@ -69,6 +70,10 @@ public class BonfireEditor : Editor
     private SerializedProperty travelMenuHintFontSizeProperty;
     private SerializedProperty travelMenuItemFontSizeProperty;
     private SerializedProperty travelMenuCloseFontSizeProperty;
+    private SerializedProperty flameLoopSfxKeyProperty;
+    private SerializedProperty flameLoopVolumeProperty;
+    private SerializedProperty flameLoopMinDistanceProperty;
+    private SerializedProperty flameLoopMaxDistanceProperty;
     private SerializedProperty flameRendererProperty;
     private SerializedProperty interactionColliderProperty;
 
@@ -139,6 +144,10 @@ public class BonfireEditor : Editor
         travelMenuHintFontSizeProperty = serializedObject.FindProperty("travelMenuHintFontSize");
         travelMenuItemFontSizeProperty = serializedObject.FindProperty("travelMenuItemFontSize");
         travelMenuCloseFontSizeProperty = serializedObject.FindProperty("travelMenuCloseFontSize");
+        flameLoopSfxKeyProperty = serializedObject.FindProperty("flameLoopSfxKey");
+        flameLoopVolumeProperty = serializedObject.FindProperty("flameLoopVolume");
+        flameLoopMinDistanceProperty = serializedObject.FindProperty("flameLoopMinDistance");
+        flameLoopMaxDistanceProperty = serializedObject.FindProperty("flameLoopMaxDistance");
         flameRendererProperty = serializedObject.FindProperty("flameRenderer");
         interactionColliderProperty = serializedObject.FindProperty("interactionCollider");
     }
@@ -152,6 +161,7 @@ public class BonfireEditor : Editor
         DrawScriptField();
         DrawActivationSection();
         DrawCheckpointSection();
+        DrawFlameAudioSection();
         DrawAnimationSection();
         DrawPromptSection();
         DrawTravelMenuSection();
@@ -213,6 +223,27 @@ public class BonfireEditor : Editor
         EditorGUILayout.PropertyField(litTintProperty, new GUIContent("Lit Tint"));
         EditorGUILayout.PropertyField(ignitePulseScaleProperty, new GUIContent("Ignite Pulse Scale"));
         EditorGUILayout.PropertyField(ignitePulseDurationProperty, new GUIContent("Ignite Pulse Duration"));
+    }
+
+    private void DrawFlameAudioSection()
+    {
+        EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField("Flame Audio", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(flameLoopSfxKeyProperty, new GUIContent("Flame Loop Sfx Key"));
+        EditorGUILayout.PropertyField(flameLoopVolumeProperty, new GUIContent("Flame Loop Volume"));
+        EditorGUILayout.PropertyField(flameLoopMinDistanceProperty, new GUIContent("Flame Loop Min Distance"));
+        EditorGUILayout.PropertyField(flameLoopMaxDistanceProperty, new GUIContent("Flame Loop Max Distance"));
+
+        EditorGUILayout.Space(4f);
+        using (new EditorGUI.DisabledScope(targets == null || targets.Length == 0))
+        {
+            if (GUILayout.Button("Sync Flame Audio To All Bonfires"))
+            {
+                serializedObject.ApplyModifiedProperties();
+                SyncFlameAudioToAllBonfires();
+                serializedObject.Update();
+            }
+        }
     }
 
     private void DrawPromptSection()
@@ -323,6 +354,49 @@ public class BonfireEditor : Editor
                 displayNameProperty.stringValue = value;
                 serializedBonfire.ApplyModifiedProperties();
                 EditorUtility.SetDirty(bonfire);
+            }
+        }
+    }
+
+    private void SyncFlameAudioToAllBonfires()
+    {
+        Bonfire source = target as Bonfire;
+        if (source == null)
+        {
+            return;
+        }
+
+        Bonfire[] bonfires = Object.FindObjectsByType<Bonfire>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        System.Collections.Generic.List<Bonfire> changedBonfires = new System.Collections.Generic.List<Bonfire>();
+
+        for (int i = 0; i < bonfires.Length; i++)
+        {
+            Bonfire bonfire = bonfires[i];
+            if (bonfire == null || bonfire == source)
+            {
+                continue;
+            }
+
+            changedBonfires.Add(bonfire);
+        }
+
+        if (changedBonfires.Count == 0)
+        {
+            return;
+        }
+
+        Undo.RecordObjects(changedBonfires.ToArray(), "Sync Bonfire Flame Audio");
+
+        for (int i = 0; i < changedBonfires.Count; i++)
+        {
+            Bonfire bonfire = changedBonfires[i];
+            bonfire.CopyFlameAudioSettingsFrom(source);
+            EditorUtility.SetDirty(bonfire);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(bonfire);
+
+            if (bonfire.gameObject.scene.IsValid())
+            {
+                EditorSceneManager.MarkSceneDirty(bonfire.gameObject.scene);
             }
         }
     }

@@ -150,6 +150,7 @@ public static class EnemySlimePrefabCreator
         SetIfExists(so, "splitChildDamageMultiplier", .55f);
         SetIfExists(so, "splitSpawnHorizontalOffset", .55f);
         SetIfExists(so, "splitSpawnVerticalOffset", .2f);
+        SetIfExists(so, "splitChildAttackLockDuration", .8f);
 
         int playerLayer = LayerMask.NameToLayer("Player");
         if (playerLayer >= 0)

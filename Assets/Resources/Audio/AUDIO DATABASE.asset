@@ -15,37 +15,134 @@ MonoBehaviour:
   player:
   - audioName: player_attackHit
     clips:
-    - {fileID: 8300000, guid: 33a8913daa67b30468e6b29b3559ea3e, type: 3}
-    maxVolume: 0.667
+    - {fileID: 8300000, guid: ce1d2ace92844ffcbc05d7f0f2a8d8af, type: 3}
+    - {fileID: 8300000, guid: 221598c76ef648b58203b67ed690e151, type: 3}
+    - {fileID: 8300000, guid: fd100fdf21594cc7b8f5b7cfc1cc68cd, type: 3}
+    maxVolume: 1
   - audioName: player_attackMiss
     clips:
-    - {fileID: 8300000, guid: bed79f9abf73b3d4e897e59d5230985d, type: 3}
-    maxVolume: 0.683
+    - {fileID: 8300000, guid: bff563fe0b7449b2a4421af6f5594312, type: 3}
+    - {fileID: 8300000, guid: 556b4139a4114859a997184b602e4ed6, type: 3}
+    - {fileID: 8300000, guid: 579e1e48aaeb4c508bb1d2ab4e3f6d3e, type: 3}
+    maxVolume: 1
+  - audioName: player_block
+    clips:
+    - {fileID: 8300000, guid: ff421570d19646f99dbb18b99cd56e0b, type: 3}
+    maxVolume: 1
+  - audioName: player_counterSuccess
+    clips:
+    - {fileID: 8300000, guid: 221598c76ef648b58203b67ed690e151, type: 3}
+    maxVolume: 1
+  - audioName: player_dash
+    clips:
+    - {fileID: 8300000, guid: 689d35c49ae1484e92e6ffb0fc3d3d3f, type: 3}
+    maxVolume: 1
+  - audioName: player_potion_use
+    clips:
+    - {fileID: 8300000, guid: 300a2eb9a3b34816b8fc33b579bee8f7, type: 3}
+    maxVolume: 1
+  - audioName: player_potion_complete
+    clips:
+    - {fileID: 8300000, guid: a8364c93d4684596b60f5d7eda4ee321, type: 3}
+    maxVolume: 1
+  - audioName: player_jump
+    clips:
+    - {fileID: 8300000, guid: b8d4b0a372374c25bf299113725dacd4, type: 3}
+    maxVolume: 1
   combatAudio:
   - audioName: player_hurt
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 4874ad98402445808697b974656a98c5, type: 3}
+    - {fileID: 8300000, guid: 924d000085b94880a8943d5b689645d0, type: 3}
+    - {fileID: 8300000, guid: c1d5285a871a4e63a858d37456ba3095, type: 3}
     maxVolume: 1
   - audioName: player_death
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: aeec7591ce4f43e7ae57058c688803ef, type: 3}
     maxVolume: 1
   - audioName: enemy_hurt
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 5eadccf09ab04bbcbbbb55f2c5df247d, type: 3}
+    - {fileID: 8300000, guid: 8e9f354a415e4743834b0065f671e833, type: 3}
+    - {fileID: 8300000, guid: a666f145b8ff41d8b7021fb471224e96, type: 3}
     maxVolume: 1
   - audioName: enemy_death
-    clips: []
+    clips:
+    - {fileID: 8300000, guid: 7e39ca33c38142d582f6662c1c2705b2, type: 3}
     maxVolume: 1
+  - audioName: abyss_mage_fireball_explosion
+    clips:
+    - {fileID: 8300000, guid: cea1df0a59f643fbbee0357bff876921, type: 3}
+    maxVolume: 1
+  - audioName: spell_wind_loop
+    clips:
+    - {fileID: 8300000, guid: fb1862ba655b4c238e0374e8f7242597, type: 3}
+    - {fileID: 8300000, guid: 415c1d77117240589f04fdd49fa07dc6, type: 3}
+    - {fileID: 8300000, guid: a156455f8f1b41aba66ea5a837d322e6, type: 3}
+    maxVolume: 0.7
   uiAudio:
   - audioName: button_click
     clips:
-    - {fileID: 8300000, guid: c90c23a84997ca248bb126a9ac2a01af, type: 3}
-    maxVolume: 0.711
+    - {fileID: 8300000, guid: a26ddcbcd97345ec8dabf2d91f14d922, type: 3}
+    maxVolume: 1
+  - audioName: door_open
+    clips:
+    - {fileID: 8300000, guid: fa444f7d2b9245fca9978e4221e8d54f, type: 3}
+    maxVolume: 1
+  - audioName: door_close
+    clips:
+    - {fileID: 8300000, guid: 7aa00dcc91654309b3c464b534c92bdf, type: 3}
+    maxVolume: 1
+  - audioName: mage_spell_cast
+    clips:
+    - {fileID: 8300000, guid: 325d55d9fd084bc8a6080d55da21ecc1, type: 3}
+    - {fileID: 8300000, guid: 7c68ffd4b5f14317936891315fd19f0f, type: 3}
+    maxVolume: 1
+  bonfireAudio:
+  - audioName: bonfire_ignite
+    clips:
+    - {fileID: 8300000, guid: 300a2eb9a3b34816b8fc33b579bee8f7, type: 3}
+    - {fileID: 8300000, guid: a8364c93d4684596b60f5d7eda4ee321, type: 3}
+    maxVolume: 1
+  - audioName: bonfire_rest
+    clips:
+    - {fileID: 8300000, guid: 8159cb02d94d435fb422d02a775d9c2b, type: 3}
+    - {fileID: 8300000, guid: e3a55eb1a18b4a9e887eb4f84b5a39cf, type: 3}
+    - {fileID: 8300000, guid: 511a2d49204844758c4ed7eb7423b5ac, type: 3}
+    maxVolume: 1
+  - audioName: bonfire_menu_open
+    clips:
+    - {fileID: 8300000, guid: dafa3282a9214950b56180bfd44fafeb, type: 3}
+    - {fileID: 8300000, guid: e58f0f7fbb2d4f8d805e2623332ef158, type: 3}
+    - {fileID: 8300000, guid: aa2b7c671dd04c85a9ef8c7afbd803fd, type: 3}
+    - {fileID: 8300000, guid: 1301a2fa027345e3868cfc8a8a64b2f8, type: 3}
+    maxVolume: 1
+  - audioName: bonfire_menu_close
+    clips:
+    - {fileID: 8300000, guid: ff421570d19646f99dbb18b99cd56e0b, type: 3}
+    - {fileID: 8300000, guid: 2f8c6925e60945238b92b1a148636381, type: 3}
+    - {fileID: 8300000, guid: c136cab739684f0bafb8affb488d7cbc, type: 3}
+    maxVolume: 1
+  - audioName: bonfire_travel
+    clips:
+    - {fileID: 8300000, guid: 325d55d9fd084bc8a6080d55da21ecc1, type: 3}
+    - {fileID: 8300000, guid: 7c68ffd4b5f14317936891315fd19f0f, type: 3}
+    maxVolume: 1
+  - audioName: bonfire_flame_loop
+    clips:
+    - {fileID: 8300000, guid: fd2e3a1393184aebbdb8ae0756f704d8, type: 3}
+    maxVolume: 1
+  - audioName: abyss_fire_flame_loop
+    clips:
+    - {fileID: 8300000, guid: fd2e3a1393184aebbdb8ae0756f704d8, type: 3}
+    maxVolume: 1
   mainMenuMusic:
   - audioName: playlist_mainMenu
     clips:
-    - {fileID: 8300000, guid: 0cd9c516fb33d124fb01ea78e9213bf8, type: 3}
-    maxVolume: 0.606
+    - {fileID: 8300000, guid: 1fb797f9856b46e7bda444b9edd2a6f7, type: 3}
+    maxVolume: 1
   levelMusic:
   - audioName: playlist_levels
     clips:
-    - {fileID: 8300000, guid: 6fa713f447381cf4698ce6d32e0c0c6c, type: 3}
-    maxVolume: 0.607
+    - {fileID: 8300000, guid: e3471b16e8b848a38b898c9d02d42b0b, type: 3}
+    maxVolume: 1

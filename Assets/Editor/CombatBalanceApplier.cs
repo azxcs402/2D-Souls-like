@@ -284,6 +284,7 @@ public static class CombatBalanceApplier
 
         SerializedObject slimeSo = new SerializedObject(slime);
         SetInt(slimeSo, "maxHealth", 44);
+        SetFloat(slimeSo, "splitChildAttackLockDuration", 0.8f);
         slimeSo.ApplyModifiedPropertiesWithoutUndo();
         EnemyMaxHealthField?.SetValue(slime, 44);
         EnemyCurrentHealthField?.SetValue(slime, 44);
@@ -401,6 +402,15 @@ public static class CombatBalanceApplier
         if (property != null)
         {
             property.intValue = value;
+        }
+    }
+
+    private static void SetFloat(SerializedObject so, string propertyName, float value)
+    {
+        SerializedProperty property = so.FindProperty(propertyName);
+        if (property != null)
+        {
+            property.floatValue = value;
         }
     }
 

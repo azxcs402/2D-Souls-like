@@ -1038,6 +1038,7 @@ MonoBehaviour:
   secondaryWallCheck: {fileID: 565028296081151195}
   maxHealth: 60
   canTakeDamage: 1
+  combatSoundDistance: 12
   stunAttackRecoveryDelay: 0.6
   avoidPitAndSpikeHazards: 1
   hazardLookAheadOffset: 0.12
@@ -1090,6 +1091,7 @@ MonoBehaviour:
   chaseVerticalDistance: 3
   loseSightDuration: 3
   spellPrefab: {fileID: 8283638665200491288, guid: 9e6a72c5968e499dbfea42e0450184d7, type: 3}
+  mixedSpellPrefab: {fileID: 8283638665200491288, guid: c1f7d0f45a144e7c9a1de8e12e3cf2a1, type: 3}
   spellStartPosition1: {fileID: 8178551421349774122}
   spellStartPosition2: {fileID: 8178551421349774123}
   amountToCast: 2
@@ -1100,6 +1102,14 @@ MonoBehaviour:
   projectileHoverAreaSize: {x: 4, y: 1.8}
   projectileHoverMinSeparation: 0.72
   projectileHoverMaxPlacementAttempts: 24
+  giantFireballHoverDuration: 2
+  giantFireballScaleMultiplier: 10
+  giantFireballDamageMultiplier: 5
+  giantFireballFallSpeedMultiplier: 3
+  giantFireballFollowSpeed: 18
+  skill1FireballDamageMultiplier: 0.5
+  specialAttackLockDuration: 3
+  skill3CooldownDuration: 10
   behindCollisionCheck: {fileID: 8731610343475063690}
   hasRecoveryAnimation: 1
   canBeKnockedBack: 1

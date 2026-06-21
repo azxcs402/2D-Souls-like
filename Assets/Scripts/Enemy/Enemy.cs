@@ -13,6 +13,8 @@ public abstract class Enemy : Entity
     [Header("Enemy Info")]
     [SerializeField, Min(1)] protected int maxHealth = 3;
     [SerializeField] protected bool canTakeDamage = true;
+    [SerializeField, Min(0.01f), Tooltip("Enemy hurt/death sounds stop being audible beyond this distance.")]
+    protected float combatSoundDistance = 12f;
     [Header("Stun Recovery")]
     [SerializeField, Min(0f)] private float stunAttackRecoveryDelay = .6f;
     [Header("Hazard Avoidance")]
@@ -39,6 +41,7 @@ public abstract class Enemy : Entity
     protected bool isDead;
     protected int defaultLayer;
     protected float stunAttackRecoveryTimer;
+    protected AudioSource combatAudioSource;
 
     protected override bool UseWallChecks => true;
 
@@ -49,6 +52,13 @@ public abstract class Enemy : Entity
 
         stateMachine = new StateMachine();
         Combat = GetComponent<Entity_Combat>();
+        combatAudioSource = GetComponent<AudioSource>();
+        if (combatAudioSource == null)
+        {
+            combatAudioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        combatAudioSource.playOnAwake = false;
         defaultLayer = gameObject.layer;
         currentHealth = Mathf.Max(1, maxHealth);
         isDead = false;
@@ -131,6 +141,17 @@ public abstract class Enemy : Entity
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
     }
 
+    public void ForceDieForInspector()
+    {
+        if (isDead)
+        {
+            return;
+        }
+
+        currentHealth = 0;
+        Die(false);
+    }
+
     protected virtual void Die()
     {
         Die(allowRevive: true);
@@ -201,9 +222,9 @@ public abstract class Enemy : Entity
         canTakeDamage = canBeTargeted;
     }
 
-    private void PlayCombatAudio(AudioKey audioKey)
+    protected void PlayCombatAudio(AudioKey audioKey)
     {
-        AudioManager.instance?.PlayGlobalSFX(audioKey);
+        AudioManager.instance?.PlaySFX(audioKey, combatAudioSource, combatSoundDistance);
     }
 
     public bool CanMoveTowardDirection(int direction)

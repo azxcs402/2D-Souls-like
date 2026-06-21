@@ -13,9 +13,10 @@ public class EnemyReaperEditor : Editor
     {
         new SearchableSection(
             "Core",
-            "Enemy base settings. Use this for health, ground checks, wall checks, and hazard avoidance.",
+            "Enemy base settings. Use this for health, audio range, ground checks, wall checks, and hazard avoidance.",
             new SearchableField("maxHealth", "Max Health", "health hit points hp"),
             new SearchableField("canTakeDamage", "Can Take Damage", "damage invulnerable"),
+            new SearchableField("combatSoundDistance", "Combat Sound Distance", "audio range sound distance"),
             new SearchableField("groundCheckDistance", "Ground Check Distance", "ground floor check"),
             new SearchableField("whatIsGround", "What Is Ground", "ground layer mask"),
             new SearchableField("wallCheckDistance", "Wall Check Distance", "wall obstacle"),
@@ -120,6 +121,7 @@ public class EnemyReaperEditor : Editor
         serializedObject.Update();
 
         SearchableInspectorDrawer.DrawScriptField(serializedObject);
+        EnemyInspectorActionDrawer.DrawKillEnemyButton(target as Enemy);
         if (GUILayout.Button("Move Script Component Up"))
         {
             EnemyComponentOrderTools.MoveComponentToTop((Component)target);

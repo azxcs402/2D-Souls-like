@@ -1,0 +1,28 @@
+My Audio import manifest
+
+Music
+- Goblins_Den_(Regular).wav -> playlist_mainMenu
+- Goblins_Dance_(Battle).wav -> playlist_levels
+
+Combat SFX
+- 26_sword_hit_1.wav / 26_sword_hit_2.wav / 26_sword_hit_3.wav -> player_attackHit
+- 27_sword_miss_1.wav / 27_sword_miss_2.wav / 27_sword_miss_3.wav -> player_attackMiss
+- 11_human_damage_1.wav / 11_human_damage_2.wav / 11_human_damage_3.wav -> player_hurt
+- 14_human_death_spin.wav -> player_death
+- 21_orc_damage_1.wav / 21_orc_damage_2.wav / 21_orc_damage_3.wav -> enemy_hurt
+- 24_orc_death_spin.wav -> enemy_death
+
+UI / Bonfire placeholder SFX
+- 05_door_open_1.mp3 -> button_click
+- 02_chest_close_1.wav -> player_block
+- 26_sword_hit_2.wav -> player_counterSuccess
+- 15_human_dash_1.wav / 15_human_dash_2.wav -> player_dash
+- 08_human_charge_1.wav / 08_human_charge_2.wav -> player_potion_use
+- 08_human_charge_2.wav -> player_potion_complete
+- 12_human_jump_1.wav / 12_human_jump_2.wav / 12_human_jump_3.wav -> player_jump
+- 08_human_charge_1.wav / 08_human_charge_2.wav -> bonfire_ignite
+- 04_sack_open_1.wav / 04_sack_open_2.wav / 04_sack_open_3.wav -> bonfire_rest
+- 01_chest_open_1.wav / 01_chest_open_2.wav / 01_chest_open_3.wav / 01_chest_open_4.wav -> bonfire_menu_open
+- 02_chest_close_1.wav / 02_chest_close_2.wav / 02_chest_close_3.wav -> bonfire_menu_close
+- 10_human_special_atk_1.wav / 10_human_special_atk_2.wav -> bonfire_travel
+- Fire_Burning.mp3 -> bonfire_flame_loop / abyss_fire_flame_loop

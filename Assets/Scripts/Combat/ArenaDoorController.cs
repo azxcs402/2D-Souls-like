@@ -17,6 +17,9 @@ public class ArenaDoorController : MonoBehaviour
     [SerializeField, Min(0f)] private float openVerticalOffset = 2f;
     [SerializeField, Min(0.01f)] private float openCloseDuration = 0.18f;
     [SerializeField] private bool animateOpenClose = true;
+    [SerializeField, Min(0.01f), Tooltip("Door sounds stop being audible beyond this distance.")]
+    private float doorAudioMaxDistance = 12f;
+    [SerializeField] private AudioSource doorAudioSource;
 
     public bool IsOpen { get; private set; }
 
@@ -77,6 +80,8 @@ public class ArenaDoorController : MonoBehaviour
             blockingColliders = CollectBlockingColliders();
         }
 
+        EnsureDoorAudioSource();
+
         resolvedOpenVerticalOffset = ResolveOpenVerticalOffset();
 
         Transform animatedBlocking = blockingDropRoot != null ? blockingDropRoot.transform : blockingRoot != null ? blockingRoot.transform : null;
@@ -104,6 +109,7 @@ public class ArenaDoorController : MonoBehaviour
 
     public void SetOpen(bool open, bool instant)
     {
+        bool changed = IsOpen != open;
         IsOpen = open;
 
         Vector3 targetLocalPosition = open ? openLocalPosition : closedLocalPosition;
@@ -141,11 +147,13 @@ public class ArenaDoorController : MonoBehaviour
         {
             Transform animatedBlocking = blockingDropRoot != null ? blockingDropRoot.transform : blockingRoot != null ? blockingRoot.transform : transform;
             animatedBlocking.localPosition = targetLocalPosition;
+            PlayDoorAudioIfNeeded(changed, open, instant);
             return;
         }
 
         Transform animatedBlockingRoot = blockingDropRoot != null ? blockingDropRoot.transform : blockingRoot != null ? blockingRoot.transform : transform;
         movementRoutine = StartCoroutine(MoveDoorRoutine(animatedBlockingRoot, targetLocalPosition, openCloseDuration));
+        PlayDoorAudioIfNeeded(changed, open, instant);
     }
 
     private void ApplyBossDoorGroundLayerIfNeeded()
@@ -310,5 +318,44 @@ public class ArenaDoorController : MonoBehaviour
 
         animatedBlockingRoot.localPosition = targetLocalPosition;
         movementRoutine = null;
+    }
+
+    private void PlayDoorAudioIfNeeded(bool changed, bool open, bool instant)
+    {
+        if (!changed || instant)
+        {
+            return;
+        }
+
+        if (AudioManager.instance == null)
+        {
+            return;
+        }
+
+        EnsureDoorAudioSource();
+        if (doorAudioSource != null && AudioManager.instance.PlayLocalizedSFX(open ? AudioKey.ArenaDoorOpen : AudioKey.ArenaDoorClose, doorAudioSource, doorAudioMaxDistance))
+        {
+            return;
+        }
+
+        AudioManager.instance.PlayGlobalSFX(open ? AudioKey.ArenaDoorOpen : AudioKey.ArenaDoorClose);
+    }
+
+    private void EnsureDoorAudioSource()
+    {
+        if (doorAudioSource == null)
+        {
+            doorAudioSource = GetComponent<AudioSource>();
+        }
+
+        if (doorAudioSource == null)
+        {
+            doorAudioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        if (doorAudioSource != null)
+        {
+            doorAudioSource.playOnAwake = false;
+        }
     }
 }

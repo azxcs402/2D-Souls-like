@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -20,6 +21,7 @@ public static class SceneUIAndVFXBootstrapper
     private const string BarSpriteName = "health_bar_1";
     private const string BossHealthBarObjectName = "UI_AbyssMageBossHealthBar";
     private const string BossTmpFontAssetPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/SyneMono-Regular SDF.asset";
+    private const string BossChineseFallbackFontAssetPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/BossChineseFallback SDF.asset";
     private const string BossNamePlateObjectName = "BossNamePlate";
     private const string BossTickGroupObjectName = "BossTicks";
     private const string SkillFrameAssetPath = "Assets/Graphics/UI/AlexSkillUI/artdecoUI_PIPO_tr.png";
@@ -75,6 +77,8 @@ public static class SceneUIAndVFXBootstrapper
         {
             return;
         }
+
+        EnsureBossChineseFontFallbackAssets();
 
         if (IsMainMenuScene(activeScene))
         {
@@ -347,9 +351,16 @@ public static class SceneUIAndVFXBootstrapper
             TextMeshProUGUI existingNameText = FindTextChild(existingBar, "BossName");
             if (existingSlider != null && existingNameText != null)
             {
+                TMP_FontAsset bossNameFontAsset = LoadTmpFontAsset();
+                if (bossNameFontAsset != null)
+                {
+                    existingNameText.font = bossNameFontAsset;
+                }
+
                 EnsureBossHealthBarVisuals(existingBar as RectTransform, uiLayer, barSprite);
                 existingComponent.Configure(existingSlider, existingNameText, existingCanvasGroup);
                 EditorUtility.SetDirty(existingComponent);
+                EditorUtility.SetDirty(existingNameText);
                 EditorUtility.SetDirty(existingBar.gameObject);
             }
 
@@ -380,7 +391,7 @@ public static class SceneUIAndVFXBootstrapper
 
         EnsureBossHealthBarVisuals(rootRect, uiLayer, barSprite);
         RectTransform labelRect = FindOrCreateRect(rootRect, "BossName", uiLayer, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(480f, 34f), new Vector2(0f, -4f));
-        TextMeshProUGUI nameText = CreateTmpText(labelRect, "\u6df1\u6e0a\u6cd5\u5e08", 30, TextAlignmentOptions.Center);
+        TextMeshProUGUI nameText = CreateTmpText(labelRect, "Abyss Mage", 30, TextAlignmentOptions.Center);
         nameText.enableWordWrapping = false;
         nameText.raycastTarget = false;
 
@@ -431,7 +442,12 @@ public static class SceneUIAndVFXBootstrapper
             return;
         }
 
-        RectTransform namePlate = FindOrCreateRect(rootRect, BossNamePlateObjectName, uiLayer, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(300f, 44f), new Vector2(0f, 10f));
+        RectTransform namePlate = rootRect.Find(BossNamePlateObjectName) as RectTransform;
+        if (namePlate == null)
+        {
+            return;
+        }
+
         Image namePlateImage = GetOrAddComponent<Image>(namePlate.gameObject);
         namePlateImage.color = new Color(0.08f, 0.08f, 0.1f, 0.9f);
         namePlateImage.raycastTarget = false;
@@ -1331,6 +1347,12 @@ public static class SceneUIAndVFXBootstrapper
 
     private static TMP_FontAsset LoadTmpFontAsset()
     {
+        TMP_FontAsset chineseFallback = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BossChineseFallbackFontAssetPath);
+        if (chineseFallback != null)
+        {
+            return chineseFallback;
+        }
+
         TMP_FontAsset fontAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BossTmpFontAssetPath);
         if (fontAsset != null)
         {
@@ -1338,6 +1360,133 @@ public static class SceneUIAndVFXBootstrapper
         }
 
         return TMP_Settings.defaultFontAsset;
+    }
+
+    private static void EnsureBossChineseFontFallbackAssets()
+    {
+        TMP_FontAsset chineseFallback = EnsureChineseFallbackFontAsset();
+        if (chineseFallback == null)
+        {
+            return;
+        }
+
+        bool changed = false;
+        changed |= AddFallbackToFontAsset(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset"), chineseFallback);
+        changed |= AddFallbackToFontAsset(AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BossTmpFontAssetPath), chineseFallback);
+
+        List<TMP_FontAsset> fallbackFontAssets = TMP_Settings.fallbackFontAssets;
+        if (fallbackFontAssets != null && !fallbackFontAssets.Contains(chineseFallback))
+        {
+            fallbackFontAssets.Add(chineseFallback);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            AssetDatabase.SaveAssets();
+        }
+    }
+
+    private static bool AddFallbackToFontAsset(TMP_FontAsset fontAsset, TMP_FontAsset fallbackAsset)
+    {
+        if (fontAsset == null || fallbackAsset == null)
+        {
+            return false;
+        }
+
+        if (fontAsset.fallbackFontAssetTable == null)
+        {
+            fontAsset.fallbackFontAssetTable = new List<TMP_FontAsset>();
+        }
+
+        if (fontAsset.fallbackFontAssetTable.Contains(fallbackAsset))
+        {
+            return false;
+        }
+
+        fontAsset.fallbackFontAssetTable.Add(fallbackAsset);
+        EditorUtility.SetDirty(fontAsset);
+        return true;
+    }
+
+    private static TMP_FontAsset EnsureChineseFallbackFontAsset()
+    {
+        TMP_FontAsset existingAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BossChineseFallbackFontAssetPath);
+        if (existingAsset != null)
+        {
+            return existingAsset;
+        }
+
+        Font sourceFont = LoadChineseSystemFont();
+        if (sourceFont == null)
+        {
+            return null;
+        }
+
+        TMP_FontAsset fontAsset = TMP_FontAsset.CreateFontAsset(sourceFont);
+        if (fontAsset == null)
+        {
+            return null;
+        }
+
+        fontAsset.name = "BossChineseFallback SDF";
+        fontAsset.atlasPopulationMode = AtlasPopulationMode.Dynamic;
+
+        AssetDatabase.CreateAsset(fontAsset, BossChineseFallbackFontAssetPath);
+        AddSubAssetIfNeeded(fontAsset.material, "BossChineseFallback SDF Material", fontAsset);
+
+        foreach (Texture2D atlasTexture in fontAsset.atlasTextures)
+        {
+            AddSubAssetIfNeeded(atlasTexture, atlasTexture != null ? atlasTexture.name : "Atlas", fontAsset);
+        }
+
+        EditorUtility.SetDirty(fontAsset);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        return fontAsset;
+    }
+
+    private static void AddSubAssetIfNeeded(Object asset, string fallbackName, TMP_FontAsset parentAsset)
+    {
+        if (asset == null || parentAsset == null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(AssetDatabase.GetAssetPath(asset)))
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(asset.name))
+        {
+            asset.name = fallbackName;
+        }
+
+        AssetDatabase.AddObjectToAsset(asset, parentAsset);
+    }
+
+    private static Font LoadChineseSystemFont()
+    {
+        string[] candidates =
+        {
+            "Noto Sans SC",
+            "Microsoft YaHei UI",
+            "Microsoft YaHei",
+            "SimHei",
+            "SimSun"
+        };
+
+        foreach (string candidate in candidates)
+        {
+            Font font = Font.CreateDynamicFontFromOSFont(candidate, 48);
+            if (font != null)
+            {
+                return font;
+            }
+        }
+
+        return null;
     }
 
 }

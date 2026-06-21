@@ -263,6 +263,12 @@ public class Entity_Health : MonoBehaviour, IDamagable
 
     private void PlayCombatAudio(AudioKey audioKey)
     {
+        if (TryGetComponent<Player>(out Player player))
+        {
+            player.PlayPlayerCombatAudio(audioKey);
+            return;
+        }
+
         AudioManager.instance?.PlayGlobalSFX(audioKey);
     }
 }

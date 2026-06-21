@@ -27,6 +27,7 @@ public class Player_WallJumpState : EntityState
             wallJumpDirection * player.WallJumpForce.x,
             player.WallJumpForce.y
         );
+        player.PlayPlayerCombatAudio(AudioKey.PlayerJump);
     }
 
     public override void Update()

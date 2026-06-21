@@ -17,8 +17,6 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioSource bgmSource;
     [SerializeField] private AudioSource sfxSource;
     [Space]
-    private Transform player;
-
     private AudioClip lastMusicPlayed;
     private string currentBgmGroupName;
     private Coroutine currentBgmCo;
@@ -214,14 +212,14 @@ public class AudioManager : MonoBehaviour
         source.volume = targetVolume;
     }
 
-    public void PlaySFX(AudioKey soundName, AudioSource sfxSource, float minDistanceToHearSound = 5f)
+    public void PlaySFX(AudioKey soundName, AudioSource sfxSource, float maxHearDistance = 5f)
     {
-        PlayAudioByName(AudioKeyMap.GetAudioName(soundName), sfxSource, minDistanceToHearSound, true);
+        PlayAudioByName(AudioKeyMap.GetAudioName(soundName), sfxSource, maxHearDistance, true);
     }
 
-    public void PlaySFX(string soundName, AudioSource sfxSource, float minDistanceToHearSound = 5f)
+    public void PlaySFX(string soundName, AudioSource sfxSource, float maxHearDistance = 5f)
     {
-        PlayAudioByName(soundName, sfxSource, minDistanceToHearSound, true);
+        PlayAudioByName(soundName, sfxSource, maxHearDistance, true);
     }
 
     public void PlayGlobalSFX(AudioKey soundName)
@@ -234,36 +232,178 @@ public class AudioManager : MonoBehaviour
         PlayAudioByName(soundName, sfxSource, 5f, false);
     }
 
-    private void PlayAudioByName(string soundName, AudioSource source, float minDistanceToHearSound, bool useDistanceFalloff)
+    public bool PlayLocalizedSFX(AudioKey soundName, AudioSource source, float maxHearDistance)
     {
-        if (source == null || !TryResolveAudioData(soundName, out _, out AudioClipData data))
+        return PlayLocalizedSFX(AudioKeyMap.GetAudioName(soundName), source, maxHearDistance);
+    }
+
+    public bool PlayLocalizedSFX(string soundName, AudioSource source, float maxHearDistance)
+    {
+        if (source == null)
         {
-            return;
+            return false;
         }
 
-        if (player == null)
+        if (!TryResolveAudioData(soundName, out _, out AudioClipData data))
         {
-            player = FindPlayerTransform();
+            return false;
         }
 
         if (!data.TryGetRandomClip(out AudioClip clip))
         {
+            return false;
+        }
+
+        ConfigurePlaybackSource(source, true, maxHearDistance);
+        source.pitch = Random.Range(.95f, 1.1f);
+        source.volume = data.maxVolume;
+        source.PlayOneShot(clip);
+        return true;
+    }
+
+    public bool PlayLocalizedSFX(AudioKey soundName, Vector3 position, float maxHearDistance)
+    {
+        return PlayLocalizedSFX(AudioKeyMap.GetAudioName(soundName), position, maxHearDistance);
+    }
+
+    public bool PlayLocalizedSFX(string soundName, Vector3 position, float maxHearDistance)
+    {
+        if (!TryResolveAudioData(soundName, out _, out AudioClipData data))
+        {
+            return false;
+        }
+
+        if (!data.TryGetRandomClip(out AudioClip clip))
+        {
+            return false;
+        }
+
+        float maxDistance = Mathf.Max(0.01f, maxHearDistance > 0f ? maxHearDistance : data.maxHearDistance);
+        GameObject tempObject = new GameObject($"Temp SFX: {soundName}");
+        tempObject.transform.position = position;
+        AudioSource tempSource = tempObject.AddComponent<AudioSource>();
+        ConfigurePlaybackSource(tempSource, true, maxDistance);
+
+        float pitch = Random.Range(.95f, 1.1f);
+        tempSource.pitch = pitch;
+        tempSource.volume = data.maxVolume;
+        tempSource.clip = clip;
+        tempSource.Play();
+
+        float lifetime = (clip.length / Mathf.Max(.01f, pitch)) + 0.25f;
+        Object.Destroy(tempObject, lifetime);
+        return true;
+    }
+
+    public bool PlayLoopingSFX(AudioKey soundName, AudioSource loopSource, float volumeMultiplier = 1f)
+    {
+        return PlayLoopingSFX(AudioKeyMap.GetAudioName(soundName), loopSource, volumeMultiplier);
+    }
+
+    public bool PlayLoopingSFX(string soundName, AudioSource loopSource, float volumeMultiplier = 1f)
+    {
+        if (loopSource == null || !TryResolveAudioData(soundName, out _, out AudioClipData data))
+        {
+            return false;
+        }
+
+        if (!data.TryGetRandomClip(out AudioClip clip))
+        {
+            return false;
+        }
+
+        float targetVolume = Mathf.Clamp01(data.maxVolume * Mathf.Clamp01(volumeMultiplier));
+        bool clipChanged = loopSource.clip != clip;
+
+        loopSource.playOnAwake = false;
+        loopSource.loop = true;
+        loopSource.pitch = 1f;
+        loopSource.volume = targetVolume;
+        loopSource.clip = clip;
+        loopSource.outputAudioMixerGroup = ResolveMixerGroup(sfxMixerGroup, "Sound effects");
+
+        if (clipChanged && loopSource.isPlaying)
+        {
+            loopSource.Stop();
+        }
+
+        if (!loopSource.isPlaying)
+        {
+            loopSource.Play();
+        }
+
+        return true;
+    }
+
+    public void StopLoopingSFX(AudioSource loopSource)
+    {
+        if (loopSource == null)
+        {
             return;
         }
 
-        float volume = data.maxVolume;
+        if (loopSource.isPlaying)
+        {
+            loopSource.Stop();
+        }
+    }
+
+    private bool PlayAudioByName(string soundName, AudioSource source, float maxHearDistance, bool useDistanceFalloff)
+    {
+        if (source == null || !TryResolveAudioData(soundName, out _, out AudioClipData data))
+        {
+            return false;
+        }
+
+        if (!data.TryGetRandomClip(out AudioClip clip))
+        {
+            return false;
+        }
+
         if (useDistanceFalloff)
         {
-            float distance = player != null
-                ? Vector2.Distance(source.transform.position, player.position)
-                : 0f;
-            float t = Mathf.Clamp01(1f - (distance / minDistanceToHearSound));
-            volume = Mathf.Lerp(0f, data.maxVolume, t * t);
+            float maxDistance = Mathf.Max(0.01f, maxHearDistance > 0f ? maxHearDistance : data.maxHearDistance);
+            ConfigurePlaybackSource(source, true, maxDistance);
+        }
+        else
+        {
+            ConfigurePlaybackSource(source, false, 0f);
         }
 
         source.pitch = Random.Range(.95f, 1.1f);
-        source.volume = volume;
+        source.volume = data.maxVolume;
         source.PlayOneShot(clip);
+        return true;
+    }
+
+    private void ConfigurePlaybackSource(AudioSource source, bool spatial, float maxHearDistance)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        source.playOnAwake = false;
+        source.loop = false;
+        source.outputAudioMixerGroup = ResolveMixerGroup(sfxMixerGroup, "Sound effects");
+
+        if (spatial)
+        {
+            float maxDistance = Mathf.Max(0.01f, maxHearDistance);
+            source.spatialBlend = 1f;
+            source.rolloffMode = AudioRolloffMode.Linear;
+            source.dopplerLevel = 0f;
+            source.minDistance = Mathf.Min(0.1f, maxDistance);
+            source.maxDistance = maxDistance;
+        }
+        else
+        {
+            source.spatialBlend = 0f;
+            source.rolloffMode = AudioRolloffMode.Logarithmic;
+            source.dopplerLevel = 0f;
+            source.minDistance = 0f;
+            source.maxDistance = 0f;
+        }
     }
 
     public void SetMasterVolume(float value)
@@ -497,13 +637,4 @@ public class AudioManager : MonoBehaviour
         return audioDB.TryGet(resolvedName, out data);
     }
 
-    private static Transform FindPlayerTransform()
-    {
-#if UNITY_2023_1_OR_NEWER
-        Player foundPlayer = FindFirstObjectByType<Player>();
-#else
-        Player foundPlayer = FindObjectOfType<Player>();
-#endif
-        return foundPlayer != null ? foundPlayer.transform : null;
-    }
 }

@@ -5,18 +5,31 @@ public enum AudioKey
 {
     PlayerAttackHit,
     PlayerAttackMiss,
+    PlayerBlock,
+    PlayerCounterSuccess,
+    PlayerDash,
+    PlayerPotionUse,
+    PlayerPotionComplete,
+    PlayerJump,
     PlayerHurt,
     PlayerDeath,
     EnemyHurt,
     EnemyDeath,
+    AbyssMageFireballExplosion,
     ButtonClick,
+    ArenaDoorOpen,
+    ArenaDoorClose,
+    MageSpellCast,
     PlaylistMainMenu,
     PlaylistLevels,
     BonfireIgnite,
     BonfireRest,
     BonfireMenuOpen,
     BonfireMenuClose,
-    BonfireTravel
+    BonfireTravel,
+    BonfireFlameLoop,
+    AbyssFireFlameLoop,
+    SpellWindLoop
 }
 
 public static class AudioKeyMap
@@ -25,36 +38,62 @@ public static class AudioKeyMap
     {
         [AudioKey.PlayerAttackHit] = "player_attackHit",
         [AudioKey.PlayerAttackMiss] = "player_attackMiss",
+        [AudioKey.PlayerBlock] = "player_block",
+        [AudioKey.PlayerCounterSuccess] = "player_counterSuccess",
+        [AudioKey.PlayerDash] = "player_dash",
+        [AudioKey.PlayerPotionUse] = "player_potion_use",
+        [AudioKey.PlayerPotionComplete] = "player_potion_complete",
+        [AudioKey.PlayerJump] = "player_jump",
         [AudioKey.PlayerHurt] = "player_hurt",
         [AudioKey.PlayerDeath] = "player_death",
         [AudioKey.EnemyHurt] = "enemy_hurt",
         [AudioKey.EnemyDeath] = "enemy_death",
+        [AudioKey.AbyssMageFireballExplosion] = "abyss_mage_fireball_explosion",
         [AudioKey.ButtonClick] = "button_click",
+        [AudioKey.ArenaDoorOpen] = "door_open",
+        [AudioKey.ArenaDoorClose] = "door_close",
+        [AudioKey.MageSpellCast] = "mage_spell_cast",
         [AudioKey.PlaylistMainMenu] = "playlist_mainMenu",
         [AudioKey.PlaylistLevels] = "playlist_levels",
         [AudioKey.BonfireIgnite] = "bonfire_ignite",
         [AudioKey.BonfireRest] = "bonfire_rest",
         [AudioKey.BonfireMenuOpen] = "bonfire_menu_open",
         [AudioKey.BonfireMenuClose] = "bonfire_menu_close",
-        [AudioKey.BonfireTravel] = "bonfire_travel"
+        [AudioKey.BonfireTravel] = "bonfire_travel",
+        [AudioKey.BonfireFlameLoop] = "bonfire_flame_loop",
+        [AudioKey.AbyssFireFlameLoop] = "abyss_fire_flame_loop",
+        [AudioKey.SpellWindLoop] = "spell_wind_loop"
     };
 
     private static readonly Dictionary<string, AudioKey> NameToKey = new(StringComparer.Ordinal)
     {
         ["player_attackHit"] = AudioKey.PlayerAttackHit,
         ["player_attackMiss"] = AudioKey.PlayerAttackMiss,
+        ["player_block"] = AudioKey.PlayerBlock,
+        ["player_counterSuccess"] = AudioKey.PlayerCounterSuccess,
+        ["player_dash"] = AudioKey.PlayerDash,
+        ["player_potion_use"] = AudioKey.PlayerPotionUse,
+        ["player_potion_complete"] = AudioKey.PlayerPotionComplete,
+        ["player_jump"] = AudioKey.PlayerJump,
         ["player_hurt"] = AudioKey.PlayerHurt,
         ["player_death"] = AudioKey.PlayerDeath,
         ["enemy_hurt"] = AudioKey.EnemyHurt,
         ["enemy_death"] = AudioKey.EnemyDeath,
+        ["abyss_mage_fireball_explosion"] = AudioKey.AbyssMageFireballExplosion,
         ["button_click"] = AudioKey.ButtonClick,
+        ["door_open"] = AudioKey.ArenaDoorOpen,
+        ["door_close"] = AudioKey.ArenaDoorClose,
+        ["mage_spell_cast"] = AudioKey.MageSpellCast,
         ["playlist_mainMenu"] = AudioKey.PlaylistMainMenu,
         ["playlist_levels"] = AudioKey.PlaylistLevels,
         ["bonfire_ignite"] = AudioKey.BonfireIgnite,
         ["bonfire_rest"] = AudioKey.BonfireRest,
         ["bonfire_menu_open"] = AudioKey.BonfireMenuOpen,
         ["bonfire_menu_close"] = AudioKey.BonfireMenuClose,
-        ["bonfire_travel"] = AudioKey.BonfireTravel
+        ["bonfire_travel"] = AudioKey.BonfireTravel,
+        ["bonfire_flame_loop"] = AudioKey.BonfireFlameLoop,
+        ["abyss_fire_flame_loop"] = AudioKey.AbyssFireFlameLoop,
+        ["spell_wind_loop"] = AudioKey.SpellWindLoop
     };
 
     public static bool TryGetAudioName(AudioKey key, out string audioName)

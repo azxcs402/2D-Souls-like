@@ -5,13 +5,18 @@ public class EnemyProjectileHealth : Entity_Health
 {
     private Enemy_MageProjectile mageProjectile;
     private Enemy_AbyssMageFireball abyssMageFireball;
+    private Enemy_AbyssMageHybridOrb abyssMageHybridOrb;
 
     protected override void Awake()
     {
+        showMiniHealthBar = false;
+        autoCreateHealthBar = false;
+
         base.Awake();
 
         mageProjectile = GetComponent<Enemy_MageProjectile>();
         abyssMageFireball = GetComponent<Enemy_AbyssMageFireball>();
+        abyssMageHybridOrb = GetComponent<Enemy_AbyssMageHybridOrb>();
     }
 
     public override bool TakeDamage(int damage, Entity_Combat damageSource, Vector2 knockbackVelocity)
@@ -53,15 +58,26 @@ public class EnemyProjectileHealth : Entity_Health
             abyssMageFireball = GetComponent<Enemy_AbyssMageFireball>();
         }
 
+        if (abyssMageHybridOrb == null)
+        {
+            abyssMageHybridOrb = GetComponent<Enemy_AbyssMageHybridOrb>();
+        }
+
         if (mageProjectile != null)
         {
             mageProjectile.BreakProjectile();
             return;
         }
 
+        if (abyssMageHybridOrb != null)
+        {
+            abyssMageHybridOrb.BreakProjectile(damageSource);
+            return;
+        }
+
         if (abyssMageFireball != null)
         {
-            abyssMageFireball.BreakProjectile();
+            abyssMageFireball.BreakProjectile(damageSource);
             return;
         }
 

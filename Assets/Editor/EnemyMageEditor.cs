@@ -25,11 +25,12 @@ public class EnemyMageEditor : Editor
     {
         new Section(
             "Core",
-            "Enemy base settings. Use this for health, ground checks, and wall checks.",
+            "Enemy base settings. Use this for health, audio range, ground checks, and wall checks.",
             new[]
             {
                 new FieldInfo("maxHealth", "Max Health", "health hit points hp"),
                 new FieldInfo("canTakeDamage", "Can Take Damage", "damage invulnerable"),
+                new FieldInfo("combatSoundDistance", "Combat Sound Distance", "audio range sound distance"),
                 new FieldInfo("groundCheckDistance", "Ground Check Distance", "ground floor check"),
                 new FieldInfo("whatIsGround", "What Is Ground", "ground layer mask"),
                 new FieldInfo("wallCheckDistance", "Wall Check Distance", "wall obstacle"),
@@ -180,6 +181,7 @@ public class EnemyMageEditor : Editor
         serializedObject.Update();
 
         SearchableInspectorDrawer.DrawScriptField(serializedObject);
+        EnemyInspectorActionDrawer.DrawKillEnemyButton(target as Enemy);
         if (GUILayout.Button("Move Script Component Up"))
         {
             EnemyComponentOrderTools.MoveComponentToTop((Component)target);

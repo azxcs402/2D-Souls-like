@@ -5,7 +5,8 @@ public class AudioRangeController : MonoBehaviour
     private AudioSource source;
     private Transform player;
 
-    [SerializeField] private float minDistanceToHearSound = 12;
+    [SerializeField, Min(0.01f), Tooltip("超过这个距离后，声音会被静音。")]
+    private float minDistanceToHearSound = 12;
     [SerializeField] private bool showGizmo;
     private float maxVolume;
 
@@ -29,8 +30,13 @@ public class AudioRangeController : MonoBehaviour
             return;
 
         float distance = Vector2.Distance(player.position, transform.position);
-        float t = Mathf.Clamp01(1 - (distance / minDistanceToHearSound));
+        if (distance >= minDistanceToHearSound)
+        {
+            source.volume = Mathf.Lerp(source.volume, 0f, Time.deltaTime * 3);
+            return;
+        }
 
+        float t = Mathf.Clamp01(1 - (distance / minDistanceToHearSound));
         float targetVolume = Mathf.Lerp(0, maxVolume, t * t);
         source.volume = Mathf.Lerp(source.volume, targetVolume, Time.deltaTime * 3);
     }

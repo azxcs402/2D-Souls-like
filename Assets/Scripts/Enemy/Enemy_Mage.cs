@@ -689,6 +689,7 @@ public class Enemy_Mage : Enemy, ICounterable, IEnemyBattleResponder
     private IEnumerator CastSpellCo(Transform target)
     {
         SetSpellCastPerformed(false);
+        PlayCombatAudio(AudioKey.MageSpellCast);
 
         for (int i = 0; i < amountToCast; i++)
         {
