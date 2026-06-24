@@ -747,12 +747,17 @@ MonoBehaviour:
   hoverDriftRadius: 0.18
   hoverDriftChangeInterval: 0.18
   hoverDriftMoveSpeed: 1.6
+  giantHoverDriftRadius: 0.18
+  giantHoverDriftChangeInterval: 0.18
+  giantHoverDriftMoveSpeed: 1.6
   whatCanCollideWith:
     serializedVersion: 2
     m_Bits: 192
   impactKnockback: {x: 4, y: 2}
   destroyDelayAfterImpact: 2
   collisionArmDistance: 0.45
+  giantExplosionRadius: 1.75
+  giantHorizontalWallClearance: 0.2
   explosionSfxKey: 12
   explosionAudioMaxDistance: 12
   windLoopSfxKey: 26

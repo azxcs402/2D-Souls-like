@@ -357,6 +357,7 @@ public static class SceneUIAndVFXBootstrapper
                     existingNameText.font = bossNameFontAsset;
                 }
 
+                NormalizeBossHealthBarLayout(existingBar as RectTransform);
                 EnsureBossHealthBarVisuals(existingBar as RectTransform, uiLayer, barSprite);
                 existingComponent.Configure(existingSlider, existingNameText, existingCanvasGroup);
                 EditorUtility.SetDirty(existingComponent);
@@ -378,11 +379,7 @@ public static class SceneUIAndVFXBootstrapper
         bossBarObject.transform.SetParent(canvasRect, false);
 
         RectTransform rootRect = bossBarObject.GetComponent<RectTransform>();
-        rootRect.anchorMin = new Vector2(0.5f, 1f);
-        rootRect.anchorMax = new Vector2(0.5f, 1f);
-        rootRect.pivot = new Vector2(0.5f, 1f);
-        rootRect.anchoredPosition = new Vector2(0f, -26f);
-        rootRect.sizeDelta = new Vector2(520f, 84f);
+        NormalizeBossHealthBarLayout(rootRect);
 
         CanvasGroup canvasGroup = bossBarObject.GetComponent<CanvasGroup>();
         canvasGroup.alpha = 1f;
@@ -433,6 +430,58 @@ public static class SceneUIAndVFXBootstrapper
         EditorUtility.SetDirty(bossHealthBar);
         EditorUtility.SetDirty(bossBarObject);
         return true;
+    }
+
+    private static bool NormalizeBossHealthBarLayout(RectTransform rootRect)
+    {
+        if (rootRect == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        Vector2 anchor = new Vector2(0.5f, 0f);
+        Vector2 pivot = new Vector2(0.5f, 0f);
+        Vector2 position = new Vector2(0f, 26f);
+        Vector2 size = new Vector2(520f, 84f);
+
+        if (rootRect.anchorMin != anchor)
+        {
+            rootRect.anchorMin = anchor;
+            changed = true;
+        }
+
+        if (rootRect.anchorMax != anchor)
+        {
+            rootRect.anchorMax = anchor;
+            changed = true;
+        }
+
+        if (rootRect.pivot != pivot)
+        {
+            rootRect.pivot = pivot;
+            changed = true;
+        }
+
+        if (rootRect.anchoredPosition != position)
+        {
+            rootRect.anchoredPosition = position;
+            changed = true;
+        }
+
+        if (rootRect.sizeDelta != size)
+        {
+            rootRect.sizeDelta = size;
+            changed = true;
+        }
+
+        if (rootRect.localScale != Vector3.one)
+        {
+            rootRect.localScale = Vector3.one;
+            changed = true;
+        }
+
+        return changed;
     }
 
     private static void EnsureBossHealthBarVisuals(RectTransform rootRect, int uiLayer, Sprite barSprite)
@@ -559,13 +608,6 @@ public static class SceneUIAndVFXBootstrapper
             return false;
         }
 
-        if (skillBarTransform.parent != playerHud.transform)
-        {
-            Undo.SetTransformParent(skillBarTransform, playerHud.transform, "Move UI_SkillBarParent Under PlayerHUD");
-        }
-
-        bool changed = EnsureSkillBarLayout(skillBarTransform as RectTransform);
-
         GameObject skillBarObject = skillBarTransform.gameObject;
         Transform existingSlot = skillBarObject.transform.Find(DashSkillSlotName);
         if (existingSlot == null)
@@ -584,7 +626,7 @@ public static class SceneUIAndVFXBootstrapper
         }
 
         dashSkillSlot.Configure(cooldownImage);
-        return changed;
+        return true;
     }
 
     private static bool EnsureHealingPotionSkillSlot()
@@ -601,15 +643,8 @@ public static class SceneUIAndVFXBootstrapper
             return false;
         }
 
-        if (skillBarTransform.parent != playerHud.transform)
-        {
-            Undo.SetTransformParent(skillBarTransform, playerHud.transform, "Move UI_SkillBarParent Under PlayerHUD");
-        }
-
-        bool changed = false;
-        changed |= EnsureSkillBarLayout(skillBarTransform as RectTransform);
-
         Sprite potionSprite = LoadSprite(HealingPotionIconAssetPath, HealingPotionIconSpriteName);
+        bool changed = false;
 
         GameObject potionObject = null;
         Transform existingPotion = skillBarTransform.Find(HealingPotionObjectName);
@@ -643,7 +678,6 @@ public static class SceneUIAndVFXBootstrapper
             potionRect.anchorMin = new Vector2(0.5f, 0f);
             potionRect.anchorMax = new Vector2(0.5f, 0f);
             potionRect.pivot = new Vector2(0.5f, 0f);
-            potionRect.anchoredPosition = new Vector2(-108f, 0f);
             potionRect.sizeDelta = new Vector2(96f, 96f);
             changed = true;
         }
@@ -991,9 +1025,77 @@ public static class SceneUIAndVFXBootstrapper
         }
 
         bool changed = false;
-        Vector2 anchor = new Vector2(0.5f, 0f);
-        Vector2 pivot = new Vector2(0.5f, 0f);
-        Vector2 targetPosition = new Vector2(529f, 155.6f);
+        Vector2 anchor = new Vector2(1f, 0f);
+        Vector2 pivot = new Vector2(1f, 0f);
+        Vector2 targetPosition = new Vector2(-431f, 155.6f);
+        HorizontalLayoutGroup layoutGroup = skillBarRect.GetComponent<HorizontalLayoutGroup>();
+        if (layoutGroup == null)
+        {
+            layoutGroup = skillBarRect.gameObject.AddComponent<HorizontalLayoutGroup>();
+            changed = true;
+        }
+
+        if (layoutGroup.childAlignment != TextAnchor.MiddleRight)
+        {
+            layoutGroup.childAlignment = TextAnchor.MiddleRight;
+            changed = true;
+        }
+
+        if (layoutGroup.childControlWidth)
+        {
+            layoutGroup.childControlWidth = false;
+            changed = true;
+        }
+
+        if (layoutGroup.childControlHeight)
+        {
+            layoutGroup.childControlHeight = false;
+            changed = true;
+        }
+
+        if (layoutGroup.childForceExpandWidth)
+        {
+            layoutGroup.childForceExpandWidth = false;
+            changed = true;
+        }
+
+        if (layoutGroup.childForceExpandHeight)
+        {
+            layoutGroup.childForceExpandHeight = false;
+            changed = true;
+        }
+
+        if (!Mathf.Approximately(layoutGroup.spacing, 12f))
+        {
+            layoutGroup.spacing = 12f;
+            changed = true;
+        }
+
+        RectOffset padding = layoutGroup.padding;
+        if (padding.left != 0 || padding.right != 0 || padding.top != 0 || padding.bottom != 0)
+        {
+            layoutGroup.padding = new RectOffset(0, 0, 0, 0);
+            changed = true;
+        }
+
+        ContentSizeFitter fitter = skillBarRect.GetComponent<ContentSizeFitter>();
+        if (fitter == null)
+        {
+            fitter = skillBarRect.gameObject.AddComponent<ContentSizeFitter>();
+            changed = true;
+        }
+
+        if (fitter.horizontalFit != ContentSizeFitter.FitMode.PreferredSize)
+        {
+            fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            changed = true;
+        }
+
+        if (fitter.verticalFit != ContentSizeFitter.FitMode.PreferredSize)
+        {
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            changed = true;
+        }
 
         if (skillBarRect.anchorMin != anchor)
         {
@@ -1022,6 +1124,80 @@ public static class SceneUIAndVFXBootstrapper
         if (skillBarRect.localScale != Vector3.one)
         {
             skillBarRect.localScale = Vector3.one;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool EnsureSkillBarItemLayout(RectTransform itemRect, float preferredWidth, float preferredHeight)
+    {
+        if (itemRect == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        LayoutElement layoutElement = itemRect.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+        {
+            layoutElement = itemRect.gameObject.AddComponent<LayoutElement>();
+            changed = true;
+        }
+
+        if (!Mathf.Approximately(layoutElement.preferredWidth, preferredWidth))
+        {
+            layoutElement.preferredWidth = preferredWidth;
+            changed = true;
+        }
+
+        if (!Mathf.Approximately(layoutElement.preferredHeight, preferredHeight))
+        {
+            layoutElement.preferredHeight = preferredHeight;
+            changed = true;
+        }
+
+        if (layoutElement.flexibleWidth != 0f)
+        {
+            layoutElement.flexibleWidth = 0f;
+            changed = true;
+        }
+
+        if (layoutElement.flexibleHeight != 0f)
+        {
+            layoutElement.flexibleHeight = 0f;
+            changed = true;
+        }
+
+        if (layoutElement.ignoreLayout)
+        {
+            layoutElement.ignoreLayout = false;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool NormalizeSkillBarChildOrder(Transform skillBarTransform)
+    {
+        if (skillBarTransform == null)
+        {
+            return false;
+        }
+
+        Transform potion = skillBarTransform.Find(HealingPotionObjectName);
+        Transform dash = skillBarTransform.Find(DashSkillSlotName);
+        bool changed = false;
+
+        if (potion != null && potion.GetSiblingIndex() != 0)
+        {
+            potion.SetSiblingIndex(0);
+            changed = true;
+        }
+
+        if (dash != null && dash.GetSiblingIndex() != 1)
+        {
+            dash.SetSiblingIndex(1);
             changed = true;
         }
 

@@ -132,6 +132,14 @@ MonoBehaviour:
     clips:
     - {fileID: 8300000, guid: fd2e3a1393184aebbdb8ae0756f704d8, type: 3}
     maxVolume: 1
+  - audioName: abyss_fire_appear
+    clips:
+    - {fileID: 8300000, guid: fd2e3a1393184aebbdb8ae0756f704d8, type: 3}
+    maxVolume: 1
+  - audioName: abyss_fire_disappear
+    clips:
+    - {fileID: 8300000, guid: fd2e3a1393184aebbdb8ae0756f704d8, type: 3}
+    maxVolume: 1
   - audioName: abyss_fire_flame_loop
     clips:
     - {fileID: 8300000, guid: fd2e3a1393184aebbdb8ae0756f704d8, type: 3}
@@ -139,10 +147,20 @@ MonoBehaviour:
   mainMenuMusic:
   - audioName: playlist_mainMenu
     clips:
-    - {fileID: 8300000, guid: 1fb797f9856b46e7bda444b9edd2a6f7, type: 3}
-    maxVolume: 1
+    - {fileID: 8300000, guid: 434cf59c70b84d93a27f1e5989083540, type: 3}
+    maxVolume: 2
   levelMusic:
   - audioName: playlist_levels
     clips:
-    - {fileID: 8300000, guid: e3471b16e8b848a38b898c9d02d42b0b, type: 3}
+    - {fileID: 8300000, guid: 75af71a084694ef78e2d271cca430be8, type: 3}
+    maxVolume: 1
+  doorBattleMusic:
+  - audioName: playlist_doorBattle
+    clips:
+    - {fileID: 8300000, guid: dd6b394a363d46d384ae6c7776f41588, type: 3}
+    maxVolume: 1
+  bossBattleMusic:
+  - audioName: playlist_bossBattle
+    clips:
+    - {fileID: 8300000, guid: 9ed375ada9b548af8f9261f670ae19df, type: 3}
     maxVolume: 1

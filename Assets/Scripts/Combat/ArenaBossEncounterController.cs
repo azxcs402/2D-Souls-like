@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
+using UnityEngine.Serialization;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Tilemaps;
@@ -15,6 +16,11 @@ using UnityEditor;
 public class ArenaBossEncounterController : MonoBehaviour
 {
     public static ArenaBossEncounterController Instance { get; private set; }
+    private const int Skill4FireballCount = 6;
+    private const float AbyssMageStunSkillPointCooldown = 5f;
+
+    public static bool HasActiveEncounter => Instance != null && Instance.encounterStarted && !Instance.encounterCompleted;
+
     public static ArenaBossEncounterController GetActiveInstance()
     {
         if (Instance != null)
@@ -81,6 +87,9 @@ public class ArenaBossEncounterController : MonoBehaviour
     [Header("Boss")]
     [SerializeField] private Enemy bossEnemy;
     [SerializeField] private GameObject bossPrefab;
+    [FormerlySerializedAs("giantFireballExplosionRadiusOverride")]
+    [SerializeField, Min(0f), Tooltip("Explosion damage radius used for giant fireballs spawned by this encounter.")]
+    private float giantFireballExplosionRadius = 1.75f;
     [SerializeField, Range(1, 4)] private int bossPhaseCount = 4;
     [SerializeField, Range(0f, 1f)] private float phase2HealthThreshold = 0.75f;
     [SerializeField, Range(0f, 1f)] private float phase3HealthThreshold = 0.5f;
@@ -93,19 +102,52 @@ public class ArenaBossEncounterController : MonoBehaviour
     [Header("Abyss Fire")]
     [SerializeField] private AbyssFire[] abyssFires = Array.Empty<AbyssFire>();
     [SerializeField, Min(0f)] private float abyssFireRevealDelay = 0.5f;
+    [SerializeField, Min(0f), Tooltip("Delay after the sixth abyss fire appears before lowering all abyss fire audio.")]
+    private float abyssFireAudioReductionDelay = 1f;
+    [SerializeField, Range(0f, 1f), Tooltip("Volume reduction applied after the delay. 0.75 means the audio is lowered to 25%.")]
+    private float abyssFireAudioReduction = 0.75f;
 
     [Header("Abyss Power")]
     [SerializeField] private AbyssPower[] abyssPowers = Array.Empty<AbyssPower>();
 
     [Header("Abyss Mage Skill Point")]
     [SerializeField] private AbyssMageSkillPointPacePreset abyssMageSkillPointPacePreset = AbyssMageSkillPointPacePreset.Standard;
-    [SerializeField, Range(0f, 100f)] private float abyssMageMeleeSkillPointChance = 35f;
-    [SerializeField, Range(0f, 100f)] private float abyssMageFireballSummonSkillPointChance = 20f;
-    [SerializeField, Min(0f)] private float abyssMageFireballSummonSkillPointCooldown = 4f;
+    [SerializeField, Range(0f, 100f)] private float abyssMageMeleeSkillPointChance = 40f;
+    [SerializeField, Range(0f, 100f)] private float abyssMageFireballSummonSkillPointChance = 35f;
+    [SerializeField, Min(0f)] private float abyssMageFireballSummonSkillPointCooldown = 3f;
     [SerializeField, Min(0f)] private float abyssMageFireballPlayerInteractionSkillPointCooldown = 6f;
     [SerializeField, Range(0f, 100f)] private float abyssMagePassiveSkillPointInitialChance = 1f;
-    [SerializeField, Min(0f)] private float abyssMagePassiveSkillPointChanceIncrement = 2f;
+    [SerializeField, Min(0f)] private float abyssMagePassiveSkillPointChanceIncrement = 5f;
     [SerializeField, Min(0.1f)] private float abyssMagePassiveSkillPointCheckInterval = 1f;
+    [SerializeField, Min(0f)] private float giantHorizontalWallClearance = 0.2f;
+    [SerializeField, Range(0.1f, 3f)] private float giantFireballColliderRadiusMultiplier = 0.6666667f;
+
+    [Header("Enhanced Skill 2")]
+    [SerializeField, Min(1)] private int normalSkill2CastsBeforeEnhanced = 2;
+
+    [Header("Enhanced Skill 3")]
+    [SerializeField] private Transform bossEnhancedSkill3CastPoint;
+    [SerializeField, Min(1)] private int normalSkill3CastsBeforeEnhanced = 2;
+    [SerializeField, Min(1)] private int enhancedSkill3GiantFireballCount = 3;
+    [SerializeField, Min(0f)] private float enhancedSkill3FireballInterval = 0.8f;
+    [SerializeField, Min(0f)] private float enhancedSkill3PlatformRiseStartDelay = 1f;
+    [SerializeField, Min(0)] private int enhancedSkill3PlatformRiseCount = 3;
+    [SerializeField, Min(0f)] private float enhancedSkill3PlatformRiseInterval = 0.6f;
+
+    [Header("Skill 4")]
+    [SerializeField, Min(0f)] private float skill4FireballSpawnOffsetStep = 0.08f;
+    [SerializeField, Min(0f)] private float skill4FireballSpawnHeightOffset = 0.35f;
+
+    [Header("Skill 5")]
+    [SerializeField] private Transform bossSkill5CastPoint;
+    [SerializeField, Range(0f, 1f)] private float skill5TriggerHealthPercent = 0.35f;
+    [SerializeField, Range(0f, 1f)] private float skill5MaxRecoverHealthPercent = 0.65f;
+    [SerializeField, Min(0f)] private float skill5HealPercentPerSecond = 0.012f;
+    [SerializeField, Min(0.05f)] private float skill5GiantFireballInterval = 0.8f;
+    [SerializeField, Min(1)] private int skill5MaxActiveGiantFireballs = 3;
+    [SerializeField, Min(0f)] private float skill5PlatformDurationIncreasePerSecond = 1.1f;
+
+    private const float Skill5HealPercentPerSecondRuntime = 0.02f;
 
     [Header("Skill Point Backgrounds")]
     [SerializeField] private GameObject[] skillPointBackgrounds = Array.Empty<GameObject>();
@@ -145,6 +187,7 @@ public class ArenaBossEncounterController : MonoBehaviour
     private Coroutine bossFloatingPlatformRoutine;
     private Coroutine bossEncounterIntroRoutine;
     private Coroutine bossCameraRoutine;
+    private Coroutine abyssFireAudioReductionRoutine;
     private Component bossCameraRuntimeComponent;
     private int bossCameraOriginalPriority;
     private bool bossCameraOriginalPriorityCached;
@@ -166,17 +209,36 @@ public class ArenaBossEncounterController : MonoBehaviour
     private bool encounterCompleted;
     private int currentBossPhase = 1;
     private int currentSkillPoints;
+    private bool abyssFireAudioReduced;
+    private bool bossHealthBarBindingDeferred;
     private float passiveSkillPointTimer;
     private float passiveSkillPointChance = 1f;
     private float lastFireballSummonSkillPointTime = float.NegativeInfinity;
     private float lastFireballPlayerInteractionSkillPointTime = float.NegativeInfinity;
+    private float lastAbyssMageStunSkillPointTime = float.NegativeInfinity;
     private bool pendingAbyssMageHybridSpellCastRequest;
+    private bool pendingAbyssMageEnhancedHybridSpellCastRequest;
     private bool pendingAbyssMageGiantSpellCastRequest;
+    private bool pendingAbyssMageSkill4Request;
+    private bool skill5PendingStart;
+    private int normalSkill2CastCounter;
+    private int normalSkill3CastCounter;
+    private bool enhancedSkill3Active;
+    private Coroutine enhancedSkill3Routine;
+    private bool skill5Triggered;
+    private bool skill5Active;
+    private bool skill5Ending;
+    private bool skill5IgnoreNextHealthDrop;
+    private int skill5LastObservedHealth;
+    private Coroutine skill5Routine;
 
     public int CurrentBossPhase => currentBossPhase;
     public int CurrentSkillPoints => currentSkillPoints;
     public AbyssMageSkillPointPacePreset AbyssMageSkillPointPace => abyssMageSkillPointPacePreset;
     public string ActiveEnemySummary => BuildActiveEnemySummary();
+    public float GiantHorizontalWallClearance => giantHorizontalWallClearance;
+    public float GiantFireballColliderRadiusMultiplier => giantFireballColliderRadiusMultiplier;
+    public float GiantFireballExplosionRadius => giantFireballExplosionRadius;
 
     private void Awake()
     {
@@ -219,15 +281,22 @@ public class ArenaBossEncounterController : MonoBehaviour
     {
         TryBeginEncounterFromPlayerPresence();
         HandleAbyssMageForceSpellCastInput();
+        HandleAbyssMageForceEnhancedSkill2Input();
         HandleAbyssMageForceGiantSpellCastInput();
+        HandleAbyssMageForceEnhancedSkill3Input();
+        HandleAbyssMageForceSkill4Input();
+        HandleAbyssMageForceSkill5HealthInput();
+        TryStartPendingAbyssMageSkill5();
         HandleAbyssMageManualSpellCastInput();
+        HandleAbyssMageDecrementSkillPointInput();
         UpdatePassiveAbyssMageSkillPointChance();
+        UpdateBossFloatingPlatformMechanics();
     }
 
     private void OnDisable()
     {
-        UnbindBossEnemy();
         StopAllInternalRoutines();
+        UnbindBossEnemy();
         if (Instance == this)
         {
             Instance = null;
@@ -236,8 +305,8 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void OnDestroy()
     {
-        UnbindBossEnemy();
         StopAllInternalRoutines();
+        UnbindBossEnemy();
         if (Instance == this)
         {
             Instance = null;
@@ -284,7 +353,13 @@ public class ArenaBossEncounterController : MonoBehaviour
         encounterCompleted = false;
         currentBossPhase = Mathf.Clamp(currentBossPhase, 1, Mathf.Max(1, bossPhaseCount));
         currentSkillPoints = 0;
+        normalSkill2CastCounter = 0;
+        normalSkill3CastCounter = 0;
+        ResetAbyssMageSkill5State();
         ResetPassiveAbyssMageSkillPointState();
+        bossHealthBarBindingDeferred = true;
+
+        AudioManager.instance?.StopBGM();
 
         SetDoorsLocked(lockDoorsWhenEncounterStarts);
         SetAbyssFireVisibleCount(0);
@@ -292,7 +367,7 @@ public class ArenaBossEncounterController : MonoBehaviour
         PreviewAbyssPowerVisibleCount(0);
         if (bossFloatingPlatform != null)
         {
-            bossFloatingPlatform.SetHidden();
+            bossFloatingPlatform.ResetTimedPlatforms();
         }
 
         CacheAndBindBossEnemy(ResolveBossEnemy());
@@ -323,11 +398,6 @@ public class ArenaBossEncounterController : MonoBehaviour
         {
             StopCoroutine(bossFloatingPlatformRoutine);
             bossFloatingPlatformRoutine = null;
-        }
-
-        if (bossFloatingPlatform != null)
-        {
-            bossFloatingPlatformRoutine = StartCoroutine(bossFloatingPlatform.PlayAppearanceSequence());
         }
     }
 
@@ -368,12 +438,17 @@ public class ArenaBossEncounterController : MonoBehaviour
     public void ResetEncounter()
     {
         StopAllInternalRoutines();
+        bossAbyssMage?.ResetDamageTeleportTriggerState();
         UnbindBossEnemy();
+        bossHealthBarBindingDeferred = false;
 
         encounterStarted = false;
         encounterCompleted = false;
         currentBossPhase = 1;
         currentSkillPoints = 0;
+        normalSkill2CastCounter = 0;
+        normalSkill3CastCounter = 0;
+        ResetAbyssMageSkill5State();
         ResetPassiveAbyssMageSkillPointState();
 
         SetDoorsLocked(false);
@@ -381,9 +456,10 @@ public class ArenaBossEncounterController : MonoBehaviour
         PreviewSkillPointBackgroundVisibleCount(0);
         PreviewAbyssPowerVisibleCount(0);
         ApplyPhaseState(currentBossPhase, preview: true);
+        AudioManager.instance?.StartBGM(AudioKey.PlaylistLevels);
         if (bossFloatingPlatform != null)
         {
-            bossFloatingPlatform.SetHidden();
+            bossFloatingPlatform.ResetTimedPlatforms();
         }
         RestoreBossCamera();
         ReleasePlayerAfterBossIntro();
@@ -458,6 +534,16 @@ public class ArenaBossEncounterController : MonoBehaviour
         ApplyFloatingPlatformState(FloatingPlatformState.AllVisible);
     }
 
+    public bool TryForceTimedPlatformDown(Collider2D hitCollider)
+    {
+        if (bossFloatingPlatform == null || hitCollider == null)
+        {
+            return false;
+        }
+
+        return bossFloatingPlatform.TryForceTimedPlatformDown(hitCollider);
+    }
+
     private void ResolveReferences()
     {
         if (bossPhaseStates == null || bossPhaseStates.Length != 4)
@@ -500,6 +586,24 @@ public class ArenaBossEncounterController : MonoBehaviour
         abyssMagePassiveSkillPointInitialChance = Mathf.Clamp(abyssMagePassiveSkillPointInitialChance, 0f, 100f);
         abyssMagePassiveSkillPointChanceIncrement = Mathf.Max(0f, abyssMagePassiveSkillPointChanceIncrement);
         abyssMagePassiveSkillPointCheckInterval = Mathf.Max(0.1f, abyssMagePassiveSkillPointCheckInterval);
+        giantHorizontalWallClearance = Mathf.Max(0f, giantHorizontalWallClearance);
+        giantFireballColliderRadiusMultiplier = Mathf.Clamp(giantFireballColliderRadiusMultiplier, 0.1f, 3f);
+        normalSkill2CastsBeforeEnhanced = Mathf.Max(1, normalSkill2CastsBeforeEnhanced);
+        normalSkill3CastsBeforeEnhanced = Mathf.Max(1, normalSkill3CastsBeforeEnhanced);
+        enhancedSkill3GiantFireballCount = Mathf.Max(1, enhancedSkill3GiantFireballCount);
+        enhancedSkill3FireballInterval = Mathf.Max(0f, enhancedSkill3FireballInterval);
+        enhancedSkill3PlatformRiseStartDelay = Mathf.Max(0f, enhancedSkill3PlatformRiseStartDelay);
+        enhancedSkill3PlatformRiseCount = Mathf.Max(0, enhancedSkill3PlatformRiseCount);
+        enhancedSkill3PlatformRiseInterval = Mathf.Max(0f, enhancedSkill3PlatformRiseInterval);
+        skill4FireballSpawnOffsetStep = Mathf.Max(0f, skill4FireballSpawnOffsetStep);
+        skill4FireballSpawnHeightOffset = Mathf.Max(0f, skill4FireballSpawnHeightOffset);
+        skill5TriggerHealthPercent = Mathf.Clamp01(skill5TriggerHealthPercent);
+        skill5MaxRecoverHealthPercent = Mathf.Clamp01(skill5MaxRecoverHealthPercent);
+        skill5HealPercentPerSecond = Mathf.Max(0f, skill5HealPercentPerSecond);
+        skill5GiantFireballInterval = Mathf.Max(0.05f, skill5GiantFireballInterval);
+        skill5MaxActiveGiantFireballs = Mathf.Max(1, skill5MaxActiveGiantFireballs);
+        skill5PlatformDurationIncreasePerSecond = Mathf.Max(0f, skill5PlatformDurationIncreasePerSecond);
+        ApplyAbyssMageSkillPointPreset(abyssMageSkillPointPacePreset);
 
         if (skillPointBackgrounds == null)
         {
@@ -534,6 +638,16 @@ public class ArenaBossEncounterController : MonoBehaviour
             }
         }
 
+        if (bossEnhancedSkill3CastPoint == null)
+        {
+            bossEnhancedSkill3CastPoint = FindDeepChild(transform, "BossEnhancedSkill3CastPoint");
+        }
+
+        if (bossSkill5CastPoint == null)
+        {
+            bossSkill5CastPoint = FindDeepChild(transform, "BossSkill5CastPoint");
+        }
+
         if (bossHealthBar == null)
         {
             bossHealthBar = FindObjectOfType<UI_AbyssMageBossHealthBar>(true);
@@ -562,6 +676,7 @@ public class ArenaBossEncounterController : MonoBehaviour
     private void NormalizeSerializedData()
     {
         bossPhaseCount = Mathf.Clamp(bossPhaseCount, 1, 4);
+        giantFireballExplosionRadius = Mathf.Max(0f, giantFireballExplosionRadius);
         phase2HealthThreshold = Mathf.Clamp01(phase2HealthThreshold);
         phase3HealthThreshold = Mathf.Clamp01(phase3HealthThreshold);
         phase4HealthThreshold = Mathf.Clamp01(phase4HealthThreshold);
@@ -614,31 +729,31 @@ public class ArenaBossEncounterController : MonoBehaviour
         switch (abyssMageSkillPointPacePreset)
         {
             case AbyssMageSkillPointPacePreset.Conservative:
-                abyssMageMeleeSkillPointChance = 25f;
-                abyssMageFireballSummonSkillPointChance = 12f;
-                abyssMageFireballSummonSkillPointCooldown = 5f;
+                abyssMageMeleeSkillPointChance = 30f;
+                abyssMageFireballSummonSkillPointChance = 20f;
+                abyssMageFireballSummonSkillPointCooldown = 4f;
                 abyssMageFireballPlayerInteractionSkillPointCooldown = 8f;
                 abyssMagePassiveSkillPointInitialChance = 1f;
-                abyssMagePassiveSkillPointChanceIncrement = 1f;
+                abyssMagePassiveSkillPointChanceIncrement = 3f;
                 abyssMagePassiveSkillPointCheckInterval = 1.25f;
                 break;
             case AbyssMageSkillPointPacePreset.Aggressive:
-                abyssMageMeleeSkillPointChance = 50f;
-                abyssMageFireballSummonSkillPointChance = 30f;
+                abyssMageMeleeSkillPointChance = 45f;
+                abyssMageFireballSummonSkillPointChance = 40f;
                 abyssMageFireballSummonSkillPointCooldown = 3f;
                 abyssMageFireballPlayerInteractionSkillPointCooldown = 4f;
                 abyssMagePassiveSkillPointInitialChance = 2f;
-                abyssMagePassiveSkillPointChanceIncrement = 3f;
+                abyssMagePassiveSkillPointChanceIncrement = 6f;
                 abyssMagePassiveSkillPointCheckInterval = 1f;
                 break;
             case AbyssMageSkillPointPacePreset.Standard:
             default:
-                abyssMageMeleeSkillPointChance = 35f;
-                abyssMageFireballSummonSkillPointChance = 20f;
-                abyssMageFireballSummonSkillPointCooldown = 4f;
+                abyssMageMeleeSkillPointChance = 40f;
+                abyssMageFireballSummonSkillPointChance = 35f;
+                abyssMageFireballSummonSkillPointCooldown = 3f;
                 abyssMageFireballPlayerInteractionSkillPointCooldown = 6f;
                 abyssMagePassiveSkillPointInitialChance = 1f;
-                abyssMagePassiveSkillPointChanceIncrement = 2f;
+                abyssMagePassiveSkillPointChanceIncrement = 5f;
                 abyssMagePassiveSkillPointCheckInterval = 1f;
                 break;
         }
@@ -698,12 +813,14 @@ public class ArenaBossEncounterController : MonoBehaviour
         {
             bossHealth.OnHealthChanged -= HandleBossHealthChanged;
             bossHealth.OnHealthChanged += HandleBossHealthChanged;
+            SyncBossEnemyFromHealth(enemy, bossHealth);
         }
 
         if (enemy is Enemy_AbyssMage abyssMage)
         {
             bossAbyssMage = abyssMage;
             bossSkillPointSource = abyssMage;
+            bossAbyssMage.ResetDamageTeleportTriggerState();
 
             bossSkillPointSource.MeleeAttackCompleted -= HandleBossMeleeAttackCompleted;
             bossSkillPointSource.MeleeAttackCompleted += HandleBossMeleeAttackCompleted;
@@ -722,15 +839,32 @@ public class ArenaBossEncounterController : MonoBehaviour
             bossSkillPointSource.MeleeAttackCompleted += HandleBossMeleeAttackCompleted;
         }
 
-        if (bossHealthBar != null && bossHealth != null)
+        if (!bossHealthBarBindingDeferred && bossHealthBar != null && bossHealth != null)
         {
             bossHealthBar.BindBossHealth(bossHealth);
         }
     }
 
+    private static void SyncBossEnemyFromHealth(Enemy enemy, Entity_Health health)
+    {
+        if (enemy == null || health == null)
+        {
+            return;
+        }
+
+        int desiredMaxHealth = Mathf.Max(1, health.MaxHealth);
+        if (enemy.MaxHealth == desiredMaxHealth)
+        {
+            return;
+        }
+
+        enemy.SetMaxHealth(desiredMaxHealth);
+    }
+
     private void UnbindBossEnemy()
     {
         pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageEnhancedHybridSpellCastRequest = false;
         pendingAbyssMageGiantSpellCastRequest = false;
 
         if (bossAbyssMage != null)
@@ -824,7 +958,7 @@ public class ArenaBossEncounterController : MonoBehaviour
             RegisterBossEnemy(bossEnemy);
         }
 
-        if (bossEnemy != null && bossHealthBar != null)
+        if (!bossHealthBarBindingDeferred && bossEnemy != null && bossHealthBar != null)
         {
             bossHealthBar.BindBossHealth(ResolveBossHealth(bossEnemy));
         }
@@ -849,16 +983,12 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private IEnumerator RunBossEncounterIntroRoutine()
     {
+        ShowBossHealthIntroProgress(0f);
         yield return RevealAbyssFiresAndSpawnBossRoutine();
 
-        if (bossEnemy != null && bossHealthBar != null)
-        {
-            bossHealth = ResolveBossHealth(bossEnemy);
-            if (bossHealth != null)
-            {
-                bossHealthBar.BindBossHealth(bossHealth);
-            }
-        }
+        ShowBossHealthIntroProgress(100f);
+        bossHealthBarBindingDeferred = false;
+        BindBossHealthBarToCurrentBoss();
 
         StartBossCameraReturnToPlayer();
 
@@ -867,20 +997,46 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private IEnumerator RevealAbyssFiresAndSpawnBossRoutine()
     {
-        if (abyssFires != null && abyssFires.Length > 0)
+        int abyssFireCount = abyssFires != null ? abyssFires.Length : 0;
+        float revealStepDuration = Mathf.Max(0f, abyssFireRevealDelay);
+        float totalIntroDuration = abyssFireCount > 0 ? abyssFireCount * revealStepDuration : 0f;
+        float elapsed = 0f;
+
+        if (abyssFireCount > 0)
         {
-            for (int i = 0; i < abyssFires.Length; i++)
+            for (int i = 0; i < abyssFireCount; i++)
             {
-                SetAbyssFireVisible(i, true);
-                if (abyssFireRevealDelay > 0f)
+                SetAbyssFireVisible(i, true, true);
+                if (i == 5)
                 {
-                    yield return new WaitForSeconds(abyssFireRevealDelay);
+                    AudioManager.instance?.StartBGM(AudioKey.PlaylistBossBattle);
+                }
+                if (revealStepDuration > 0f)
+                {
+                    float stepEnd = elapsed + revealStepDuration;
+                    while (elapsed < stepEnd)
+                    {
+                        elapsed += Time.deltaTime;
+                        ShowBossHealthIntroProgress(GetBossHealthIntroPercent(elapsed, totalIntroDuration));
+                        yield return null;
+                    }
+
+                    elapsed = stepEnd;
+                }
+                else
+                {
+                    ShowBossHealthIntroProgress(GetBossHealthIntroPercent(i + 1, abyssFireCount));
+                    yield return null;
                 }
             }
         }
 
+        if (abyssFireCount <= 5)
+        {
+            AudioManager.instance?.StartBGM(AudioKey.PlaylistBossBattle);
+        }
+
         ActivateBossAfterAbyssFires();
-        yield break;
     }
 
     private void ActivateBossAfterAbyssFires()
@@ -1427,14 +1583,19 @@ public class ArenaBossEncounterController : MonoBehaviour
             currentBossPhase = nextPhase;
             ApplyPhaseState(currentBossPhase, preview: false);
         }
+
+        HandleAbyssMageSkill5HealthChanged(health);
     }
 
     private void HandleBossDied(Enemy enemy)
     {
+        ResetAbyssMageSkill5State();
+        bossAbyssMage?.ResetDamageTeleportTriggerState();
         encounterCompleted = true;
         SetDoorsLocked(false);
         RestoreBossCamera();
         ReleasePlayerAfterBossIntro();
+        AudioManager.instance?.StartBGM(AudioKey.PlaylistLevels);
 
         if (bossHealthBar != null)
         {
@@ -1446,11 +1607,20 @@ public class ArenaBossEncounterController : MonoBehaviour
     {
         if (bossAbyssMage != null)
         {
-            TryAwardSkillPointFromMeleeAttack();
             return;
         }
 
         AddSkillPoint(1);
+    }
+
+    public void NotifyAbyssMageMeleeAttackStarted(Enemy_AbyssMage mage)
+    {
+        if (mage == null || mage != bossAbyssMage)
+        {
+            return;
+        }
+
+        TryAwardSkillPointFromMeleeAttack();
     }
 
     private void HandleBossFireballSummoned()
@@ -1461,6 +1631,40 @@ public class ArenaBossEncounterController : MonoBehaviour
     private void HandleBossFireballPlayerInteracted()
     {
         TryAwardSkillPointFromFireballPlayerInteraction();
+    }
+
+    private void BindBossHealthBarToCurrentBoss()
+    {
+        if (bossHealthBar == null)
+        {
+            return;
+        }
+
+        bossHealth = ResolveBossHealth(bossEnemy);
+        if (bossHealth != null)
+        {
+            bossHealthBar.BindBossHealth(bossHealth);
+        }
+    }
+
+    private void ShowBossHealthIntroProgress(float progressPercent)
+    {
+        if (bossHealthBar == null)
+        {
+            return;
+        }
+
+        bossHealthBar.SetIntroProgressPercent(Mathf.Clamp(progressPercent, 0f, 100f));
+    }
+
+    private float GetBossHealthIntroPercent(float elapsed, float totalDuration)
+    {
+        if (totalDuration <= 0f)
+        {
+            return 100f;
+        }
+
+        return Mathf.Clamp01(elapsed / totalDuration) * 100f;
     }
 
     private void HandleAbyssMageManualSpellCastInput()
@@ -1491,6 +1695,22 @@ public class ArenaBossEncounterController : MonoBehaviour
         TryForceAbyssMageHybridSpellCast(true);
     }
 
+    private void HandleAbyssMageForceEnhancedSkill2Input()
+    {
+        bool pressedByInputSystem = Keyboard.current != null
+            && (Keyboard.current.digit2Key.wasPressedThisFrame || Keyboard.current.numpad2Key.wasPressedThisFrame);
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        string bossName = bossAbyssMage != null ? bossAbyssMage.name : "null";
+        LogAbyssMageDebug($"2 pressed. Force enhanced skill2 requested. boss={bossName}");
+        TryForceAbyssMageEnhancedHybridSpellCast(true);
+    }
+
     private void HandleAbyssMageForceGiantSpellCastInput()
     {
         bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame;
@@ -1504,6 +1724,57 @@ public class ArenaBossEncounterController : MonoBehaviour
         string bossName = bossAbyssMage != null ? bossAbyssMage.name : "null";
         LogAbyssMageDebug($"L pressed. currentSkillPoints={currentSkillPoints}, boss={bossName}");
         TryForceAbyssMageGiantSpellCast(true);
+    }
+
+    private void HandleAbyssMageForceEnhancedSkill3Input()
+    {
+        bool pressedByInputSystem = Keyboard.current != null
+            && (Keyboard.current.digit3Key.wasPressedThisFrame || Keyboard.current.numpad3Key.wasPressedThisFrame);
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        string bossName = bossAbyssMage != null ? bossAbyssMage.name : "null";
+        LogAbyssMageDebug($"3 pressed. Force enhanced skill3 requested. boss={bossName}");
+        TryStartEnhancedAbyssMageSkill3(true);
+    }
+
+    private void HandleAbyssMageForceSkill4Input()
+    {
+        bool pressedByInputSystem = Keyboard.current != null
+            && (Keyboard.current.digit4Key.wasPressedThisFrame || Keyboard.current.numpad4Key.wasPressedThisFrame);
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        string bossName = bossAbyssMage != null ? bossAbyssMage.name : "null";
+        LogAbyssMageSkill4Debug($"4 pressed. inputSystem={pressedByInputSystem}, legacy={pressedByLegacyInput}, cachedBoss={bossName}, encounterStarted={encounterStarted}, completed={encounterCompleted}");
+        TryForceAbyssMageSkill4(true);
+    }
+
+    private void HandleAbyssMageDecrementSkillPointInput()
+    {
+        bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame;
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.K);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        if (TrySpendSkillPoints(1))
+        {
+            LogAbyssMageDebug($"K pressed. currentSkillPoints={currentSkillPoints}, boss={(bossAbyssMage != null ? bossAbyssMage.name : "null")}");
+            return;
+        }
+
+        LogAbyssMageDebug($"K pressed but no skill point could be spent. currentSkillPoints={currentSkillPoints}, boss={(bossAbyssMage != null ? bossAbyssMage.name : "null")}");
     }
 
     private void AddSkillPoint(int amount)
@@ -1521,6 +1792,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private bool TrySpendSkillPoints(int amount)
     {
+        if (skill5Active)
+        {
+            return false;
+        }
+
         if (amount <= 0 || currentSkillPoints < amount)
         {
             return false;
@@ -1541,11 +1817,30 @@ public class ArenaBossEncounterController : MonoBehaviour
             return false;
         }
 
+        if (currentSkillPoints >= 6 && TrySpendSkillPoints(6))
+        {
+            attackType = Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill4SixGiantAbyssFireballs;
+            return true;
+        }
+
         if (currentSkillPoints >= 3)
         {
             if (TryRollPercent(50f) && TrySpendSkillPoints(2))
             {
-                attackType = Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball;
+                bool useEnhancedSkill2 = ShouldReplaceAbyssMageSkill2WithEnhanced(mage);
+                attackType = useEnhancedSkill2
+                    ? Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball
+                    : Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball;
+
+                if (useEnhancedSkill2)
+                {
+                    normalSkill2CastCounter = 0;
+                }
+                else
+                {
+                    normalSkill2CastCounter = Mathf.Min(normalSkill2CastsBeforeEnhanced, normalSkill2CastCounter + 1);
+                }
+
                 return true;
             }
         }
@@ -1556,6 +1851,24 @@ public class ArenaBossEncounterController : MonoBehaviour
         }
 
         return true;
+    }
+
+    private bool ShouldReplaceAbyssMageSkill2WithEnhanced(Enemy_AbyssMage mage)
+    {
+        return CanProcessAbyssMageSkillPointSource()
+            && mage != null
+            && mage == bossAbyssMage
+            && normalSkill2CastCounter >= normalSkill2CastsBeforeEnhanced;
+    }
+
+    private void NotifyAbyssMageNormalSkill2Cast(Enemy_AbyssMage mage)
+    {
+        if (!CanProcessAbyssMageSkillPointSource() || mage == null || mage != bossAbyssMage)
+        {
+            return;
+        }
+
+        normalSkill2CastCounter = Mathf.Min(normalSkill2CastsBeforeEnhanced, normalSkill2CastCounter + 1);
     }
 
     public bool TryForceAbyssMageHybridSpellCast(bool ignoreRestrictions = false)
@@ -1569,7 +1882,9 @@ public class ArenaBossEncounterController : MonoBehaviour
         if (ignoreRestrictions)
         {
             pendingAbyssMageHybridSpellCastRequest = false;
+            pendingAbyssMageEnhancedHybridSpellCastRequest = false;
             pendingAbyssMageGiantSpellCastRequest = false;
+            pendingAbyssMageSkill4Request = false;
             LogAbyssMageDebug("Force hybrid requested. Triggering boss ForceSpecialAttack(skill2).");
             bossAbyssMage.ForceSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball);
             return true;
@@ -1582,7 +1897,9 @@ public class ArenaBossEncounterController : MonoBehaviour
         }
 
         pendingAbyssMageHybridSpellCastRequest = true;
+        pendingAbyssMageEnhancedHybridSpellCastRequest = false;
         pendingAbyssMageGiantSpellCastRequest = false;
+        pendingAbyssMageSkill4Request = false;
 
         if (!bossAbyssMage.CanEnterSpellCastState || !bossAbyssMage.CanSpellCast)
         {
@@ -1590,6 +1907,40 @@ public class ArenaBossEncounterController : MonoBehaviour
         }
 
         return bossAbyssMage.TryStartSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball);
+    }
+
+    public bool TryForceAbyssMageEnhancedHybridSpellCast(bool ignoreRestrictions = false)
+    {
+        if (!CanProcessAbyssMageSkillPointSource() || bossAbyssMage == null)
+        {
+            LogAbyssMageDebug($"Force enhanced hybrid failed. CanProcess={CanProcessAbyssMageSkillPointSource()}, bossNull={(bossAbyssMage == null)}");
+            return false;
+        }
+
+        if (ignoreRestrictions)
+        {
+            pendingAbyssMageHybridSpellCastRequest = false;
+            pendingAbyssMageEnhancedHybridSpellCastRequest = false;
+            pendingAbyssMageGiantSpellCastRequest = false;
+            pendingAbyssMageSkill4Request = false;
+            normalSkill2CastCounter = 0;
+            LogAbyssMageDebug("Force enhanced hybrid requested. Triggering boss ForceSpecialAttack(enhanced skill2).");
+            bossAbyssMage.ForceSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball);
+            return true;
+        }
+
+        normalSkill2CastCounter = 0;
+        pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageEnhancedHybridSpellCastRequest = true;
+        pendingAbyssMageGiantSpellCastRequest = false;
+        pendingAbyssMageSkill4Request = false;
+
+        if (!bossAbyssMage.CanEnterSpellCastState || !bossAbyssMage.CanSpellCast)
+        {
+            return true;
+        }
+
+        return bossAbyssMage.TryStartSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball);
     }
 
     public bool TryForceAbyssMageGiantSpellCast(bool ignoreRestrictions = false)
@@ -1609,7 +1960,9 @@ public class ArenaBossEncounterController : MonoBehaviour
             }
 
             pendingAbyssMageHybridSpellCastRequest = false;
+            pendingAbyssMageEnhancedHybridSpellCastRequest = false;
             pendingAbyssMageGiantSpellCastRequest = false;
+            pendingAbyssMageSkill4Request = false;
             LogAbyssMageDebug("Force giant requested. Triggering boss ForceSpecialAttack(skill3).");
             bossAbyssMage.ForceSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill3GiantAbyssFireball);
             return true;
@@ -1629,6 +1982,7 @@ public class ArenaBossEncounterController : MonoBehaviour
 
         pendingAbyssMageGiantSpellCastRequest = true;
         pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageSkill4Request = false;
 
         if (!bossAbyssMage.CanEnterSpellCastState || !bossAbyssMage.CanSpellCast)
         {
@@ -1638,16 +1992,778 @@ public class ArenaBossEncounterController : MonoBehaviour
         return bossAbyssMage.TryStartSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill3GiantAbyssFireball);
     }
 
-    public bool PreviewAbyssMageGiantSpellCast()
+    public bool TryForceAbyssMageSkill4(bool ignoreRestrictions = false)
     {
-        if (bossAbyssMage == null)
+        ResolveAbyssMageForSkill4Debug();
+
+        if (skill5Active)
+        {
+            LogAbyssMageSkill4Debug("Force failed because skill5 is active.");
+            return false;
+        }
+
+        if ((!ignoreRestrictions && !CanProcessAbyssMageSkillPointSource()) || bossAbyssMage == null)
+        {
+            LogAbyssMageSkill4Debug($"Force failed. CanProcess={CanProcessAbyssMageSkillPointSource()}, bossNull={(bossAbyssMage == null)}");
+            return false;
+        }
+
+        if (ignoreRestrictions)
+        {
+            if (bossAbyssMage.gameObject == null || !bossAbyssMage.gameObject.activeInHierarchy || bossAbyssMage.IsDead)
+            {
+                LogAbyssMageSkill4Debug($"Force failed because boss is inactive or dead. active={(bossAbyssMage.gameObject != null && bossAbyssMage.gameObject.activeInHierarchy)}, dead={bossAbyssMage.IsDead}");
+                return false;
+            }
+
+            pendingAbyssMageHybridSpellCastRequest = false;
+            pendingAbyssMageEnhancedHybridSpellCastRequest = false;
+            pendingAbyssMageGiantSpellCastRequest = false;
+            pendingAbyssMageSkill4Request = false;
+            LogAbyssMageSkill4Debug("Force accepted. Spawning skill4 directly.");
+            StartCoroutine(RunAbyssMageSkill4Routine(ignoreProcessingGate: true));
+            return true;
+        }
+
+        if (currentSkillPoints < 6)
+        {
+            LogAbyssMageDebug($"Skill4 request rejected. currentSkillPoints={currentSkillPoints}");
+            return false;
+        }
+
+        pendingAbyssMageSkill4Request = true;
+        pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageEnhancedHybridSpellCastRequest = false;
+        pendingAbyssMageGiantSpellCastRequest = false;
+
+        if (!bossAbyssMage.CanEnterSpellCastState || !bossAbyssMage.CanSpellCast)
+        {
+            return true;
+        }
+
+        return bossAbyssMage.TryStartSpecialAttack(Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill4SixGiantAbyssFireballs);
+    }
+
+    private void HandleAbyssMageForceSkill5HealthInput()
+    {
+        bool pressedByInputSystem = Keyboard.current != null
+            && (Keyboard.current.digit5Key.wasPressedThisFrame || Keyboard.current.numpad5Key.wasPressedThisFrame);
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        ResolveAbyssMageForSkill4Debug();
+        ForceBossHealthPercent(0.34f);
+        LogAbyssMageDebug($"5 pressed. Boss health forced to 34%. boss={(bossAbyssMage != null ? bossAbyssMage.name : "null")}");
+    }
+
+    private void ForceBossHealthPercent(float percent)
+    {
+        if (bossHealth == null)
+        {
+            bossHealth = ResolveBossHealth(bossEnemy);
+        }
+
+        int maxHealth = bossHealth != null ? bossHealth.MaxHealth : (bossEnemy != null ? bossEnemy.MaxHealth : 1);
+        int targetHealth = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(1, maxHealth) * Mathf.Clamp01(percent)), 1, Mathf.Max(1, maxHealth));
+
+        if (bossEnemy != null)
+        {
+            bossEnemy.SetCurrentHealth(targetHealth);
+        }
+
+        if (bossHealth != null)
+        {
+            skill5IgnoreNextHealthDrop = true;
+            bossHealth.SetCurrentHealth(targetHealth);
+        }
+    }
+
+    private void HandleAbyssMageSkill5HealthChanged(Entity_Health health)
+    {
+        if (health == null || health.MaxHealth <= 0 || bossAbyssMage == null || bossAbyssMage.IsDead)
+        {
+            return;
+        }
+
+        if (skill5IgnoreNextHealthDrop)
+        {
+            skill5IgnoreNextHealthDrop = false;
+            skill5LastObservedHealth = health.CurrentHealth;
+        }
+        else if (skill5Active && !skill5Ending && health.CurrentHealth < skill5LastObservedHealth)
+        {
+            LogAbyssMageSkill5Debug($"Ending because boss took damage. previous={skill5LastObservedHealth}, current={health.CurrentHealth}");
+            EndAbyssMageSkill5(AbyssMageSkill5EndReason.PlayerDamage);
+        }
+
+        skill5LastObservedHealth = health.CurrentHealth;
+
+        float healthPercent = health.CurrentHealth / (float)health.MaxHealth;
+        if (!skill5Triggered
+            && !skill5Active
+            && encounterStarted
+            && !encounterCompleted
+            && healthPercent <= skill5TriggerHealthPercent)
+        {
+            if (bossAbyssMage != null && bossAbyssMage.CanEnterSpellCastState)
+            {
+                TryStartAbyssMageSkill5();
+            }
+            else
+            {
+                skill5PendingStart = true;
+            }
+        }
+    }
+
+    private bool TryStartAbyssMageSkill5()
+    {
+        if (skill5Triggered || skill5Active || bossAbyssMage == null || bossAbyssMage.IsDead)
+        {
+            skill5PendingStart = false;
+            return false;
+        }
+
+        if (!bossAbyssMage.CanEnterSpellCastState)
+        {
+            skill5PendingStart = true;
+            return false;
+        }
+
+        ResolveReferences();
+        if (bossSkill5CastPoint == null)
+        {
+            LogAbyssMageSkill5Debug("Skill5 rejected. BossSkill5CastPoint is missing.");
+            skill5PendingStart = false;
+            return false;
+        }
+
+        skill5Triggered = true;
+        skill5Active = true;
+        skill5Ending = false;
+        skill5PendingStart = false;
+        skill5LastObservedHealth = bossHealth != null ? bossHealth.CurrentHealth : 0;
+
+        pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageEnhancedHybridSpellCastRequest = false;
+        pendingAbyssMageGiantSpellCastRequest = false;
+        pendingAbyssMageSkill4Request = false;
+
+        if (enhancedSkill3Routine != null)
+        {
+            EndEnhancedSkill3State();
+        }
+
+        bossAbyssMage.AbortSpellCastForEnhancedSkill3();
+        skill5Routine = StartCoroutine(RunAbyssMageSkill5Routine());
+        return true;
+    }
+
+    private IEnumerator RunAbyssMageSkill5Routine()
+    {
+        List<Enemy_AbyssMageFireball> activeFireballs = new List<Enemy_AbyssMageFireball>();
+        float nextSpawnTime = 0f;
+        float healAccumulator = 0f;
+
+        void HandleFireballResolved(Enemy_AbyssMageFireball projectile)
+        {
+            if (projectile != null)
+            {
+                projectile.ImpactResolved -= HandleFireballResolved;
+                activeFireballs.Remove(projectile);
+            }
+
+            nextSpawnTime = Time.time;
+        }
+
+        try
+        {
+            LogAbyssMageSkill5Debug("Skill5 begin.");
+            bossAbyssMage.BeginEnhancedSkill3CastHold(bossSkill5CastPoint.position);
+
+            if (bossFloatingPlatform != null)
+            {
+                bossFloatingPlatform.BeginSkill5PlatformLock();
+            }
+
+            AddSkillPoint(6);
+            RevealAllAbyssPowers();
+
+            Transform ceilingReferencePoint = GetSkill4CeilingReferencePoint();
+            while (skill5Active && !skill5Ending && bossHealth != null && bossHealth.CurrentHealth < GetSkill5RecoveryCapHealth())
+            {
+                CleanupResolvedSkill5Fireballs(activeFireballs, HandleFireballResolved);
+
+                if (activeFireballs.Count < skill5MaxActiveGiantFireballs && Time.time >= nextSpawnTime)
+                {
+                    Enemy_AbyssMageFireball projectile = SpawnSkill5GiantAbyssFireball(ceilingReferencePoint);
+                    if (projectile != null)
+                    {
+                        activeFireballs.Add(projectile);
+                        projectile.ImpactResolved += HandleFireballResolved;
+                    }
+
+                    nextSpawnTime = Time.time + skill5GiantFireballInterval;
+                }
+
+                healAccumulator += bossHealth.MaxHealth * Skill5HealPercentPerSecondRuntime * Time.deltaTime;
+                int healAmount = Mathf.FloorToInt(healAccumulator);
+                if (healAmount > 0)
+                {
+                    healAccumulator -= healAmount;
+                    HealBossForSkill5(healAmount);
+                }
+
+                if (bossHealth.CurrentHealth >= GetSkill5RecoveryCapHealth())
+                {
+                    EndAbyssMageSkill5(AbyssMageSkill5EndReason.RecoveredToCap);
+                    break;
+                }
+
+                yield return null;
+            }
+
+            if (skill5Active && !skill5Ending)
+            {
+                EndAbyssMageSkill5(AbyssMageSkill5EndReason.RecoveredToCap);
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < activeFireballs.Count; i++)
+            {
+                Enemy_AbyssMageFireball projectile = activeFireballs[i];
+                if (projectile != null)
+                {
+                    projectile.ImpactResolved -= HandleFireballResolved;
+                }
+            }
+
+            skill5Routine = null;
+        }
+    }
+
+    private enum AbyssMageSkill5EndReason
+    {
+        PlayerDamage = 0,
+        RecoveredToCap = 1
+    }
+
+    private void EndAbyssMageSkill5(AbyssMageSkill5EndReason reason)
+    {
+        if (!skill5Active || skill5Ending)
+        {
+            return;
+        }
+
+        skill5Ending = true;
+        StartCoroutine(EndAbyssMageSkill5Routine(reason));
+    }
+
+    private IEnumerator EndAbyssMageSkill5Routine(AbyssMageSkill5EndReason reason)
+    {
+        LogAbyssMageSkill5Debug($"Skill5 ending. reason={reason}");
+
+        if (bossFloatingPlatform != null)
+        {
+            bossFloatingPlatform.EndSkill5PlatformLock();
+            yield return bossFloatingPlatform.ForceAllTimedPlatformsDownRoutine();
+        }
+
+        SpendSkillPointsForSkill5End(6);
+
+        if (bossAbyssMage != null)
+        {
+            bossAbyssMage.EndEnhancedSkill3CastHold();
+        }
+
+        if (reason == AbyssMageSkill5EndReason.RecoveredToCap)
+        {
+            yield return RunAbyssMageSkill4Routine(ignoreProcessingGate: true, forceRandomPlatformRise: false);
+        }
+
+        skill5Active = false;
+        skill5Ending = false;
+        ResetPassiveAbyssMageSkillPointState();
+    }
+
+    private Enemy_AbyssMageFireball SpawnSkill5GiantAbyssFireball(Transform ceilingReferencePoint)
+    {
+        if (bossAbyssMage == null || bossFloatingPlatform == null)
+        {
+            return null;
+        }
+
+        if (!TryGetRandomSkill4PlatformSpawnX(out float spawnX))
+        {
+            return null;
+        }
+
+        float spawnY = ceilingReferencePoint != null
+            ? ceilingReferencePoint.position.y
+            : transform.position.y;
+        Vector2 spawnPosition = new Vector2(spawnX, spawnY);
+        Enemy_AbyssMageFireball projectile = bossAbyssMage.SpawnSkill4GiantAbyssFireball(
+            spawnPosition,
+            ceilingReferencePoint,
+            UnityEngine.Random.Range(0f, skill4FireballSpawnOffsetStep * Skill4FireballCount),
+            giantFireballExplosionRadius,
+            1.5f);
+        LogAbyssMageSkill5Debug($"Spawned skill5 giant fireball at {spawnPosition}, projectile={(projectile != null ? projectile.name : "null")}");
+        return projectile;
+    }
+
+    private void CleanupResolvedSkill5Fireballs(List<Enemy_AbyssMageFireball> fireballs, System.Action<Enemy_AbyssMageFireball> handler)
+    {
+        for (int i = fireballs.Count - 1; i >= 0; i--)
+        {
+            Enemy_AbyssMageFireball projectile = fireballs[i];
+            if (projectile == null)
+            {
+                fireballs.RemoveAt(i);
+                continue;
+            }
+        }
+    }
+
+    private void HealBossForSkill5(int amount)
+    {
+        if (amount <= 0 || bossHealth == null)
+        {
+            return;
+        }
+
+        int cap = GetSkill5RecoveryCapHealth();
+        int targetHealth = Mathf.Min(cap, bossHealth.CurrentHealth + amount);
+        if (targetHealth <= bossHealth.CurrentHealth)
+        {
+            return;
+        }
+
+        if (bossEnemy != null)
+        {
+            bossEnemy.SetCurrentHealth(targetHealth);
+        }
+
+        bossHealth.SetCurrentHealth(targetHealth);
+        skill5LastObservedHealth = targetHealth;
+    }
+
+    private int GetSkill5RecoveryCapHealth()
+    {
+        int maxHealth = bossHealth != null ? bossHealth.MaxHealth : (bossEnemy != null ? bossEnemy.MaxHealth : 1);
+        return Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(1, maxHealth) * skill5MaxRecoverHealthPercent), 1, Mathf.Max(1, maxHealth));
+    }
+
+    private void SpendSkillPointsForSkill5End(int amount)
+    {
+        currentSkillPoints = Mathf.Max(0, currentSkillPoints - Mathf.Max(0, amount));
+        SetSkillPointBackgroundVisibleCount(currentSkillPoints);
+        ConsumeRandomAbyssPowers(amount);
+    }
+
+    private bool TryGetRandomSkill4PlatformSpawnX(out float spawnX)
+    {
+        spawnX = 0f;
+
+        List<float> platformXs = new List<float>();
+        for (int i = 0; i < Skill4FireballCount; i++)
+        {
+            if (TryGetSkill4PlatformSpawnBounds(i, out Bounds platformBounds))
+            {
+                platformXs.Add(platformBounds.center.x);
+            }
+        }
+
+        if (platformXs.Count == 0)
+        {
+            return false;
+        }
+
+        spawnX = platformXs[UnityEngine.Random.Range(0, platformXs.Count)];
+        return true;
+    }
+
+    public bool ShouldReplaceAbyssMageSkill3WithEnhanced(Enemy_AbyssMage mage)
+    {
+        return CanProcessAbyssMageSkillPointSource()
+            && mage != null
+            && mage == bossAbyssMage
+            && normalSkill3CastCounter >= normalSkill3CastsBeforeEnhanced;
+    }
+
+    public void NotifyAbyssMageNormalSkill3Cast(Enemy_AbyssMage mage)
+    {
+        if (!CanProcessAbyssMageSkillPointSource() || mage == null || mage != bossAbyssMage)
+        {
+            return;
+        }
+
+        normalSkill3CastCounter = Mathf.Min(normalSkill3CastsBeforeEnhanced, normalSkill3CastCounter + 1);
+    }
+
+    public bool TryStartEnhancedAbyssMageSkill3(bool force = false)
+    {
+        if (enhancedSkill3Active || enhancedSkill3Routine != null)
+        {
+            return false;
+        }
+
+        if (!CanProcessAbyssMageSkillPointSource() || bossAbyssMage == null)
+        {
+            return false;
+        }
+
+        ResolveReferences();
+        if (bossEnhancedSkill3CastPoint == null)
+        {
+            LogAbyssMageDebug("Enhanced skill3 rejected. BossEnhancedSkill3CastPoint is missing.");
+            return false;
+        }
+
+        bossAbyssMage.AbortSpellCastForEnhancedSkill3();
+
+        pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageGiantSpellCastRequest = false;
+        normalSkill3CastCounter = 0;
+        enhancedSkill3Routine = StartCoroutine(RunEnhancedAbyssMageSkill3Routine());
+        return true;
+    }
+
+    private IEnumerator RunEnhancedAbyssMageSkill3Routine()
+    {
+        enhancedSkill3Active = true;
+        int completedGiantFireballs = 0;
+        int spawnedGiantFireballs = 0;
+        float nextWaitLogTime = 0f;
+        List<Enemy_AbyssMageFireball> spawnedProjectiles = new List<Enemy_AbyssMageFireball>();
+
+        void HandleGiantFireballImpact(Enemy_AbyssMageFireball projectile)
+        {
+            if (projectile != null)
+            {
+                projectile.ImpactResolved -= HandleGiantFireballImpact;
+            }
+
+            completedGiantFireballs++;
+            LogAbyssMageDebug($"Enhanced skill3 projectile resolved. completed={completedGiantFireballs}, spawned={spawnedGiantFireballs}");
+        }
+
+        try
+        {
+            Vector2 castPosition = bossEnhancedSkill3CastPoint.position;
+            LogAbyssMageDebug($"Enhanced skill3 begin hold at {castPosition}.");
+            bossAbyssMage.BeginEnhancedSkill3CastHold(castPosition);
+
+        if (bossFloatingPlatform != null)
+        {
+            yield return bossFloatingPlatform.ForceAllTimedPlatformsDownRoutine();
+            bossFloatingPlatform.ResetTimedPlatforms();
+        }
+
+            if (enhancedSkill3PlatformRiseStartDelay > 0f)
+            {
+                yield return new WaitForSeconds(enhancedSkill3PlatformRiseStartDelay);
+            }
+
+            if (bossFloatingPlatform != null)
+            {
+                int requestedPlatformCount = Mathf.Max(3, enhancedSkill3PlatformRiseCount);
+                yield return bossFloatingPlatform.ActivateRandomTimedPlatformsRoutine(
+                    requestedPlatformCount,
+                    enhancedSkill3PlatformRiseInterval);
+            }
+
+            Transform target = player != null ? player.transform : null;
+            if (target == null)
+            {
+                GameObject playerObject = !string.IsNullOrWhiteSpace(playerTag) ? GameObject.FindWithTag(playerTag) : null;
+                target = playerObject != null ? playerObject.transform : bossTarget;
+            }
+
+            for (int i = 0; i < enhancedSkill3GiantFireballCount; i++)
+            {
+                Enemy_AbyssMageFireball projectile = bossAbyssMage.SpawnEnhancedSkill3GiantFireball(target);
+                if (projectile != null)
+                {
+                    spawnedGiantFireballs++;
+                    spawnedProjectiles.Add(projectile);
+                    projectile.ImpactResolved += HandleGiantFireballImpact;
+                }
+                else
+                {
+                    completedGiantFireballs++;
+                }
+
+                if (i < enhancedSkill3GiantFireballCount - 1 && enhancedSkill3FireballInterval > 0f)
+                {
+                    yield return new WaitForSeconds(enhancedSkill3FireballInterval);
+                }
+            }
+
+            while (completedGiantFireballs < Mathf.Max(1, spawnedGiantFireballs))
+            {
+                if (Time.time >= nextWaitLogTime)
+                {
+                    nextWaitLogTime = Time.time + 0.5f;
+                    LogAbyssMageDebug($"Enhanced skill3 waiting fireballs. completed={completedGiantFireballs}, spawned={spawnedGiantFireballs}");
+                }
+
+                yield return null;
+            }
+
+            LogAbyssMageDebug("Enhanced skill3 all fireballs resolved. Ending boss hold.");
+            bossAbyssMage.EndEnhancedSkill3CastHold();
+
+            if (bossFloatingPlatform != null)
+            {
+                LogAbyssMageDebug("Enhanced skill3 forcing all timed platforms down after boss hold ended.");
+                yield return bossFloatingPlatform.ForceAllTimedPlatformsDownRoutine();
+            }
+        }
+        finally
+        {
+            LogAbyssMageDebug($"Enhanced skill3 finally. completed={completedGiantFireballs}, spawned={spawnedGiantFireballs}");
+            for (int i = 0; i < spawnedProjectiles.Count; i++)
+            {
+                Enemy_AbyssMageFireball projectile = spawnedProjectiles[i];
+                if (projectile != null)
+                {
+                    projectile.ImpactResolved -= HandleGiantFireballImpact;
+                }
+            }
+
+            EndEnhancedSkill3State(false);
+        }
+    }
+
+    private void EndEnhancedSkill3State(bool stopRoutine = true)
+    {
+        LogAbyssMageDebug($"EndEnhancedSkill3State called. stopRoutine={stopRoutine}, routineNull={enhancedSkill3Routine == null}, active={enhancedSkill3Active}");
+        if (stopRoutine && enhancedSkill3Routine != null)
+        {
+            StopCoroutine(enhancedSkill3Routine);
+        }
+
+        enhancedSkill3Routine = null;
+
+        if (bossAbyssMage != null)
+        {
+            bossAbyssMage.EndEnhancedSkill3CastHold();
+            bossAbyssMage.ResetTeleportProbabilities();
+        }
+
+        ResetPassiveAbyssMageSkillPointState();
+        enhancedSkill3Active = false;
+    }
+
+    private void ResetAbyssMageSkill5State()
+    {
+        if (skill5Routine != null)
+        {
+            StopCoroutine(skill5Routine);
+            skill5Routine = null;
+        }
+
+        if (bossFloatingPlatform != null)
+        {
+            bossFloatingPlatform.EndSkill5PlatformLock();
+        }
+
+        if (skill5Active && bossAbyssMage != null)
+        {
+            bossAbyssMage.EndEnhancedSkill3CastHold();
+        }
+
+        skill5Triggered = false;
+        skill5Active = false;
+        skill5Ending = false;
+        skill5IgnoreNextHealthDrop = false;
+        skill5LastObservedHealth = 0;
+        skill5PendingStart = false;
+    }
+
+    private void TryStartPendingAbyssMageSkill5()
+    {
+        if (!skill5PendingStart
+            || skill5Triggered
+            || skill5Active
+            || !encounterStarted
+            || encounterCompleted
+            || bossAbyssMage == null
+            || !bossAbyssMage.CanEnterSpellCastState)
+        {
+            return;
+        }
+
+        TryStartAbyssMageSkill5();
+    }
+
+    public IEnumerator RunAbyssMageSkill4Routine(bool ignoreProcessingGate = false, bool forceRandomPlatformRise = true)
+    {
+        if ((!ignoreProcessingGate && !CanProcessAbyssMageSkillPointSource()) || bossAbyssMage == null)
+        {
+            LogAbyssMageSkill4Debug($"Routine aborted. ignoreGate={ignoreProcessingGate}, CanProcess={CanProcessAbyssMageSkillPointSource()}, bossNull={(bossAbyssMage == null)}");
+            yield break;
+        }
+
+        ResolveReferences();
+        Transform ceilingReferencePoint = GetSkill4CeilingReferencePoint();
+        float referenceY = ceilingReferencePoint != null
+            ? ceilingReferencePoint.position.y
+            : (bossEnhancedSkill3CastPoint != null ? bossEnhancedSkill3CastPoint.position.y : transform.position.y);
+        float fallbackSpawnY = GetSkill4SpawnY(referenceY);
+        LogAbyssMageSkill4Debug($"Routine begin. boss={bossAbyssMage.name}, spellPrefab={(bossAbyssMage.SpellPrefab != null ? bossAbyssMage.SpellPrefab.name : "null")}, ceiling={(ceilingReferencePoint != null ? ceilingReferencePoint.name : "null")}, referenceY={referenceY:0.###}, fallbackSpawnY={fallbackSpawnY:0.###}, tileSpawnHeightOffset={skill4FireballSpawnHeightOffset:0.###}");
+
+        if (forceRandomPlatformRise && bossFloatingPlatform != null && bossFloatingPlatform.TryForceRandomTimedPlatformRise())
+        {
+            LogAbyssMageSkill4Debug("Random platform rise forced for skill4.");
+        }
+        else if (forceRandomPlatformRise)
+        {
+            LogAbyssMageSkill4Debug("Random platform rise failed for skill4.");
+        }
+        else
+        {
+            LogAbyssMageSkill4Debug("Random platform rise skipped for skill4.");
+        }
+
+        int spawnedCount = 0;
+        for (int i = 0; i < Skill4FireballCount; i++)
+        {
+            bool hasPlatformBounds = TryGetSkill4PlatformSpawnBounds(i, out Bounds platformBounds);
+            float spawnX;
+            if (!hasPlatformBounds)
+            {
+                spawnX = GetSkill4FallbackSpawnX(i);
+            }
+            else
+            {
+                spawnX = platformBounds.center.x;
+            }
+
+            float spawnY = fallbackSpawnY;
+            Vector2 spawnPosition = new Vector2(spawnX, spawnY);
+            Enemy_AbyssMageFireball projectile = bossAbyssMage.SpawnSkill4GiantAbyssFireball(
+                spawnPosition,
+                ceilingReferencePoint,
+                skill4FireballSpawnOffsetStep * i,
+                giantFireballExplosionRadius);
+            if (projectile != null)
+            {
+                spawnedCount++;
+            }
+
+            string source = hasPlatformBounds
+                ? $"Platform_{i + 1} boundsCenter={platformBounds.center}, boundsMin={platformBounds.min}, boundsMax={platformBounds.max}"
+                : "fallback";
+            LogAbyssMageSkill4Debug($"Spawn #{i + 1}. position={spawnPosition}, source={source}, projectile={(projectile != null ? projectile.name : "null")}");
+        }
+
+        LogAbyssMageSkill4Debug($"Routine end. spawned={spawnedCount}/{Skill4FireballCount}");
+        yield return null;
+    }
+
+    private Transform GetSkill4CeilingReferencePoint()
+    {
+        return bossFloatingPlatform != null
+            ? bossFloatingPlatform.transform.Find("CeilingReferencePoint")
+            : null;
+    }
+
+    private float GetSkill4SpawnY(float referenceY)
+    {
+        return referenceY;
+    }
+
+    private void ResolveAbyssMageForSkill4Debug()
+    {
+        ResolveReferences();
+
+        if (bossAbyssMage != null && bossAbyssMage.gameObject != null && bossAbyssMage.gameObject.activeInHierarchy && !bossAbyssMage.IsDead)
+        {
+            LogAbyssMageSkill4Debug($"Resolve boss: using cached {bossAbyssMage.name}");
+            return;
+        }
+
+        Enemy resolvedEnemy = ResolveBossEnemy();
+        CacheAndBindBossEnemy(resolvedEnemy);
+        if (bossAbyssMage != null && bossAbyssMage.gameObject != null && bossAbyssMage.gameObject.activeInHierarchy && !bossAbyssMage.IsDead)
+        {
+            LogAbyssMageSkill4Debug($"Resolve boss: bound from bossEnemy {bossAbyssMage.name}");
+            return;
+        }
+
+        Enemy_AbyssMage childMage = GetComponentInChildren<Enemy_AbyssMage>(true);
+        if (childMage != null && childMage.gameObject.activeInHierarchy && !childMage.IsDead)
+        {
+            bossAbyssMage = childMage;
+            LogAbyssMageSkill4Debug($"Resolve boss: found active child {bossAbyssMage.name}");
+            return;
+        }
+
+        Enemy_AbyssMage[] sceneMages = FindObjectsOfType<Enemy_AbyssMage>(true);
+        for (int i = 0; i < sceneMages.Length; i++)
+        {
+            Enemy_AbyssMage sceneMage = sceneMages[i];
+            if (sceneMage != null && sceneMage.gameObject.activeInHierarchy && !sceneMage.IsDead)
+            {
+                bossAbyssMage = sceneMage;
+                LogAbyssMageSkill4Debug($"Resolve boss: scene active result={bossAbyssMage.name}");
+                return;
+            }
+        }
+
+        bossAbyssMage = childMage != null ? childMage : (sceneMages.Length > 0 ? sceneMages[0] : null);
+        LogAbyssMageSkill4Debug($"Resolve boss: fallback result={(bossAbyssMage != null ? bossAbyssMage.name : "null")}");
+    }
+
+    private bool TryGetSkill4PlatformSpawnBounds(int platformIndex, out Bounds platformBounds)
+    {
+        platformBounds = default;
+
+        if (bossFloatingPlatform != null
+            && bossFloatingPlatform.TryGetTeleportPlatformBounds(platformIndex, out platformBounds))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private float GetSkill4FallbackSpawnX(int platformIndex)
+    {
+        if (TryGetBossArenaBounds(out Bounds arenaBounds))
+        {
+            float t = (platformIndex + 0.5f) / Mathf.Max(1f, Skill4FireballCount);
+            return Mathf.Lerp(arenaBounds.min.x, arenaBounds.max.x, t);
+        }
+
+        return bossTarget != null ? bossTarget.position.x : transform.position.x;
+    }
+
+    public bool PreviewAbyssMageGiantSpellCast(float explosionRadiusOverride = -1f)
+    {
+        bool spawnedTemporaryMage = false;
+        Enemy_AbyssMage previewMage = ResolvePreviewAbyssMageForSpellPreview(true, out spawnedTemporaryMage);
+        if (previewMage == null)
         {
             LogAbyssMageDebug("Preview giant failed. bossNull=True");
             return false;
         }
 
         Transform previewTarget = player != null ? player.transform : bossTarget;
-        bool spawned = bossAbyssMage.PreviewGiantAbyssFireball(previewTarget);
+        bool spawned = previewMage.PreviewGiantAbyssFireball(previewTarget, explosionRadiusOverride);
+
+        if (spawnedTemporaryMage && previewMage != null)
+        {
+            Destroy(previewMage.transform.root.gameObject);
+        }
+
         LogAbyssMageDebug($"Preview giant requested. spawned={spawned}");
         return spawned;
     }
@@ -1657,6 +2773,78 @@ public class ArenaBossEncounterController : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         Debug.Log($"[AbyssMageBoss] {message}", this);
 #endif
+    }
+
+    private void LogAbyssMageSkill4Debug(string message)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[AbyssMageSkill4] {message}", this);
+#endif
+    }
+
+    private void LogAbyssMageSkill5Debug(string message)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[AbyssMageSkill5] {message}", this);
+#endif
+    }
+
+    public Enemy_AbyssMage ResolvePreviewAbyssMageForSpellPreview(bool allowTemporarySpawn, out bool spawnedTemporaryMage)
+    {
+        spawnedTemporaryMage = false;
+
+        if (bossAbyssMage != null)
+        {
+            return bossAbyssMage;
+        }
+
+        if (bossEnemy is Enemy_AbyssMage assignedMage)
+        {
+            return assignedMage;
+        }
+
+        if (bossEnemy != null)
+        {
+            Enemy_AbyssMage childMage = bossEnemy.GetComponentInChildren<Enemy_AbyssMage>(true);
+            if (childMage != null)
+            {
+                return childMage;
+            }
+        }
+
+        Enemy_AbyssMage sceneMage = GetComponentInChildren<Enemy_AbyssMage>(true);
+        if (sceneMage != null)
+        {
+            return sceneMage;
+        }
+
+        sceneMage = FindObjectOfType<Enemy_AbyssMage>(true);
+        if (sceneMage != null)
+        {
+            return sceneMage;
+        }
+
+        if (!allowTemporarySpawn || bossPrefab == null)
+        {
+            return null;
+        }
+
+        Vector3 spawnPosition = bossTarget != null ? bossTarget.position : transform.position;
+        GameObject previewBossObject = Instantiate(bossPrefab, spawnPosition, Quaternion.identity);
+        Enemy_AbyssMage previewMage = previewBossObject.GetComponentInChildren<Enemy_AbyssMage>(true);
+        if (previewMage == null)
+        {
+            previewMage = previewBossObject.GetComponent<Enemy_AbyssMage>();
+        }
+
+        if (previewMage == null)
+        {
+            Destroy(previewBossObject);
+            return null;
+        }
+
+        spawnedTemporaryMage = true;
+        return previewMage;
     }
 
     public Enemy_AbyssMage.AbyssMageSpecialAttackType ResolveAbyssMageSpecialAttackType(Enemy_AbyssMage mage)
@@ -1677,11 +2865,46 @@ public class ArenaBossEncounterController : MonoBehaviour
             return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill1Fireball;
         }
 
+        if (pendingAbyssMageSkill4Request)
+        {
+            if (currentSkillPoints >= 6 && TrySpendSkillPoints(6))
+            {
+                pendingAbyssMageSkill4Request = false;
+                return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill4SixGiantAbyssFireballs;
+            }
+
+            pendingAbyssMageSkill4Request = false;
+        }
+
+        if (currentSkillPoints >= 6 && TrySpendSkillPoints(6))
+        {
+            return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill4SixGiantAbyssFireballs;
+        }
+
+        if (pendingAbyssMageEnhancedHybridSpellCastRequest)
+        {
+            if (currentSkillPoints >= 3 && TrySpendSkillPoints(2))
+            {
+                pendingAbyssMageEnhancedHybridSpellCastRequest = false;
+                normalSkill2CastCounter = 0;
+                return Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball;
+            }
+
+            pendingAbyssMageEnhancedHybridSpellCastRequest = false;
+        }
+
         if (pendingAbyssMageHybridSpellCastRequest)
         {
             if (currentSkillPoints >= 3 && TrySpendSkillPoints(2))
             {
                 pendingAbyssMageHybridSpellCastRequest = false;
+                if (ShouldReplaceAbyssMageSkill2WithEnhanced(mage))
+                {
+                    normalSkill2CastCounter = 0;
+                    return Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball;
+                }
+
+                NotifyAbyssMageNormalSkill2Cast(mage);
                 return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball;
             }
 
@@ -1690,6 +2913,12 @@ public class ArenaBossEncounterController : MonoBehaviour
 
         if (pendingAbyssMageGiantSpellCastRequest)
         {
+            if (ShouldReplaceAbyssMageSkill3WithEnhanced(mage))
+            {
+                pendingAbyssMageGiantSpellCastRequest = false;
+                return Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill3GiantAbyssFireball;
+            }
+
             if (!mage.IsSkill3OnCooldown && currentSkillPoints >= 2 && TrySpendSkillPoints(1))
             {
                 pendingAbyssMageGiantSpellCastRequest = false;
@@ -1703,8 +2932,20 @@ public class ArenaBossEncounterController : MonoBehaviour
         {
             if (TryRollPercent(50f) && TrySpendSkillPoints(2))
             {
+                if (ShouldReplaceAbyssMageSkill2WithEnhanced(mage))
+                {
+                    normalSkill2CastCounter = 0;
+                    return Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball;
+                }
+
+                NotifyAbyssMageNormalSkill2Cast(mage);
                 return Enemy_AbyssMage.AbyssMageSpecialAttackType.Skill2MixedFireball;
             }
+        }
+
+        if (currentSkillPoints >= 2 && ShouldReplaceAbyssMageSkill3WithEnhanced(mage))
+        {
+            return Enemy_AbyssMage.AbyssMageSpecialAttackType.EnhancedSkill3GiantAbyssFireball;
         }
 
         if (!mage.IsSkill3OnCooldown && currentSkillPoints >= 2 && TrySpendSkillPoints(1))
@@ -1763,6 +3004,22 @@ public class ArenaBossEncounterController : MonoBehaviour
         AddSkillPoint(1);
     }
 
+    public void NotifyAbyssMageStunned(Enemy_AbyssMage mage)
+    {
+        if (mage == null || mage != bossAbyssMage)
+        {
+            return;
+        }
+
+        if (Time.time < lastAbyssMageStunSkillPointTime + AbyssMageStunSkillPointCooldown)
+        {
+            return;
+        }
+
+        lastAbyssMageStunSkillPointTime = Time.time;
+        AddSkillPoint(1);
+    }
+
     private void UpdatePassiveAbyssMageSkillPointChance()
     {
         if (!CanProcessAbyssMageSkillPointSource())
@@ -1790,6 +3047,8 @@ public class ArenaBossEncounterController : MonoBehaviour
     {
         return encounterStarted
             && !encounterCompleted
+            && !enhancedSkill3Active
+            && !skill5Active
             && bossAbyssMage != null
             && bossAbyssMage.gameObject != null
             && bossAbyssMage.gameObject.activeInHierarchy
@@ -1802,8 +3061,11 @@ public class ArenaBossEncounterController : MonoBehaviour
         passiveSkillPointChance = abyssMagePassiveSkillPointInitialChance;
         lastFireballSummonSkillPointTime = float.NegativeInfinity;
         lastFireballPlayerInteractionSkillPointTime = float.NegativeInfinity;
+        lastAbyssMageStunSkillPointTime = float.NegativeInfinity;
         pendingAbyssMageHybridSpellCastRequest = false;
+        pendingAbyssMageEnhancedHybridSpellCastRequest = false;
         pendingAbyssMageGiantSpellCastRequest = false;
+        pendingAbyssMageSkill4Request = false;
     }
 
     private static bool TryRollPercent(float chancePercent)
@@ -1824,6 +3086,75 @@ public class ArenaBossEncounterController : MonoBehaviour
 
         GameObject ceilingObject = GameObject.Find("CeilingReferencePoint");
         return ceilingObject != null ? ceilingObject.transform : null;
+    }
+
+    public bool TryGetBossArenaHorizontalBounds(out float leftX, out float rightX)
+    {
+        leftX = 0f;
+        rightX = 0f;
+
+        if (triggerCollider == null)
+        {
+            triggerCollider = GetComponent<BoxCollider2D>();
+            if (triggerCollider != null)
+            {
+                triggerCollider.isTrigger = true;
+            }
+        }
+
+        if (triggerCollider == null)
+        {
+            return false;
+        }
+
+        Bounds bounds = triggerCollider.bounds;
+        leftX = bounds.min.x;
+        rightX = bounds.max.x;
+        return rightX >= leftX;
+    }
+
+    public bool TryGetBossArenaBounds(out Bounds bounds)
+    {
+        bounds = default;
+
+        if (triggerCollider == null)
+        {
+            triggerCollider = GetComponent<BoxCollider2D>();
+            if (triggerCollider != null)
+            {
+                triggerCollider.isTrigger = true;
+            }
+        }
+
+        if (triggerCollider == null)
+        {
+            return false;
+        }
+
+        bounds = triggerCollider.bounds;
+        return bounds.size.x > 0f && bounds.size.y > 0f;
+    }
+
+    public bool TryGetAbyssMageRandomPlatformTeleportDestination(Enemy_AbyssMage mage, out Vector2 destination)
+    {
+        destination = Vector2.zero;
+
+        if (!IsActiveAbyssMageBoss(mage) || bossFloatingPlatform == null)
+        {
+            return false;
+        }
+
+        return bossFloatingPlatform.TryGetRandomTeleportDestination(
+            mage.transform,
+            mage.TeleportMaxPlacementAttempts,
+            out destination);
+    }
+
+    public bool IsActiveAbyssMageBoss(Enemy_AbyssMage mage)
+    {
+        return CanProcessAbyssMageSkillPointSource()
+            && mage != null
+            && mage == bossAbyssMage;
     }
 
     private void RevealRandomAbyssPower()
@@ -1849,6 +3180,41 @@ public class ArenaBossEncounterController : MonoBehaviour
 
         int chosenIndex = hiddenIndices[UnityEngine.Random.Range(0, hiddenIndices.Count)];
         SetAbyssPowerVisible(chosenIndex, true);
+        ActivateAbyssPowerPlatform(chosenIndex);
+    }
+
+    private void RevealAllAbyssPowers()
+    {
+        if (abyssPowers == null || abyssPowers.Length == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < abyssPowers.Length; i++)
+        {
+            SetAbyssPowerVisible(i, true);
+        }
+    }
+
+    private void ActivateAbyssPowerPlatform(int abyssPowerIndex)
+    {
+        if (bossFloatingPlatform == null)
+        {
+            return;
+        }
+
+        bossFloatingPlatform.ActivateTimedPlatform(abyssPowerIndex);
+    }
+
+    private void UpdateBossFloatingPlatformMechanics()
+    {
+        if (!Application.isPlaying || bossFloatingPlatform == null)
+        {
+            return;
+        }
+
+        Collider2D bossCollider = bossAbyssMage != null ? bossAbyssMage.GetComponent<Collider2D>() : null;
+        bossFloatingPlatform.TickTimedPlatforms(Time.deltaTime, bossCollider);
     }
 
     private void ConsumeRandomAbyssPowers(int amount)
@@ -1888,7 +3254,7 @@ public class ArenaBossEncounterController : MonoBehaviour
 
         for (int i = 0; i < abyssFires.Length; i++)
         {
-            SetAbyssFireVisible(i, true);
+            SetAbyssFireVisible(i, true, true);
             if (abyssFireRevealDelay > 0f)
             {
                 yield return new WaitForSeconds(abyssFireRevealDelay);
@@ -2158,16 +3524,18 @@ public class ArenaBossEncounterController : MonoBehaviour
         return power.gameObject.activeSelf;
     }
 
-    private void SetAbyssFireVisibleCount(int visibleCount)
+    private void SetAbyssFireVisibleCount(int visibleCount, bool playAudio = false)
     {
         visibleCount = Mathf.Clamp(visibleCount, 0, abyssFires != null ? abyssFires.Length : 0);
         for (int i = 0; i < abyssFires.Length; i++)
         {
-            SetAbyssFireVisible(i, i < visibleCount);
+            SetAbyssFireVisible(i, i < visibleCount, playAudio, false);
         }
+
+        UpdateAbyssFireAudioReductionState(visibleCount);
     }
 
-    private void SetAbyssFireVisible(int index, bool visible)
+    private void SetAbyssFireVisible(int index, bool visible, bool playAudio = false, bool refreshAudioState = true)
     {
         if (abyssFires == null || index < 0 || index >= abyssFires.Length)
         {
@@ -2180,7 +3548,112 @@ public class ArenaBossEncounterController : MonoBehaviour
             return;
         }
 
-        fire.gameObject.SetActive(visible);
+        bool isCurrentlyVisible = fire.gameObject.activeSelf;
+        if (isCurrentlyVisible == visible)
+        {
+            return;
+        }
+
+        fire.SetVisible(visible, playAudio);
+
+        if (refreshAudioState)
+        {
+            UpdateAbyssFireAudioReductionState(GetAbyssFireVisibleCount());
+        }
+    }
+
+    private int GetAbyssFireVisibleCount()
+    {
+        if (abyssFires == null || abyssFires.Length == 0)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = 0; i < abyssFires.Length; i++)
+        {
+            AbyssFire fire = abyssFires[i];
+            if (fire != null && fire.gameObject.activeSelf)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private void UpdateAbyssFireAudioReductionState(int visibleCount)
+    {
+        if (abyssFires == null || abyssFires.Length == 0)
+        {
+            return;
+        }
+
+        if (visibleCount < 6)
+        {
+            CancelAbyssFireAudioReduction();
+            return;
+        }
+
+        if (abyssFireAudioReduced)
+        {
+            ApplyAbyssFireAudioVolumeMultiplier(1f - abyssFireAudioReduction);
+            return;
+        }
+
+        if (abyssFireAudioReductionRoutine != null)
+        {
+            return;
+        }
+
+        abyssFireAudioReductionRoutine = StartCoroutine(ApplyAbyssFireAudioReductionAfterDelayCo());
+    }
+
+    private IEnumerator ApplyAbyssFireAudioReductionAfterDelayCo()
+    {
+        if (abyssFireAudioReductionDelay > 0f)
+        {
+            yield return new WaitForSeconds(abyssFireAudioReductionDelay);
+        }
+
+        abyssFireAudioReductionRoutine = null;
+
+        if (GetAbyssFireVisibleCount() < 6)
+        {
+            yield break;
+        }
+
+        abyssFireAudioReduced = true;
+        ApplyAbyssFireAudioVolumeMultiplier(1f - abyssFireAudioReduction);
+    }
+
+    private void CancelAbyssFireAudioReduction()
+    {
+        if (abyssFireAudioReductionRoutine != null)
+        {
+            StopCoroutine(abyssFireAudioReductionRoutine);
+            abyssFireAudioReductionRoutine = null;
+        }
+
+        abyssFireAudioReduced = false;
+        ApplyAbyssFireAudioVolumeMultiplier(1f);
+    }
+
+    private void ApplyAbyssFireAudioVolumeMultiplier(float multiplier)
+    {
+        if (abyssFires == null || abyssFires.Length == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < abyssFires.Length; i++)
+        {
+            AbyssFire fire = abyssFires[i];
+            if (fire != null)
+            {
+                fire.SetTransitionAudioVolumeMultiplier(multiplier);
+            }
+        }
     }
 
     private void SetDoorsLocked(bool locked)
@@ -2202,6 +3675,9 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void StopAllInternalRoutines()
     {
+        ResetAbyssMageSkill5State();
+        EndEnhancedSkill3State();
+
         if (encounterRoutine != null)
         {
             StopCoroutine(encounterRoutine);
@@ -2237,6 +3713,8 @@ public class ArenaBossEncounterController : MonoBehaviour
             StopCoroutine(bossCameraRoutine);
             bossCameraRoutine = null;
         }
+
+        CancelAbyssFireAudioReduction();
     }
 
     private string BuildActiveEnemySummary()
@@ -2273,7 +3751,7 @@ public class ArenaBossEncounterController : MonoBehaviour
         count = Math.Max(count, skillPointBackgrounds != null ? skillPointBackgrounds.Length : 0);
         count = Math.Max(count, abyssPowers != null ? abyssPowers.Length : 0);
         count = Math.Max(count, abyssFires != null ? abyssFires.Length : 0);
-        return count;
+        return Math.Max(count, 6);
     }
 
     private bool IsPlayerCollider(Collider2D other)
@@ -2400,6 +3878,14 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
     [Header("Disappearance Sequence")]
     [SerializeField, Min(0f)] private float disappearanceStartDelay = 0f;
 
+    [Header("Timed Platform Rules")]
+    [SerializeField, Min(0f)] private float initialPlatformDuration = 5f;
+    [SerializeField, Min(0f)] private float repeatedPlatformDurationBonus = 3f;
+    [SerializeField, Min(0f)] private float maxPlatformDuration = 9f;
+    [SerializeField, Min(0f)] private float minimumTeleportPlatformDuration = 3f;
+    [SerializeField, Min(0f)] private float bossStandDurationBonusPerSecond = 1.2f;
+    [SerializeField, Min(0f)] private float bossStandSurfaceTolerance = 0.2f;
+
     [Header("Editor")]
     [SerializeField] private bool startHidden = true;
 
@@ -2408,8 +3894,13 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
     private TilemapCollider2D[] platformColliders;
     private Rigidbody2D[] platformBodies;
     private CompositeCollider2D[] platformComposites;
+    private Coroutine[] platformTransitionRoutines;
+    private readonly bool[] timedPlatformActive = new bool[PlatformCount];
+    private readonly float[] timedPlatformRemainingDurations = new float[PlatformCount];
+    private readonly float[] bossStandDurationAccumulators = new float[PlatformCount];
     private Vector3[] platformRestWorldPositions = new Vector3[PlatformCount];
     private bool[] platformRestWorldPositionCached = new bool[PlatformCount];
+    private bool skill5PlatformLockActive;
 #if UNITY_EDITOR
     private double lastEditorTimeSample;
 #endif
@@ -2419,6 +3910,7 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
     private void Awake()
     {
         ResolveReferences();
+        CachePlatformRestWorldPositions();
 
         if (startHidden)
         {
@@ -2439,6 +3931,12 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
         platformRiseDistance = Mathf.Max(0f, platformRiseDistance);
         platformRiseDuration = Mathf.Max(0f, platformRiseDuration);
         disappearanceStartDelay = Mathf.Max(0f, disappearanceStartDelay);
+        initialPlatformDuration = Mathf.Max(0f, initialPlatformDuration);
+        repeatedPlatformDurationBonus = Mathf.Max(0f, repeatedPlatformDurationBonus);
+        maxPlatformDuration = Mathf.Max(0f, maxPlatformDuration);
+        minimumTeleportPlatformDuration = Mathf.Max(0f, minimumTeleportPlatformDuration);
+        bossStandDurationBonusPerSecond = Mathf.Max(0f, bossStandDurationBonusPerSecond);
+        bossStandSurfaceTolerance = Mathf.Max(0f, bossStandSurfaceTolerance);
 
         if (!Application.isPlaying)
         {
@@ -2485,6 +3983,7 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
     public void SetHidden()
     {
         IsVisible = false;
+        StopPlatformTransitions();
         ResetPlatformWorldPositions();
         for (int i = 0; i < PlatformCount; i++)
         {
@@ -2496,6 +3995,7 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
     public void SetAllVisible()
     {
         IsVisible = true;
+        StopPlatformTransitions();
         ResetPlatformWorldPositions();
         for (int i = 0; i < PlatformCount; i++)
         {
@@ -2510,6 +4010,304 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
     public void SetPlatform4() => SetOnlyPlatformVisible(3);
     public void SetPlatform5() => SetOnlyPlatformVisible(4);
     public void SetPlatform6() => SetOnlyPlatformVisible(5);
+
+    public void ResetTimedPlatforms()
+    {
+        skill5PlatformLockActive = false;
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            timedPlatformActive[i] = false;
+            timedPlatformRemainingDurations[i] = 0f;
+            bossStandDurationAccumulators[i] = 0f;
+        }
+
+        SetHidden();
+    }
+
+    public void ActivateTimedPlatform(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            return;
+        }
+
+        ResolveReferences();
+        if (maxPlatformDuration <= 0f)
+        {
+            return;
+        }
+
+        float durationToAdd = timedPlatformActive[platformIndex] ? repeatedPlatformDurationBonus : initialPlatformDuration;
+        timedPlatformRemainingDurations[platformIndex] = Mathf.Min(
+            maxPlatformDuration,
+            timedPlatformRemainingDurations[platformIndex] + durationToAdd);
+        timedPlatformActive[platformIndex] = timedPlatformRemainingDurations[platformIndex] > 0f;
+        bossStandDurationAccumulators[platformIndex] = 0f;
+
+        if (timedPlatformActive[platformIndex] && !IsPlatformPhysicsEnabled(platformIndex))
+        {
+            StartPlatformTransition(platformIndex, rise: true);
+        }
+    }
+
+    public void TickTimedPlatforms(float deltaTime, Collider2D bossCollider)
+    {
+        if (deltaTime <= 0f)
+        {
+            return;
+        }
+
+        ResolveReferences();
+        if (skill5PlatformLockActive)
+        {
+            HoldPlatformsDuringSkill5();
+            return;
+        }
+
+        ExtendPlatformUnderBoss(deltaTime, bossCollider);
+
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (!timedPlatformActive[i])
+            {
+                continue;
+            }
+
+            timedPlatformRemainingDurations[i] -= deltaTime;
+            if (timedPlatformRemainingDurations[i] > 0f)
+            {
+                continue;
+            }
+
+            timedPlatformRemainingDurations[i] = 0f;
+            timedPlatformActive[i] = false;
+            bossStandDurationAccumulators[i] = 0f;
+            StartPlatformTransition(i, rise: false);
+        }
+    }
+
+    public bool TryGetRandomTeleportDestination(Transform teleporter, int maxAttempts, out Vector2 destination)
+    {
+        destination = Vector2.zero;
+        ResolveReferences();
+
+        List<int> eligibleIndices = new List<int>();
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (IsPlatformEligibleForTeleport(i, minimumTeleportPlatformDuration))
+            {
+                eligibleIndices.Add(i);
+            }
+        }
+
+        if (eligibleIndices.Count == 0)
+        {
+            return false;
+        }
+
+        int attempts = Mathf.Max(1, maxAttempts);
+        for (int attempt = 0; attempt < attempts; attempt++)
+        {
+            int platformIndex = eligibleIndices[UnityEngine.Random.Range(0, eligibleIndices.Count)];
+            if (!TryGetPlatformBounds(platformIndex, out Bounds bounds))
+            {
+                continue;
+            }
+
+            float inset = Mathf.Min(.35f, bounds.size.x * .2f);
+            float minX = bounds.min.x + inset;
+            float maxX = bounds.max.x - inset;
+            if (minX > maxX)
+            {
+                minX = bounds.min.x;
+                maxX = bounds.max.x;
+            }
+
+            float x = UnityEngine.Random.Range(minX, maxX);
+            destination = BuildTeleportRootPosition(teleporter, x, bounds.max.y);
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool TryGetTeleportPlatformCenterX(int platformIndex, out float centerX)
+    {
+        centerX = 0f;
+        ResolveReferences();
+
+        if (!TryGetPlatformBounds(platformIndex, out Bounds bounds))
+        {
+            return false;
+        }
+
+        centerX = bounds.center.x;
+        return true;
+    }
+
+    public bool TryGetTeleportPlatformBounds(int platformIndex, out Bounds bounds)
+    {
+        ResolveReferences();
+        return TryGetPlatformBounds(platformIndex, out bounds);
+    }
+
+    public bool TryForceRandomTimedPlatformRise()
+    {
+        ResolveReferences();
+
+        if (platformTilemaps == null)
+        {
+            return false;
+        }
+
+        List<int> availableIndices = new List<int>();
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (platformTilemaps[i] != null)
+            {
+                availableIndices.Add(i);
+            }
+        }
+
+        if (availableIndices.Count == 0)
+        {
+            return false;
+        }
+
+        int platformIndex = availableIndices[UnityEngine.Random.Range(0, availableIndices.Count)];
+        ActivateTimedPlatform(platformIndex);
+        return true;
+    }
+
+    public void BeginSkill5PlatformLock()
+    {
+        ResolveReferences();
+        skill5PlatformLockActive = true;
+        StopPlatformTransitions();
+        ResetPlatformWorldPositions();
+        IsVisible = true;
+
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (platformTilemaps == null || platformTilemaps[i] == null)
+            {
+                continue;
+            }
+
+            timedPlatformActive[i] = true;
+            timedPlatformRemainingDurations[i] = Mathf.Max(maxPlatformDuration, initialPlatformDuration, 1f);
+            bossStandDurationAccumulators[i] = 0f;
+            SetPlatformVisible(i, true);
+            SetPlatformPhysics(i, true);
+        }
+    }
+
+    public void EndSkill5PlatformLock()
+    {
+        skill5PlatformLockActive = false;
+    }
+
+    public IEnumerator ForceAllTimedPlatformsDownRoutine()
+    {
+        ResolveReferences();
+        StopPlatformTransitions();
+
+        bool hasAnyPlatformToLower = false;
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            timedPlatformActive[i] = false;
+            timedPlatformRemainingDurations[i] = 0f;
+            bossStandDurationAccumulators[i] = 0f;
+
+            if (!IsPlatformVisibleOrActive(i))
+            {
+                SetPlatformPhysics(i, false);
+                SetPlatformVisible(i, false);
+                continue;
+            }
+
+            hasAnyPlatformToLower = true;
+            StartPlatformTransition(i, rise: false);
+        }
+
+        if (!hasAnyPlatformToLower)
+        {
+            IsVisible = false;
+            yield break;
+        }
+
+        while (HasRunningPlatformTransition())
+        {
+            yield return null;
+        }
+
+        IsVisible = false;
+    }
+
+    public bool TryForceTimedPlatformDown(Collider2D hitCollider)
+    {
+        if (skill5PlatformLockActive)
+        {
+            return false;
+        }
+
+        if (hitCollider == null)
+        {
+            return false;
+        }
+
+        ResolveReferences();
+
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (!IsPlatformColliderMatch(i, hitCollider))
+            {
+                continue;
+            }
+
+            return ForceTimedPlatformDown(i);
+        }
+
+        return false;
+    }
+
+    public IEnumerator ActivateRandomTimedPlatformsRoutine(int platformCount, float interval)
+    {
+        ResolveReferences();
+
+        int count = Mathf.Clamp(platformCount, 0, PlatformCount);
+        if (count <= 0)
+        {
+            yield break;
+        }
+
+        List<int> availableIndices = new List<int>();
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (platformTilemaps != null && platformTilemaps[i] != null)
+            {
+                availableIndices.Add(i);
+            }
+        }
+
+        for (int activated = 0; activated < count && availableIndices.Count > 0; activated++)
+        {
+            int listIndex = UnityEngine.Random.Range(0, availableIndices.Count);
+            int platformIndex = availableIndices[listIndex];
+            availableIndices.RemoveAt(listIndex);
+            ActivateTimedPlatform(platformIndex);
+
+            if (activated < count - 1 && interval > 0f)
+            {
+                yield return new WaitForSeconds(interval);
+            }
+        }
+
+        while (HasRunningPlatformTransition())
+        {
+            yield return null;
+        }
+    }
 
     private IEnumerator PlayPlatformRiseSequence(int platformIndex)
     {
@@ -2556,6 +4354,11 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
 
     private IEnumerator PlayPlatformSinkSequence(int platformIndex)
     {
+        if (skill5PlatformLockActive)
+        {
+            yield break;
+        }
+
         if (!IsValidPlatformIndex(platformIndex))
         {
             yield break;
@@ -2644,6 +4447,7 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
         platformColliders ??= new TilemapCollider2D[PlatformCount];
         platformBodies ??= new Rigidbody2D[PlatformCount];
         platformComposites ??= new CompositeCollider2D[PlatformCount];
+        platformTransitionRoutines ??= new Coroutine[PlatformCount];
 
         platformTilemaps[0] = platform1Tilemap;
         platformTilemaps[1] = platform2Tilemap;
@@ -2662,7 +4466,10 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
             EnsurePlatformUsesGroundLayer(tilemap);
         }
 
-        CachePlatformRestWorldPositions();
+        if (!Application.isPlaying)
+        {
+            CachePlatformRestWorldPositions();
+        }
     }
 
     private Tilemap FindTilemap(string childName)
@@ -2730,6 +4537,7 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
         }
 
         IsVisible = true;
+        StopPlatformTransitions();
         ResetPlatformWorldPositions();
 
         for (int i = 0; i < PlatformCount; i++)
@@ -2760,7 +4568,10 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
 
         if (!platformRestWorldPositionCached[platformIndex])
         {
-            CachePlatformRestWorldPositions();
+            if (!Application.isPlaying)
+            {
+                CachePlatformRestWorldPositions();
+            }
         }
 
         return platformRestWorldPositions[platformIndex];
@@ -2841,4 +4652,333 @@ public class ArenaBossFloatingPlatformController : MonoBehaviour, IArenaFloating
     {
         return platformIndex >= 0 && platformIndex < PlatformCount;
     }
+
+    private void ExtendPlatformUnderBoss(float deltaTime, Collider2D bossCollider)
+    {
+        if (bossCollider == null || bossStandDurationBonusPerSecond <= 0f || maxPlatformDuration <= 0f)
+        {
+            return;
+        }
+
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (!timedPlatformActive[i] || !IsBossStandingOnPlatform(i, bossCollider))
+            {
+                bossStandDurationAccumulators[i] = 0f;
+                continue;
+            }
+
+            bossStandDurationAccumulators[i] += deltaTime;
+            while (bossStandDurationAccumulators[i] >= 1f)
+            {
+                bossStandDurationAccumulators[i] -= 1f;
+                timedPlatformRemainingDurations[i] = Mathf.Min(
+                    maxPlatformDuration,
+                    timedPlatformRemainingDurations[i] + bossStandDurationBonusPerSecond);
+            }
+        }
+    }
+
+    private bool IsBossStandingOnPlatform(int platformIndex, Collider2D bossCollider)
+    {
+        if (!IsPlatformPhysicsEnabled(platformIndex) || !TryGetPlatformBounds(platformIndex, out Bounds platformBounds))
+        {
+            return false;
+        }
+
+        Bounds bossBounds = bossCollider.bounds;
+        bool overlapsHorizontally = bossBounds.max.x >= platformBounds.min.x && bossBounds.min.x <= platformBounds.max.x;
+        if (!overlapsHorizontally)
+        {
+            return false;
+        }
+
+        float verticalDistance = bossBounds.min.y - platformBounds.max.y;
+        return verticalDistance >= -.02f && verticalDistance <= bossStandSurfaceTolerance;
+    }
+
+    private void StartPlatformTransition(int platformIndex, bool rise)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            return;
+        }
+
+        if (skill5PlatformLockActive)
+        {
+            return;
+        }
+
+        if (platformTransitionRoutines == null)
+        {
+            platformTransitionRoutines = new Coroutine[PlatformCount];
+        }
+
+        if (platformTransitionRoutines[platformIndex] != null)
+        {
+            StopCoroutine(platformTransitionRoutines[platformIndex]);
+        }
+
+        platformTransitionRoutines[platformIndex] = StartCoroutine(PlayTimedPlatformTransition(platformIndex, rise));
+    }
+
+    private bool ForceTimedPlatformDown(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            return false;
+        }
+
+        ResolveReferences();
+        StopPlatformTransition(platformIndex);
+
+        timedPlatformActive[platformIndex] = false;
+        timedPlatformRemainingDurations[platformIndex] = 0f;
+        bossStandDurationAccumulators[platformIndex] = 0f;
+
+        if (!IsPlatformVisibleOrActive(platformIndex))
+        {
+            SetPlatformPhysics(platformIndex, false);
+            SetPlatformVisible(platformIndex, false);
+            return true;
+        }
+
+        StartPlatformTransition(platformIndex, rise: false);
+        return true;
+    }
+
+    private void StopPlatformTransition(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex) || platformTransitionRoutines == null)
+        {
+            return;
+        }
+
+        if (platformTransitionRoutines[platformIndex] != null)
+        {
+            StopCoroutine(platformTransitionRoutines[platformIndex]);
+            platformTransitionRoutines[platformIndex] = null;
+        }
+    }
+
+    private IEnumerator PlayTimedPlatformTransition(int platformIndex, bool rise)
+    {
+        if (rise)
+        {
+            yield return PlayPlatformRiseSequence(platformIndex);
+        }
+        else
+        {
+            yield return PlayPlatformSinkSequence(platformIndex);
+        }
+
+        if (platformTransitionRoutines != null && IsValidPlatformIndex(platformIndex))
+        {
+            platformTransitionRoutines[platformIndex] = null;
+        }
+    }
+
+    private void StopPlatformTransitions()
+    {
+        if (platformTransitionRoutines == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < platformTransitionRoutines.Length; i++)
+        {
+            if (platformTransitionRoutines[i] != null)
+            {
+                StopCoroutine(platformTransitionRoutines[i]);
+                platformTransitionRoutines[i] = null;
+            }
+        }
+    }
+
+    private void HoldPlatformsDuringSkill5()
+    {
+        StopPlatformTransitions();
+        ResetPlatformWorldPositions();
+
+        for (int i = 0; i < PlatformCount; i++)
+        {
+            if (platformTilemaps == null || platformTilemaps[i] == null)
+            {
+                continue;
+            }
+
+            timedPlatformActive[i] = true;
+            timedPlatformRemainingDurations[i] = Mathf.Max(maxPlatformDuration, initialPlatformDuration, 1f);
+            bossStandDurationAccumulators[i] = 0f;
+            SetPlatformVisible(i, true);
+            SetPlatformPhysics(i, true);
+        }
+    }
+
+    private bool IsPlatformEligibleForTeleport(int platformIndex, float minimumRemainingDuration)
+    {
+        return IsValidPlatformIndex(platformIndex)
+            && timedPlatformActive[platformIndex]
+            && timedPlatformRemainingDurations[platformIndex] >= minimumRemainingDuration
+            && platformTransitionRoutines != null
+            && platformTransitionRoutines[platformIndex] == null
+            && IsPlatformPhysicsEnabled(platformIndex);
+    }
+
+    private bool HasRunningPlatformTransition()
+    {
+        if (platformTransitionRoutines == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < platformTransitionRoutines.Length; i++)
+        {
+            if (platformTransitionRoutines[i] != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsPlatformVisibleOrActive(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            return false;
+        }
+
+        if (timedPlatformActive[platformIndex])
+        {
+            return true;
+        }
+
+        TilemapRenderer renderer = platformRenderers != null ? platformRenderers[platformIndex] : null;
+        TilemapCollider2D collider2D = platformColliders != null ? platformColliders[platformIndex] : null;
+        return renderer != null && renderer.enabled || collider2D != null && collider2D.enabled;
+    }
+
+    private bool IsPlatformColliderMatch(int platformIndex, Collider2D hitCollider)
+    {
+        if (!IsValidPlatformIndex(platformIndex) || hitCollider == null || platformTilemaps == null)
+        {
+            return false;
+        }
+
+        Tilemap tilemap = platformTilemaps[platformIndex];
+        if (tilemap == null)
+        {
+            return false;
+        }
+
+        return hitCollider.transform == tilemap.transform
+            || hitCollider.transform.IsChildOf(tilemap.transform)
+            || tilemap.transform.IsChildOf(hitCollider.transform);
+    }
+
+    private bool IsPlatformPhysicsEnabled(int platformIndex)
+    {
+        if (!IsValidPlatformIndex(platformIndex))
+        {
+            return false;
+        }
+
+        TilemapCollider2D collider2D = platformColliders != null ? platformColliders[platformIndex] : null;
+        return collider2D != null && collider2D.enabled;
+    }
+
+    private bool TryGetPlatformBounds(int platformIndex, out Bounds bounds)
+    {
+        bounds = default;
+        if (!IsValidPlatformIndex(platformIndex) || platformTilemaps == null || platformTilemaps[platformIndex] == null)
+        {
+            return false;
+        }
+
+        Tilemap tilemap = platformTilemaps[platformIndex];
+        if (!TryGetTilemapWorldBounds(tilemap, out bounds))
+        {
+            return false;
+        }
+
+        return bounds.size.x > 0f && bounds.size.y > 0f;
+    }
+
+    private bool TryGetTilemapWorldBounds(Tilemap tilemap, out Bounds bounds)
+    {
+        bounds = default;
+        if (tilemap == null)
+        {
+            return false;
+        }
+
+        BoundsInt cellBounds = tilemap.cellBounds;
+        if (cellBounds.size.x <= 0 || cellBounds.size.y <= 0)
+        {
+            return false;
+        }
+
+        Vector3 cellSize = tilemap.layoutGrid != null ? tilemap.layoutGrid.cellSize : Vector3.one;
+        Vector3 scale = tilemap.transform.lossyScale;
+        Vector3 halfCellSize = new Vector3(
+            Mathf.Abs(cellSize.x * scale.x) * 0.5f,
+            Mathf.Abs(cellSize.y * scale.y) * 0.5f,
+            Mathf.Abs(cellSize.z * scale.z) * 0.5f);
+
+        bool hasAnyTile = false;
+        Vector3 min = Vector3.zero;
+        Vector3 max = Vector3.zero;
+
+        foreach (Vector3Int cell in cellBounds.allPositionsWithin)
+        {
+            if (!tilemap.HasTile(cell))
+            {
+                continue;
+            }
+
+            Vector3 worldCenter = tilemap.GetCellCenterWorld(cell);
+            Vector3 cellMin = worldCenter - halfCellSize;
+            Vector3 cellMax = worldCenter + halfCellSize;
+
+            if (!hasAnyTile)
+            {
+                min = cellMin;
+                max = cellMax;
+                hasAnyTile = true;
+                continue;
+            }
+
+            min = Vector3.Min(min, cellMin);
+            max = Vector3.Max(max, cellMax);
+        }
+
+        if (!hasAnyTile)
+        {
+            return false;
+        }
+
+        bounds.SetMinMax(min, max);
+        return true;
+    }
+
+    private Vector2 BuildTeleportRootPosition(Transform teleporter, float groundX, float groundY)
+    {
+        if (teleporter == null)
+        {
+            return new Vector2(groundX, groundY);
+        }
+
+        Collider2D collider2D = teleporter.GetComponent<Collider2D>();
+        if (collider2D == null)
+        {
+            return new Vector2(groundX, groundY);
+        }
+
+        float rootToColliderCenterX = teleporter.position.x - collider2D.bounds.center.x;
+        float rootToColliderBottomY = teleporter.position.y - collider2D.bounds.min.y;
+        return new Vector2(groundX + rootToColliderCenterX, groundY + rootToColliderBottomY + .02f);
+    }
+
 }

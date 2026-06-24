@@ -134,6 +134,7 @@ public class Enemy_Healthy : Entity_Health
         {
             abyssMage.EnterBattleFromDamage(damageSource != null ? damageSource.transform : null);
             abyssMage.HandleTeleportTriggerOnDamaged();
+            abyssMage.HandleDamageTeleportTriggerOnDamaged();
         }
 
         if (reaper != null && !isDead)

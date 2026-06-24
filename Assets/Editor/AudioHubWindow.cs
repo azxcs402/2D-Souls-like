@@ -25,7 +25,9 @@ public class AudioHubWindow : EditorWindow
         new("UI Audio", "uiAudio"),
         new("Bonfire SFX", "bonfireAudio"),
         new("Main Menu BGM", "mainMenuMusic"),
-        new("Level BGM", "levelMusic")
+        new("Scene BGM", "levelMusic"),
+        new("Door Battle BGM", "doorBattleMusic"),
+        new("Boss Battle BGM", "bossBattleMusic")
     };
 
     private static readonly BindingFlags BindingFlagsAll =
@@ -549,6 +551,8 @@ public class AudioHubWindow : EditorWindow
                 EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.BonfireMenuClose));
                 EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.BonfireTravel));
                 EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.BonfireFlameLoop));
+                EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.AbyssFireAppear));
+                EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.AbyssFireDisappear));
                 EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.AbyssFireFlameLoop));
                 break;
             case 4:
@@ -556,6 +560,12 @@ public class AudioHubWindow : EditorWindow
                 break;
             case 5:
                 EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.PlaylistLevels));
+                break;
+            case 6:
+                EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.PlaylistDoorBattle));
+                break;
+            case 7:
+                EnsureEntry(listProperty, AudioKeyMap.GetAudioName(AudioKey.PlaylistBossBattle));
                 break;
         }
     }

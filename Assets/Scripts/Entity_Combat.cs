@@ -235,6 +235,11 @@ public class Entity_Combat : MonoBehaviour
             IProjectileBreakable projectileBreakable = GetProjectileBreakable(targetCollider);
             if (projectileBreakable != null)
             {
+                if (!projectileBreakable.CanBeBrokenByAttack(this))
+                {
+                    continue;
+                }
+
                 projectileBreakable.BreakProjectile();
                 hitAnyTarget = true;
                 continue;

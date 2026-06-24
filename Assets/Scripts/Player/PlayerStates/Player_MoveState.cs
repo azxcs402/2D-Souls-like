@@ -13,6 +13,12 @@ public class Player_MoveState : Player_GroundedState
         base.Enter();
 
         player.SetAnimation(false, true);
+
+        if (player.anim != null && player.anim.isActiveAndEnabled)
+        {
+            player.anim.CrossFadeInFixedTime("playerMove", .03f);
+            player.anim.Update(0f);
+        }
     }
 
     public override void Update()

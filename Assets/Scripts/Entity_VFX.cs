@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -19,9 +20,17 @@ public class Entity_VFX : MonoBehaviour
     [SerializeField] private GameObject hitVFX;
 
     private SpriteRenderer[] spriteRenderers;
-    private Material[] originalMaterials;
+    private readonly List<RendererSnapshot> originalRendererStates = new List<RendererSnapshot>();
     private Coroutine imageEchoCoroutine;
     private Coroutine onDamageVFXCoroutine;
+
+    private struct RendererSnapshot
+    {
+        public SpriteRenderer renderer;
+        public Material material;
+        public Color color;
+        public bool enabled;
+    }
 
     private void Awake()
     {
@@ -68,6 +77,26 @@ public class Entity_VFX : MonoBehaviour
 
         StopCoroutine(imageEchoCoroutine);
         imageEchoCoroutine = null;
+    }
+
+    public void RestoreVisualState()
+    {
+        StopImageEchoEffect();
+
+        if (onDamageVFXCoroutine != null)
+        {
+            StopCoroutine(onDamageVFXCoroutine);
+            onDamageVFXCoroutine = null;
+        }
+
+        CacheRenderers();
+        RestoreOriginalMaterials();
+        RestoreOriginalColors();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[Entity_VFX] RestoreVisualState on {name}, renderers={(spriteRenderers != null ? spriteRenderers.Length : 0)}", this);
+        LogRendererStates("after restore");
+#endif
     }
 
     public void CreateImageEchoTrail(Vector3 start, Vector3 end, int echoCount, float lifetime = -1f)
@@ -163,41 +192,90 @@ public class Entity_VFX : MonoBehaviour
     {
         spriteRenderers = GetComponentsInChildren<SpriteRenderer>(true);
 
-        if (originalMaterials == null || originalMaterials.Length != spriteRenderers.Length)
+        if (!refreshOriginalMaterials)
         {
-            originalMaterials = new Material[spriteRenderers.Length];
-            refreshOriginalMaterials = true;
+            return;
         }
 
-        if (!refreshOriginalMaterials)
+        originalRendererStates.Clear();
+
+        for (int i = 0; i < spriteRenderers.Length; i++)
+        {
+            SpriteRenderer renderer = spriteRenderers[i];
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            originalRendererStates.Add(new RendererSnapshot
+            {
+                renderer = renderer,
+                material = renderer.sharedMaterial,
+                color = renderer.color,
+                enabled = renderer.enabled
+            });
+        }
+    }
+
+    private void RestoreOriginalMaterials()
+    {
+        if (originalRendererStates.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < originalRendererStates.Count; i++)
+        {
+            RendererSnapshot snapshot = originalRendererStates[i];
+            if (snapshot.renderer != null)
+            {
+                snapshot.renderer.enabled = snapshot.enabled;
+                snapshot.renderer.material = snapshot.material;
+                snapshot.renderer.sharedMaterial = snapshot.material;
+            }
+        }
+    }
+
+    private void RestoreOriginalColors()
+    {
+        if (originalRendererStates.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < originalRendererStates.Count; i++)
+        {
+            RendererSnapshot snapshot = originalRendererStates[i];
+            if (snapshot.renderer != null)
+            {
+                snapshot.renderer.color = snapshot.color;
+            }
+        }
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void LogRendererStates(string context)
+    {
+        if (spriteRenderers == null)
         {
             return;
         }
 
         for (int i = 0; i < spriteRenderers.Length; i++)
         {
-            originalMaterials[i] = spriteRenderers[i] != null
-                ? spriteRenderers[i].sharedMaterial
-                : null;
-        }
-    }
-
-    private void RestoreOriginalMaterials()
-    {
-        if (spriteRenderers == null || originalMaterials == null)
-        {
-            return;
-        }
-
-        int rendererCount = Mathf.Min(spriteRenderers.Length, originalMaterials.Length);
-        for (int i = 0; i < rendererCount; i++)
-        {
-            if (spriteRenderers[i] != null)
+            SpriteRenderer renderer = spriteRenderers[i];
+            if (renderer == null)
             {
-                spriteRenderers[i].sharedMaterial = originalMaterials[i];
+                continue;
             }
+
+            Material material = renderer.sharedMaterial != null ? renderer.sharedMaterial : renderer.material;
+            Debug.Log(
+                $"[Entity_VFX] {context} renderer[{i}] name={renderer.name}, enabled={renderer.enabled}, color={renderer.color}, material={(material != null ? material.name : "null")}, sortingOrder={renderer.sortingOrder}",
+                renderer);
         }
     }
+#endif
 
     private void CreateImageEchoSnapshot(Vector3 worldPosition, float lifetime)
     {

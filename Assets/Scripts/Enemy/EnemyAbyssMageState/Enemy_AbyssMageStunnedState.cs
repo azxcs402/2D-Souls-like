@@ -28,6 +28,7 @@ public class Enemy_AbyssMageStunnedState : EnemyState
             mage.SetBattleAnimation(false, 0f);
             mage.SetStunnedAnimation(true);
             PlayStunnedAnimation();
+            ArenaBossEncounterController.GetActiveInstance()?.NotifyAbyssMageStunned(mage);
         }
 
         if (enemy.rb != null)

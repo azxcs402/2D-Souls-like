@@ -147,9 +147,8 @@ public class RuntimeMenuBootstrapper : MonoBehaviour
         CreateLabeledSlider(panel.transform, "Master Volume", out Slider volumeSlider);
         CreateLabeledSlider(panel.transform, "BGM Volume", out Slider bgmSlider);
         CreateLabeledSlider(panel.transform, "SFX Volume", out Slider sfxSlider);
-        CreateLabeledToggle(panel.transform, "Fullscreen", out Toggle fullscreenToggle);
 
-        options.Bind(volumeSlider, bgmSlider, sfxSlider, fullscreenToggle);
+        options.Bind(volumeSlider, bgmSlider, sfxSlider);
 
         Button resetButton = CreateButton(panel.transform, "ResetVolume", "Restore Defaults");
         Button backButton = CreateButton(panel.transform, "Back", "Back");
@@ -302,47 +301,6 @@ public class RuntimeMenuBootstrapper : MonoBehaviour
 
         RectTransform sliderRect = sliderGo.GetComponent<RectTransform>();
         sliderRect.sizeDelta = new Vector2(0f, 36f);
-
-        return row;
-    }
-
-    private static GameObject CreateLabeledToggle(Transform parent, string label, out Toggle toggle)
-    {
-        GameObject row = new GameObject(label.Replace(" ", "") + "Row", typeof(RectTransform), typeof(HorizontalLayoutGroup));
-        row.transform.SetParent(parent, false);
-        HorizontalLayoutGroup layout = row.GetComponent<HorizontalLayoutGroup>();
-        layout.childForceExpandHeight = false;
-        layout.childForceExpandWidth = false;
-        layout.childControlHeight = true;
-        layout.childControlWidth = true;
-        layout.spacing = 12f;
-
-        CreateText(row.transform, label + "Label", label, 24, FontStyle.Normal, TextAnchor.MiddleLeft)
-            .AddComponent<LayoutElement>().preferredWidth = 180f;
-
-        GameObject toggleGo = new GameObject(label + "Toggle", typeof(RectTransform), typeof(Image), typeof(Toggle));
-        toggleGo.transform.SetParent(row.transform, false);
-        toggle = toggleGo.GetComponent<Toggle>();
-
-        Image background = toggleGo.GetComponent<Image>();
-        background.color = new Color(0.16f, 0.16f, 0.18f, 1f);
-
-        GameObject checkmark = new GameObject("Checkmark", typeof(RectTransform), typeof(Image));
-        checkmark.transform.SetParent(toggleGo.transform, false);
-        Image checkmarkImage = checkmark.GetComponent<Image>();
-        checkmarkImage.color = new Color(0.85f, 0.75f, 0.35f, 1f);
-        RectTransform checkRect = checkmark.GetComponent<RectTransform>();
-        checkRect.anchorMin = new Vector2(0.25f, 0.25f);
-        checkRect.anchorMax = new Vector2(0.75f, 0.75f);
-        checkRect.offsetMin = Vector2.zero;
-        checkRect.offsetMax = Vector2.zero;
-
-        toggle.targetGraphic = background;
-        toggle.graphic = checkmarkImage;
-        toggle.isOn = true;
-
-        RectTransform toggleRect = toggleGo.GetComponent<RectTransform>();
-        toggleRect.sizeDelta = new Vector2(36f, 36f);
 
         return row;
     }

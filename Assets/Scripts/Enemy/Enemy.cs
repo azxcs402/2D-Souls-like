@@ -197,6 +197,11 @@ public abstract class Enemy : Entity
             : Mathf.Clamp(currentHealth, 0, maxHealth);
     }
 
+    public void SetCurrentHealth(int value)
+    {
+        currentHealth = Mathf.Clamp(value, 0, maxHealth);
+    }
+
     protected virtual IState GetDeadState()
     {
         return null;

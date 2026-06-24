@@ -10,6 +10,8 @@ using UnityEditor;
 [RequireComponent(typeof(BoxCollider2D))]
 public class ArenaEncounterController : MonoBehaviour
 {
+    private static int activeEncounterCount;
+
     [Header("Wave Data")]
     [SerializeField] private ArenaWaveSet waveSet;
     [SerializeField] private Transform[] spawnPoints = new Transform[0];
@@ -36,11 +38,14 @@ public class ArenaEncounterController : MonoBehaviour
     private Coroutine encounterRoutine;
     private bool encounterStarted;
     private bool encounterCompleted;
+    private bool staminaCombatActive;
     private int currentWaveIndex = -1;
 
     public int CurrentWaveIndex => currentWaveIndex;
     public int ActiveEnemyCount => activeEnemies.Count;
     public bool HasActiveEnemies => activeEnemies.Count > 0;
+    public static bool HasActiveEncounter => activeEncounterCount > 0;
+    public bool IsStaminaCombatActive => staminaCombatActive;
     public string ActiveEnemySummary
     {
         get
@@ -234,6 +239,9 @@ public class ArenaEncounterController : MonoBehaviour
 
         encounterStarted = true;
         encounterCompleted = false;
+        SetStaminaCombatActive(true);
+
+        AudioManager.instance?.StartBGM(AudioKey.PlaylistDoorBattle);
 
         if (lockDoorsWhenEncounterStarts)
         {
@@ -257,10 +265,12 @@ public class ArenaEncounterController : MonoBehaviour
         }
 
         UnregisterAllEnemies();
+        SetStaminaCombatActive(false);
         encounterStarted = false;
         encounterCompleted = false;
         currentWaveIndex = -1;
         SetDoorsLocked(false);
+        AudioManager.instance?.StartBGM(AudioKey.PlaylistLevels);
     }
 
     private IEnumerator RunEncounter()
@@ -337,7 +347,9 @@ public class ArenaEncounterController : MonoBehaviour
 
         encounterCompleted = true;
         encounterStarted = false;
+        SetStaminaCombatActive(false);
         SetDoorsLocked(false);
+        AudioManager.instance?.StartBGM(AudioKey.PlaylistLevels);
         encounterRoutine = null;
     }
 
@@ -674,6 +686,27 @@ public class ArenaEncounterController : MonoBehaviour
         {
             yield return floatingPlatform.PlayDisappearanceSequence();
         }
+    }
+
+    private void OnDisable()
+    {
+        SetStaminaCombatActive(false);
+    }
+
+    private void OnDestroy()
+    {
+        SetStaminaCombatActive(false);
+    }
+
+    private void SetStaminaCombatActive(bool active)
+    {
+        if (staminaCombatActive == active)
+        {
+            return;
+        }
+
+        staminaCombatActive = active;
+        activeEncounterCount = Mathf.Max(0, activeEncounterCount + (active ? 1 : -1));
     }
 
 }

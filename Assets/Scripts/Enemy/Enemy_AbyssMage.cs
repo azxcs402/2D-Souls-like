@@ -3,15 +3,25 @@ using System.Collections.Generic;
 using System;
 using UnityEngine;
 using Random = UnityEngine.Random;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 [RequireComponent(typeof(Rigidbody2D), typeof(CapsuleCollider2D))]
 public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBossSkillPointSource
 {
+    private const float EnhancedSkill3ForcedFallSpeed = 8f;
+    private const float EnhancedSkill3ForcedFallGroundSnapDelay = 0.75f;
+    private const float EnhancedSkill3ForcedFallGroundSearchDistance = 30f;
+
     public enum AbyssMageSpecialAttackType
     {
         Skill1Fireball = 0,
         Skill2MixedFireball = 1,
-        Skill3GiantAbyssFireball = 2
+        EnhancedSkill2MixedFireball = 2,
+        Skill3GiantAbyssFireball = 3,
+        EnhancedSkill3GiantAbyssFireball = 4,
+        Skill4SixGiantAbyssFireballs = 5
     }
 
     private static readonly int BattleAnimHash = Animator.StringToHash("battle");
@@ -59,6 +69,12 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     [SerializeField, Range(0f, 100f)] private float rangeTeleportChanceIncrement = 2f;
     [SerializeField, Min(.1f)] private float rangeTeleportCheckInterval = 1f;
 
+    [Header("Damage Teleport Triggers")]
+    [SerializeField, Range(0f, 100f)] private float damageTeleportInitialChance = 25f;
+    [SerializeField, Range(0f, 100f)] private float damageTeleportChanceIncrement = 15f;
+    [SerializeField, Min(0f)] private float damageTeleportTriggerDelay = 0.6f;
+    [SerializeField, Min(0f)] private float damageTeleportCooldown = 6f;
+
     [Header("Stunned State Details")]
     [SerializeField, Min(.1f)] private float stunnedDuration = 1f;
     [SerializeField] private Vector2 stunnedVelocity = new Vector2(7f, 7f);
@@ -98,17 +114,20 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     [SerializeField, Min(1)] private int projectileHoverMaxPlacementAttempts = 24;
     [SerializeField, Min(0f)] private float giantFireballHoverDuration = 2f;
     [SerializeField, Min(1f)] private float giantFireballScaleMultiplier = 10f;
-    [SerializeField, Min(1f)] private float giantFireballDamageMultiplier = 5f;
+    [SerializeField, Min(1)] private int abyssFireballDamage = 18;
+    [SerializeField, Min(1)] private int hybridCoreFireballDamage = 36;
+    [SerializeField, Min(1)] private int giantFireballDamage = 40;
     [SerializeField, Min(0f)] private float giantFireballFallSpeedMultiplier = 3f;
     [SerializeField, Min(0f)] private float giantFireballFollowSpeed = 18f;
-    [SerializeField, Min(0f)] private float skill1FireballDamageMultiplier = .5f;
     [SerializeField, Min(0f)] private float specialAttackLockDuration = 3f;
     [SerializeField, Min(0f)] private float skill3CooldownDuration = 10f;
+    [SerializeField, Min(0f)] private float skill4GiantFireballHoverDurationBonus = 1f;
     [SerializeField] private Transform behindCollisionCheck;
     [SerializeField] private bool hasRecoveryAnimation = true;
     [SerializeField] private bool canBeKnockedBack = true;
 
     [Header("Attack Info")]
+    [SerializeField, Min(1)] private int meleeDamage = 28;
     [SerializeField] private Entity_AttackData abyssMageAttackData = new Entity_AttackData(new Vector2(.7f, 0f), .6f, new Vector2(4f, 2f));
     [SerializeField] private string attackAnimationState = "abyssMageAttack";
     [SerializeField] private string idleAnimationState = "abyssMageIdle";
@@ -208,15 +227,17 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     public int ProjectileHoverMaxPlacementAttempts => projectileHoverMaxPlacementAttempts;
     public float GiantFireballHoverDuration => giantFireballHoverDuration;
     public float GiantFireballScaleMultiplier => giantFireballScaleMultiplier;
-    public float GiantFireballDamageMultiplier => giantFireballDamageMultiplier;
+    public int AbyssFireballDamage => abyssFireballDamage;
+    public int HybridCoreFireballDamage => hybridCoreFireballDamage;
+    public int GiantFireballDamage => giantFireballDamage;
     public float GiantFireballFallSpeedMultiplier => giantFireballFallSpeedMultiplier;
     public float GiantFireballFollowSpeed => giantFireballFollowSpeed;
-    public float Skill1FireballDamageMultiplier => skill1FireballDamageMultiplier;
     public float SpecialAttackLockDuration => specialAttackLockDuration;
     public float Skill3CooldownDuration => skill3CooldownDuration;
     public Transform BehindCollisionCheck => behindCollisionCheck;
     public bool HasRecoveryAnimation => hasRecoveryAnimation;
     public bool CanBeKnockedBack => canBeKnockedBack;
+    public int MeleeDamage => meleeDamage;
     public Entity_AttackData AbyssMageAttackData => abyssMageAttackData;
     public string AttackAnimationState => attackAnimationState;
     public string IdleAnimationState => idleAnimationState;
@@ -282,6 +303,9 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     private float currentOnHitTeleportChance;
     private float currentRangeTeleportChance;
     private float rangeTeleportTimer;
+    private float currentDamageTeleportChance;
+    private int damageTeleportHitCount;
+    private float damageTeleportCooldownUntilTime = float.NegativeInfinity;
     private bool spellCastPerformed;
     private bool hasQueuedSpecialAttackType;
     private AbyssMageSpecialAttackType queuedSpecialAttackType = AbyssMageSpecialAttackType.Skill1Fireball;
@@ -293,18 +317,32 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     private bool hasQueuedTeleportDestination;
     private Vector2 queuedTeleportDestination;
     private Coroutine spellCastCoroutine;
+    private bool enhancedSkill3Suspended;
+    private bool enhancedSkill3ForceFallActive;
+    private float enhancedSkill3OriginalGravityScale = 1f;
+    private RigidbodyConstraints2D enhancedSkill3OriginalConstraints = RigidbodyConstraints2D.FreezeRotation;
+    private Vector2 enhancedSkill3CastPosition;
+    private bool enhancedSkill3HasCastPosition;
+    private SpriteRenderer[] cachedSpriteRenderers;
+    private Coroutine enhancedSkill3EndDebugCoroutine;
+    private bool pendingTeleportVisualRestore;
+    private Coroutine damageTeleportRoutine;
+    private int enhancedSkill3EndCallCount;
+    private float nextEnhancedSkill3HoldDebugTime;
+    private float enhancedSkill3ForceFallStartTime;
     private readonly List<ProjectileHoverReservation> reservedProjectileHoverReservations = new List<ProjectileHoverReservation>();
     private int nextProjectileHoverReservationId = 1;
 
     protected override void Awake()
     {
         base.Awake();
-
         Combat = GetComponent<Entity_Combat>();
+        Combat?.SetDamage(meleeDamage);
         EnsureGroundMaskAssigned();
         CacheChildReferences();
         NormalizeAnimationStateNames();
         ResetTeleportProbabilities();
+        ResetDamageTeleportTriggerState();
         battleAnimSpeedMultiplier = CalculateBattleAnimSpeedMultiplier();
 
         groundedState = new Enemy_AbyssMageGroundedState(this, stateMachine);
@@ -333,8 +371,29 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         }
     }
 
+    private void OnDisable()
+    {
+        ResetDamageTeleportTriggerState();
+    }
+
+    private void OnDestroy()
+    {
+        ResetDamageTeleportTriggerState();
+    }
+
     protected override void Update()
     {
+        if (enhancedSkill3Suspended)
+        {
+            HoldEnhancedSkill3CastPosition();
+            return;
+        }
+
+        if (enhancedSkill3ForceFallActive)
+        {
+            UpdateEnhancedSkill3ForcedFall();
+        }
+
         if (attackCooldownTimer > 0f)
         {
             attackCooldownTimer -= Time.deltaTime;
@@ -348,6 +407,16 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         UpdateRangeTeleportTrigger();
         battleAnimSpeedMultiplier = CalculateBattleAnimSpeedMultiplier();
         base.Update();
+    }
+
+    protected override void FixedUpdate()
+    {
+        if (enhancedSkill3ForceFallActive)
+        {
+            ApplyEnhancedSkill3ForcedFallVelocity();
+        }
+
+        base.FixedUpdate();
     }
 
     protected override void Die(bool allowRevive)
@@ -508,7 +577,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
     public void HandleTeleportTriggerOnDamaged()
     {
-        if (IsDead || stateMachine == null)
+        if (IsDead || stateMachine == null || enhancedSkill3Suspended)
         {
             return;
         }
@@ -533,6 +602,32 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
             0f,
             100f
         );
+    }
+
+    public void HandleDamageTeleportTriggerOnDamaged()
+    {
+        if (IsDead
+            || stateMachine == null
+            || CurrentHealth <= 0
+            || enhancedSkill3Suspended
+            || stateMachine.CurrentState == retreatState)
+        {
+            return;
+        }
+
+        if (damageTeleportRoutine != null)
+        {
+            return;
+        }
+
+        damageTeleportHitCount++;
+        if (damageTeleportHitCount < 3)
+        {
+            return;
+        }
+
+        damageTeleportHitCount = 0;
+        damageTeleportRoutine = StartCoroutine(RunDamageTeleportTriggerRoutine());
     }
 
     public void SetBattleAnimation(bool battle, float xVelocity)
@@ -607,6 +702,19 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         spellCastPerformed = performed;
     }
 
+    public void AbortSpellCastForEnhancedSkill3()
+    {
+        spellCastPerformed = false;
+
+        if (anim != null)
+        {
+            anim.SetBool("spellCast", false);
+            anim.SetBool("spellCast_performed", false);
+        }
+
+        SetFacingLocked(false);
+    }
+
     public void ForceSpecialAttack(AbyssMageSpecialAttackType attackType)
     {
         if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball && IsSkill3OnCooldown)
@@ -657,6 +765,175 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
     public void NotifyFireballPlayerInteracted()
     {
         FireballPlayerInteracted?.Invoke();
+    }
+
+    public void BeginEnhancedSkill3CastHold(Vector2 castPosition)
+    {
+        enhancedSkill3Suspended = true;
+        enhancedSkill3ForceFallActive = false;
+        enhancedSkill3HasCastPosition = true;
+        if (!TryResolveSafeTeleportDestination(castPosition, out Vector2 safeCastPosition))
+        {
+            safeCastPosition = rb != null ? rb.position : (Vector2)transform.position;
+        }
+
+        enhancedSkill3CastPosition = safeCastPosition;
+        nextEnhancedSkill3HoldDebugTime = 0f;
+
+        TeleportToDestination(safeCastPosition);
+
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        if (rb != null)
+        {
+            enhancedSkill3OriginalGravityScale = rb.gravityScale;
+            enhancedSkill3OriginalConstraints = rb.constraints;
+            rb.gravityScale = 0f;
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.position = safeCastPosition;
+        }
+
+        transform.position = new Vector3(safeCastPosition.x, safeCastPosition.y, transform.position.z);
+        SetFacingLocked(true);
+        RefreshEnhancedSkill3HoldAnimationState();
+        LogEnhancedSkill3HoldState("BeginEnhancedSkill3CastHold");
+    }
+
+    public void EndEnhancedSkill3CastHold()
+    {
+        enhancedSkill3EndCallCount++;
+        LogEnhancedSkill3HoldState($"EndEnhancedSkill3CastHold enter #{enhancedSkill3EndCallCount}");
+        enhancedSkill3Suspended = false;
+        enhancedSkill3HasCastPosition = false;
+        enhancedSkill3ForceFallActive = false;
+        enhancedSkill3ForceFallStartTime = Time.time;
+        SetFacingLocked(false);
+
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        if (rb != null)
+        {
+            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            rb.gravityScale = enhancedSkill3OriginalGravityScale > 0f ? enhancedSkill3OriginalGravityScale : 1f;
+            rb.simulated = true;
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.WakeUp();
+        }
+
+        Entity_VFX entityVFX = GetComponent<Entity_VFX>();
+        if (entityVFX != null)
+        {
+            entityVFX.DoImageEchoEffect(.12f);
+        }
+
+        if (TryGetEnhancedSkill3GroundTeleportDestination(out Vector2 groundDestination))
+        {
+            TeleportToDestination(groundDestination, false);
+            if (rb != null)
+            {
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+                rb.WakeUp();
+            }
+            LogEnhancedSkill3HoldState("EndEnhancedSkill3CastHold teleported to ground");
+        }
+        else
+        {
+            LogEnhancedSkill3HoldState("EndEnhancedSkill3CastHold could not resolve ground destination");
+        }
+
+        SetAnimation(false, false, false);
+        SetBattleAnimation(false, 0f);
+        LogEnhancedSkill3HoldState($"EndEnhancedSkill3CastHold exit #{enhancedSkill3EndCallCount}");
+        RestoreStateAfterEnhancedSkill3Hold();
+    }
+
+    public Enemy_AbyssMageFireball SpawnEnhancedSkill3GiantFireball(Transform target)
+    {
+        if (spellPrefab == null || target == null)
+        {
+            return null;
+        }
+
+        Transform ceilingReferencePoint = GetAbyssMageCeilingReferencePoint();
+        Vector3 spawnPosition = GetGiantSpellSpawnPosition(target, ceilingReferencePoint);
+        GameObject projectileObject = Instantiate(spellPrefab, spawnPosition, Quaternion.identity);
+        Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
+
+        if (projectile == null)
+        {
+            Destroy(projectileObject);
+            return null;
+        }
+
+        projectile.SetupProjectile(this, target, Combat, -1, -1, Vector2.zero);
+        projectile.ConfigureGiantFireball(
+            ceilingReferencePoint,
+            giantFireballHoverDuration,
+            giantFireballScaleMultiplier,
+            giantFireballDamage,
+            giantFireballFallSpeedMultiplier,
+            giantFireballFollowSpeed,
+            GetGiantFireballHorizontalWallClearance(),
+            GetGiantFireballColliderRadiusMultiplier(),
+            1f
+        );
+
+        return projectile;
+    }
+
+    public Enemy_AbyssMageFireball SpawnSkill4GiantAbyssFireball(
+        Vector2 spawnPosition,
+        Transform ceilingReferencePoint,
+        float hoverDriftPhaseOffset = 0f,
+        float explosionRadius = -1f,
+        float hoverDurationOverride = -1f)
+    {
+        if (spellPrefab == null)
+        {
+            LogSpecialAttackDebug("Skill4 aborted because spellPrefab is null.");
+            return null;
+        }
+
+        GameObject projectileObject = Instantiate(spellPrefab, spawnPosition, Quaternion.identity);
+        Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
+
+        if (projectile == null)
+        {
+            LogSpecialAttackDebug($"Skill4 failed because spawned prefab {projectileObject.name} has no Enemy_AbyssMageFireball component.");
+            Destroy(projectileObject);
+            return null;
+        }
+
+        Transform target = GetPlayerReference();
+        projectile.SetupProjectile(this, target, Combat, -1, -1, Vector2.zero);
+        projectile.ConfigureGiantFireball(
+            ceilingReferencePoint,
+            hoverDurationOverride > 0f
+                ? hoverDurationOverride
+                : giantFireballHoverDuration + skill4GiantFireballHoverDurationBonus,
+            giantFireballScaleMultiplier,
+            giantFireballDamage,
+            giantFireballFallSpeedMultiplier,
+            giantFireballFollowSpeed,
+            GetGiantFireballHorizontalWallClearance(),
+            GetGiantFireballColliderRadiusMultiplier(),
+            1f,
+            followTargetDuringHover: false,
+            hoverDriftPhaseOffset: hoverDriftPhaseOffset,
+            explosionRadius: explosionRadius
+        );
+
+        LogSpecialAttackDebug($"Skill4 spawned giant fireball at {spawnPosition}, ceiling={(ceilingReferencePoint != null ? ceilingReferencePoint.name : "null")}, phaseOffset={hoverDriftPhaseOffset:0.###}");
+        return projectile;
     }
 
     public void EnableCounterWindow()
@@ -716,7 +993,9 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
         LogSpecialAttackDebug($"SpecialAttack resolved: {attackType}, forced={(attackType != AbyssMageSpecialAttackType.Skill1Fireball ? "maybe" : "no")}");
 
-        if (attackType == AbyssMageSpecialAttackType.Skill2MixedFireball && mixedSpellPrefab == null)
+        if ((attackType == AbyssMageSpecialAttackType.Skill2MixedFireball
+                || attackType == AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball)
+            && mixedSpellPrefab == null)
         {
             LogSpecialAttackDebug("Skill2 requested but mixedSpellPrefab is null; falling back to Skill1.");
             attackType = AbyssMageSpecialAttackType.Skill1Fireball;
@@ -736,8 +1015,24 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
             return;
         }
 
+        if (attackType == AbyssMageSpecialAttackType.Skill4SixGiantAbyssFireballs && spellPrefab == null)
+        {
+            LogSpecialAttackDebug("Skill4 aborted because spellPrefab is null.");
+            SetSpellCastPerformed(true);
+            return;
+        }
+
         if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball)
         {
+            ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+            if (controller != null
+                && controller.ShouldReplaceAbyssMageSkill3WithEnhanced(this)
+                && controller.TryStartEnhancedAbyssMageSkill3())
+            {
+                SetSpellCastPerformed(true);
+                return;
+            }
+
             if (IsSkill3OnCooldown)
             {
                 LogSpecialAttackDebug("Skill3 aborted because it is on cooldown.");
@@ -746,6 +1041,25 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
             }
 
             LockSpecialAttackForDuration(specialAttackLockDuration);
+        }
+
+        if (attackType == AbyssMageSpecialAttackType.Skill4SixGiantAbyssFireballs)
+        {
+            LockSpecialAttackForDuration(specialAttackLockDuration);
+        }
+
+        if (attackType == AbyssMageSpecialAttackType.EnhancedSkill3GiantAbyssFireball)
+        {
+            ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+            if (controller != null && controller.TryStartEnhancedAbyssMageSkill3())
+            {
+                SetSpellCastPerformed(true);
+                return;
+            }
+
+            LogSpecialAttackDebug("Enhanced skill3 aborted because the encounter controller could not start it.");
+            SetSpellCastPerformed(true);
+            return;
         }
 
         Transform target = GetPlayerReference();
@@ -759,13 +1073,15 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         if (attackType == AbyssMageSpecialAttackType.Skill3GiantAbyssFireball)
         {
             LockSkill3Cooldown(skill3CooldownDuration);
+            ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+            controller?.NotifyAbyssMageNormalSkill3Cast(this);
         }
 
         LogSpecialAttackDebug($"Starting CastSpellCo with {attackType}.");
         spellCastCoroutine = StartCoroutine(CastSpellCo(target, attackType));
     }
 
-    public Enemy_AbyssMageFireball SpawnPreviewGiantAbyssFireball(Transform previewTarget = null)
+    public Enemy_AbyssMageFireball SpawnPreviewGiantAbyssFireball(Transform previewTarget = null, float explosionRadius = -1f)
     {
         if (spellPrefab == null)
         {
@@ -796,16 +1112,20 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
             ceilingReferencePoint,
             giantFireballHoverDuration,
             giantFireballScaleMultiplier,
-            giantFireballDamageMultiplier,
+            giantFireballDamage,
             giantFireballFallSpeedMultiplier,
-            giantFireballFollowSpeed
+            giantFireballFollowSpeed,
+            GetGiantFireballHorizontalWallClearance(),
+            GetGiantFireballColliderRadiusMultiplier(),
+            1f,
+            explosionRadius: explosionRadius
         );
         return projectile;
     }
 
-    public bool PreviewGiantAbyssFireball(Transform previewTarget = null)
+    public bool PreviewGiantAbyssFireball(Transform previewTarget = null, float explosionRadius = -1f)
     {
-        return SpawnPreviewGiantAbyssFireball(previewTarget) != null;
+        return SpawnPreviewGiantAbyssFireball(previewTarget, explosionRadius) != null;
     }
 
     public AbyssMageSpecialAttackType GetSpecialAttackTypeForCurrentCast()
@@ -850,6 +1170,10 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         rangeTeleportInitialChance = Mathf.Clamp(rangeTeleportInitialChance, 0f, 100f);
         rangeTeleportChanceIncrement = Mathf.Clamp(rangeTeleportChanceIncrement, 0f, 100f);
         rangeTeleportCheckInterval = Mathf.Max(.1f, rangeTeleportCheckInterval);
+        damageTeleportInitialChance = Mathf.Clamp(damageTeleportInitialChance, 0f, 100f);
+        damageTeleportChanceIncrement = Mathf.Clamp(damageTeleportChanceIncrement, 0f, 100f);
+        damageTeleportTriggerDelay = Mathf.Max(0f, damageTeleportTriggerDelay);
+        damageTeleportCooldown = Mathf.Max(0f, damageTeleportCooldown);
         stunnedDuration = Mathf.Max(.1f, stunnedDuration);
         idleDurationMin = Mathf.Max(.1f, idleDurationMin);
         idleDurationMax = Mathf.Max(idleDurationMin, idleDurationMax);
@@ -868,12 +1192,15 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         projectileHoverMaxPlacementAttempts = Mathf.Max(1, projectileHoverMaxPlacementAttempts);
         giantFireballHoverDuration = Mathf.Max(0f, giantFireballHoverDuration);
         giantFireballScaleMultiplier = Mathf.Max(1f, giantFireballScaleMultiplier);
-        giantFireballDamageMultiplier = Mathf.Max(1f, giantFireballDamageMultiplier);
+        abyssFireballDamage = Mathf.Max(1, abyssFireballDamage);
+        hybridCoreFireballDamage = Mathf.Max(1, hybridCoreFireballDamage);
+        giantFireballDamage = Mathf.Max(1, giantFireballDamage);
         giantFireballFallSpeedMultiplier = Mathf.Max(0f, giantFireballFallSpeedMultiplier);
         giantFireballFollowSpeed = Mathf.Max(0f, giantFireballFollowSpeed);
-        skill1FireballDamageMultiplier = Mathf.Max(0f, skill1FireballDamageMultiplier);
         specialAttackLockDuration = Mathf.Max(0f, specialAttackLockDuration);
         skill3CooldownDuration = Mathf.Max(0f, skill3CooldownDuration);
+        skill4GiantFireballHoverDurationBonus = Mathf.Max(0f, skill4GiantFireballHoverDurationBonus);
+        meleeDamage = Mathf.Max(1, meleeDamage);
         retreatCooldown = Mathf.Max(0f, retreatCooldown);
         retreatMaxDistance = Mathf.Max(0f, retreatMaxDistance);
         retreatSpeed = Mathf.Max(0f, retreatSpeed);
@@ -903,6 +1230,80 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         }
     }
 
+#if UNITY_EDITOR
+    private void OnDrawGizmosSelected()
+    {
+        DrawBattleRangeGizmos();
+    }
+
+    private void DrawBattleRangeGizmos()
+    {
+        Bounds bodyBounds = GetGizmoBodyBounds();
+        Vector3 center = bodyBounds.center;
+        Vector3 meleeSize = new Vector3(Mathf.Max(.1f, attackDistance * 2f), Mathf.Max(.1f, bodyBounds.size.y), 0f);
+        Vector3 spellSize = new Vector3(Mathf.Max(.1f, spellCastDistance * 2f), Mathf.Max(.1f, chaseVerticalDistance * 2f), 0f);
+
+        DrawGizmoBox(
+            center,
+            meleeSize,
+            new Color(1f, .45f, .15f, .12f),
+            new Color(1f, .45f, .15f, 1f),
+            $"Melee / {attackDistance:0.##}"
+        );
+
+        DrawGizmoBox(
+            center,
+            spellSize,
+            new Color(.35f, .8f, 1f, .10f),
+            new Color(.35f, .8f, 1f, 1f),
+            $"Spell / {spellCastDistance:0.##}"
+        );
+    }
+
+    private Bounds GetGizmoBodyBounds()
+    {
+        Collider2D collider2D = GetComponent<Collider2D>();
+        if (collider2D != null)
+        {
+            return collider2D.bounds;
+        }
+
+        return new Bounds(transform.position, Vector3.one);
+    }
+
+    private float GetMeleeVerticalRange()
+    {
+        Bounds bodyBounds = GetGizmoBodyBounds();
+        return Mathf.Max(.1f, bodyBounds.size.y);
+    }
+
+    private void DrawGizmoBox(Vector3 center, Vector3 size, Color fillColor, Color wireColor, string label)
+    {
+        Vector3 half = size * .5f;
+        Vector3[] corners =
+        {
+            center + new Vector3(-half.x, -half.y, 0f),
+            center + new Vector3(-half.x, half.y, 0f),
+            center + new Vector3(half.x, half.y, 0f),
+            center + new Vector3(half.x, -half.y, 0f)
+        };
+
+        Handles.DrawSolidRectangleWithOutline(corners, fillColor, wireColor);
+        Handles.Label(center + Vector3.up * (half.y + .12f), label, GetGizmoLabelStyle(wireColor));
+    }
+
+    private static GUIStyle GetGizmoLabelStyle(Color color)
+    {
+        return new GUIStyle(EditorStyles.boldLabel)
+        {
+            normal =
+            {
+                textColor = color
+            }
+        };
+    }
+#endif
+
     private IEnumerator CastSpellCo(Transform target, AbyssMageSpecialAttackType attackType)
     {
         SetSpellCastPerformed(false);
@@ -917,16 +1318,23 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
             yield break;
         }
 
-        if (attackType == AbyssMageSpecialAttackType.Skill2MixedFireball)
+        if (attackType == AbyssMageSpecialAttackType.Skill2MixedFireball
+            || attackType == AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball)
         {
             Vector3 spawnPosition = GetMixedSpellSpawnPosition();
-            LogSpecialAttackDebug($"Spawning Skill2 mixed fireball at {spawnPosition}");
+            LogSpecialAttackDebug($"Spawning {(attackType == AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball ? "enhanced Skill2" : "Skill2")} mixed fireball at {spawnPosition}");
             GameObject projectileObject = Instantiate(mixedSpellPrefab, spawnPosition, Quaternion.identity);
             Enemy_AbyssMageFireball projectile = projectileObject.GetComponent<Enemy_AbyssMageFireball>();
 
             if (projectile != null)
             {
                 projectile.SetupProjectile(this, target, Combat, -1, -1, Vector2.zero);
+                projectile.ConfigureHybridOrbitDamage(abyssFireballDamage, hybridCoreFireballDamage);
+
+                if (attackType == AbyssMageSpecialAttackType.EnhancedSkill2MixedFireball)
+                {
+                    projectile.ConfigureHybridOrbitMode(2f, 1.5f, 10f, true, true);
+                }
             }
             else
             {
@@ -959,14 +1367,39 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
                     ceilingReferencePoint,
                     giantFireballHoverDuration,
                     giantFireballScaleMultiplier,
-                    giantFireballDamageMultiplier,
+                    giantFireballDamage,
                     giantFireballFallSpeedMultiplier,
-                    giantFireballFollowSpeed
+                    giantFireballFollowSpeed,
+                    GetGiantFireballHorizontalWallClearance(),
+                    GetGiantFireballColliderRadiusMultiplier(),
+                    1f
                 );
             }
             else
             {
                 Destroy(projectileObject);
+            }
+
+            if (spellCastCooldown > 0f)
+            {
+                yield return new WaitForSeconds(spellCastCooldown);
+            }
+            else
+            {
+                yield return null;
+            }
+        }
+        else if (attackType == AbyssMageSpecialAttackType.Skill4SixGiantAbyssFireballs)
+        {
+            ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+            if (controller != null)
+            {
+                LogSpecialAttackDebug("Spawning Skill4 giant abyss fireballs across all platforms.");
+                yield return controller.RunAbyssMageSkill4Routine();
+            }
+            else
+            {
+                LogSpecialAttackDebug("Skill4 fell back because encounter controller is missing.");
             }
 
             if (spellCastCooldown > 0f)
@@ -1001,7 +1434,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
                     if (projectile != null)
                     {
                         projectile.SetupProjectile(this, target, Combat, laneIndex, reservedHoverSlot ? hoverReservationId : -1, hoverOffset);
-                        projectile.ConfigureRegularFireballDamage(skill1FireballDamageMultiplier);
+                        projectile.ConfigureExplicitDamage(abyssFireballDamage);
                         FireballSummoned?.Invoke();
                     }
                     else
@@ -1077,6 +1510,377 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
     private bool IsSpecialAttackLocked => Time.time < specialAttackLockedUntilTime;
 
+    private void HoldEnhancedSkill3CastPosition()
+    {
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        if (rb != null)
+        {
+            rb.gravityScale = 0f;
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+
+            if (enhancedSkill3HasCastPosition)
+            {
+                rb.position = enhancedSkill3CastPosition;
+                transform.position = new Vector3(enhancedSkill3CastPosition.x, enhancedSkill3CastPosition.y, transform.position.z);
+            }
+        }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (Time.time >= nextEnhancedSkill3HoldDebugTime)
+        {
+            nextEnhancedSkill3HoldDebugTime = Time.time + 0.5f;
+            LogEnhancedSkill3HoldState("HoldEnhancedSkill3CastPosition tick");
+        }
+#endif
+    }
+
+    private void StartEnhancedSkill3EndDebugProbe()
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (!isActiveAndEnabled || !gameObject.activeInHierarchy)
+        {
+            LogEnhancedSkill3HoldState("PostEndProbe skipped because mage is inactive");
+            return;
+        }
+
+        if (enhancedSkill3EndDebugCoroutine != null)
+        {
+            StopCoroutine(enhancedSkill3EndDebugCoroutine);
+        }
+
+        enhancedSkill3EndDebugCoroutine = StartCoroutine(EnhancedSkill3EndDebugProbeRoutine(enhancedSkill3EndCallCount));
+#endif
+    }
+
+    private bool TryGetEnhancedSkill3GroundTeleportDestination(out Vector2 destination)
+    {
+        EnsureGroundMaskAssigned();
+        destination = transform.position;
+
+        Bounds bounds = GetColliderBounds();
+        float searchDistance = Mathf.Max(10f, EnhancedSkill3ForcedFallGroundSearchDistance);
+        Vector2 boxSize = new Vector2(
+            Mathf.Max(0.05f, bounds.size.x * 0.8f),
+            Mathf.Max(0.03f, bounds.size.y * 0.08f));
+        Vector2 boxOrigin = new Vector2(bounds.center.x, bounds.min.y + boxSize.y * 0.5f + 0.02f);
+
+        RaycastHit2D hit = Physics2D.BoxCast(boxOrigin, boxSize, 0f, Vector2.down, searchDistance, whatIsGround);
+        if (hit.collider == null)
+        {
+            Vector2 rayOrigin = new Vector2(bounds.center.x, bounds.min.y + 0.02f);
+            hit = Physics2D.Raycast(rayOrigin, Vector2.down, searchDistance, whatIsGround);
+        }
+
+        if (hit.collider == null)
+        {
+            return false;
+        }
+
+        float bottomOffset = bounds.center.y - bounds.min.y;
+        destination = new Vector2(bounds.center.x, hit.point.y + bottomOffset + 0.01f);
+        return true;
+    }
+
+    private void SetAbyssMageVisible(bool visible)
+    {
+        if (cachedSpriteRenderers == null || cachedSpriteRenderers.Length == 0)
+        {
+            cachedSpriteRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+        }
+
+        for (int i = 0; i < cachedSpriteRenderers.Length; i++)
+        {
+            SpriteRenderer renderer = cachedSpriteRenderers[i];
+            if (renderer != null)
+            {
+                renderer.enabled = visible;
+            }
+        }
+    }
+
+    private void UpdateEnhancedSkill3ForcedFall()
+    {
+        if (attackCooldownTimer > 0f)
+        {
+            attackCooldownTimer -= Time.deltaTime;
+        }
+
+        if (spellAttackCooldownTimer > 0f)
+        {
+            spellAttackCooldownTimer -= Time.deltaTime;
+        }
+
+        SetFacingLocked(false);
+        SetAnimation(false, false, false);
+        SetBattleAnimation(false, 0f);
+
+        if (!TryResolveEnhancedSkill3ForcedFallLanding())
+        {
+            return;
+        }
+
+        enhancedSkill3ForceFallActive = false;
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+        }
+
+        LogEnhancedSkill3HoldState("Forced fall landed");
+        RestoreStateAfterEnhancedSkill3Hold();
+    }
+
+    private bool TryResolveEnhancedSkill3ForcedFallLanding()
+    {
+        if (GroundDetected() || GroundContactDetected())
+        {
+            return true;
+        }
+
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        Bounds bounds = GetColliderBounds();
+        float nearCastDistance = Mathf.Max(0.2f, EnhancedSkill3ForcedFallSpeed * Time.fixedDeltaTime * 2f);
+        if (TryFindEnhancedSkill3GroundBelow(bounds, nearCastDistance, out RaycastHit2D nearHit))
+        {
+            SnapEnhancedSkill3ForcedFallToGround(bounds, nearHit);
+            return true;
+        }
+
+        if (Time.time - enhancedSkill3ForceFallStartTime < EnhancedSkill3ForcedFallGroundSnapDelay)
+        {
+            return false;
+        }
+
+        if (TryFindEnhancedSkill3GroundBelow(bounds, EnhancedSkill3ForcedFallGroundSearchDistance, out RaycastHit2D fallbackHit))
+        {
+            SnapEnhancedSkill3ForcedFallToGround(bounds, fallbackHit);
+            LogEnhancedSkill3HoldState("Forced fall fallback snapped to ground");
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryFindEnhancedSkill3GroundBelow(Bounds bounds, float distance, out RaycastHit2D hit)
+    {
+        Vector2 boxSize = new Vector2(Mathf.Max(0.05f, bounds.size.x * 0.8f), Mathf.Max(0.03f, bounds.size.y * 0.08f));
+        Vector2 boxOrigin = new Vector2(bounds.center.x, bounds.min.y + boxSize.y * 0.5f + 0.02f);
+        hit = Physics2D.BoxCast(boxOrigin, boxSize, 0f, Vector2.down, Mathf.Max(0.01f, distance), whatIsGround);
+        if (hit.collider != null)
+        {
+            return true;
+        }
+
+        Vector2 leftOrigin = new Vector2(bounds.min.x + bounds.size.x * 0.2f, bounds.min.y + 0.02f);
+        Vector2 centerOrigin = new Vector2(bounds.center.x, bounds.min.y + 0.02f);
+        Vector2 rightOrigin = new Vector2(bounds.max.x - bounds.size.x * 0.2f, bounds.min.y + 0.02f);
+
+        hit = Physics2D.Raycast(centerOrigin, Vector2.down, Mathf.Max(0.01f, distance), whatIsGround);
+        if (hit.collider != null)
+        {
+            return true;
+        }
+
+        hit = Physics2D.Raycast(leftOrigin, Vector2.down, Mathf.Max(0.01f, distance), whatIsGround);
+        if (hit.collider != null)
+        {
+            return true;
+        }
+
+        hit = Physics2D.Raycast(rightOrigin, Vector2.down, Mathf.Max(0.01f, distance), whatIsGround);
+        return hit.collider != null;
+    }
+
+    private void SnapEnhancedSkill3ForcedFallToGround(Bounds bounds, RaycastHit2D hit)
+    {
+        if (hit.collider == null)
+        {
+            return;
+        }
+
+        float targetY = hit.point.y + (bounds.center.y - bounds.min.y) + 0.01f;
+        Vector2 targetPosition = new Vector2(rb != null ? rb.position.x : transform.position.x, targetY);
+
+        if (rb != null)
+        {
+            rb.position = targetPosition;
+        }
+
+        transform.position = new Vector3(targetPosition.x, targetPosition.y, transform.position.z);
+    }
+
+    private void ApplyEnhancedSkill3ForcedFallVelocity()
+    {
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        if (rb == null)
+        {
+            return;
+        }
+
+        rb.simulated = true;
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+        rb.gravityScale = enhancedSkill3OriginalGravityScale > 0f ? enhancedSkill3OriginalGravityScale : 1f;
+        rb.angularVelocity = 0f;
+        rb.velocity = new Vector2(0f, -EnhancedSkill3ForcedFallSpeed);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (Time.time >= nextEnhancedSkill3HoldDebugTime)
+        {
+            nextEnhancedSkill3HoldDebugTime = Time.time + 0.5f;
+            LogEnhancedSkill3HoldState("Forced fall tick");
+        }
+#endif
+    }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private IEnumerator EnhancedSkill3EndDebugProbeRoutine(int endCallId)
+    {
+        for (int i = 0; i < 12; i++)
+        {
+            yield return new WaitForFixedUpdate();
+            LogEnhancedSkill3HoldState($"PostEndProbe #{endCallId} fixedFrame={i + 1}");
+        }
+
+        enhancedSkill3EndDebugCoroutine = null;
+    }
+
+    private void LogEnhancedSkill3HoldState(string context)
+    {
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        string stateName = stateMachine?.CurrentState != null
+            ? stateMachine.CurrentState.GetType().Name
+            : "null";
+        string rbState = rb != null
+            ? $"rbPos={rb.position}, transformPos={transform.position}, vel={rb.velocity}, gravity={rb.gravityScale}, constraints={rb.constraints}, simulated={rb.simulated}, bodyType={rb.bodyType}, sleeping={rb.IsSleeping()}"
+            : "rb=null";
+
+        Debug.Log(
+            $"[AbyssMageEnhancedSkill3] {context} " +
+            $"suspended={enhancedSkill3Suspended}, forceFall={enhancedSkill3ForceFallActive}, hasCastPos={enhancedSkill3HasCastPosition}, castPos={enhancedSkill3CastPosition}, " +
+            $"state={stateName}, grounded={GroundDetected()}, groundContact={GroundContactDetected()}, facingLocked={IsFacingLocked}, {rbState}",
+            this);
+    }
+
+    private void LogTeleportDebug(string context, Vector2 destination)
+    {
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+        }
+
+        if (cachedSpriteRenderers == null || cachedSpriteRenderers.Length == 0)
+        {
+            cachedSpriteRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+        }
+
+        int visibleRendererCount = 0;
+        if (cachedSpriteRenderers != null)
+        {
+            for (int i = 0; i < cachedSpriteRenderers.Length; i++)
+            {
+                SpriteRenderer renderer = cachedSpriteRenderers[i];
+                if (renderer != null && renderer.enabled)
+                {
+                    visibleRendererCount++;
+                }
+            }
+        }
+
+        string stateName = stateMachine?.CurrentState != null
+            ? stateMachine.CurrentState.GetType().Name
+            : "null";
+        string rbState = rb != null
+            ? $"rbPos={rb.position}, transformPos={transform.position}, vel={rb.velocity}, gravity={rb.gravityScale}, constraints={rb.constraints}, simulated={rb.simulated}, bodyType={rb.bodyType}, sleeping={rb.IsSleeping()}"
+            : "rb=null";
+
+        Debug.Log(
+            $"[AbyssMageTeleport] {context} destination={destination}, active={isActiveAndEnabled}, hierarchyActive={gameObject.activeInHierarchy}, visibleRenderers={visibleRendererCount}/{(cachedSpriteRenderers != null ? cachedSpriteRenderers.Length : 0)}, state={stateName}, {rbState}",
+            this);
+    }
+#endif
+
+    private void RestoreStateAfterEnhancedSkill3Hold()
+    {
+        if (stateMachine == null || IsDead)
+        {
+            return;
+        }
+
+        if (stateMachine.CurrentState == deadState
+            || stateMachine.CurrentState == stunnedState
+            || stateMachine.CurrentState == stunRecoveryState)
+        {
+            return;
+        }
+
+        if (isAlerted && battleState != null)
+        {
+            stateMachine.ChangeState(battleState);
+            RefreshPostEnhancedSkill3AnimationState(battle: true);
+        }
+        else if (idleState != null)
+        {
+            stateMachine.ChangeState(idleState);
+            RefreshPostEnhancedSkill3AnimationState(battle: false);
+        }
+    }
+
+    private void RefreshPostEnhancedSkill3AnimationState(bool battle)
+    {
+        if (anim != null)
+        {
+            anim.speed = 1f;
+        }
+
+        if (battle)
+        {
+            PlayAnimatorState(battleAnimationState);
+            SetAnimation(false, false, false);
+            SetBattleAnimation(true, 0f);
+            SetMoveAnimationSpeed(1f);
+        }
+        else
+        {
+            PlayAnimatorState(idleAnimationState);
+            SetBattleAnimation(false, 0f);
+            SetAnimation(true, false, false);
+            SetMoveAnimationSpeed(1f);
+        }
+    }
+
+    private void RefreshEnhancedSkill3HoldAnimationState()
+    {
+        if (anim != null)
+        {
+            anim.speed = 1f;
+            anim.SetBool("spellCast", false);
+            anim.SetBool("spellCast_performed", false);
+        }
+
+        PlayAnimatorState(battleAnimationState);
+        SetAnimation(false, false, false);
+        SetBattleAnimation(true, 0f);
+        SetMoveAnimationSpeed(1f);
+    }
+
     private Vector3 GetMixedSpellSpawnPosition()
     {
         if (spellStartPosition1 != null && spellStartPosition2 != null)
@@ -1110,11 +1914,61 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         return controller != null ? controller.GetAbyssMageCeilingReferencePoint() : null;
     }
 
+    private float GetGiantFireballHorizontalWallClearance()
+    {
+        ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+        return controller != null ? controller.GiantHorizontalWallClearance : 0.2f;
+    }
+
+    private float GetGiantFireballColliderRadiusMultiplier()
+    {
+        ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+        return controller != null ? controller.GiantFireballColliderRadiusMultiplier : 0.6666667f;
+    }
+
+    private bool TryGetBossArenaBounds(out Bounds bounds)
+    {
+        ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+        if (controller != null && controller.TryGetBossArenaBounds(out bounds))
+        {
+            return true;
+        }
+
+        bounds = default;
+        return false;
+    }
+
+    private bool IsPlayerInsideBossArena(Transform player)
+    {
+        if (player == null || !TryGetBossArenaBounds(out Bounds arenaBounds))
+        {
+            return false;
+        }
+
+        Player playerComponent = player.GetComponent<Player>();
+        if (playerComponent != null && playerComponent.TryGetActiveColliderBounds(out Bounds playerBounds))
+        {
+            return arenaBounds.Intersects(playerBounds) || arenaBounds.Contains(playerBounds.center);
+        }
+
+        return arenaBounds.Contains(player.position);
+    }
+
     private void UpdatePlayerPerception()
     {
         Transform detectedPlayer = PlayerDetected();
+        bool playerInBossArena = IsPlayerInsideBossArena(detectedPlayer != null ? detectedPlayer : playerTarget);
 
-        if (detectedPlayer != null)
+        if (playerInBossArena && detectedPlayer != null)
+        {
+            playerTarget = detectedPlayer;
+            playerVisible = true;
+            playerTargetDirection = GetPlayerDirection();
+            lastTimeSeenPlayer = Time.time;
+            isAlerted = true;
+            shouldReturnToPatrol = false;
+        }
+        else if (detectedPlayer != null)
         {
             playerTarget = detectedPlayer;
             playerVisible = true;
@@ -1125,7 +1979,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         }
         else
         {
-            playerVisible = false;
+            playerVisible = playerInBossArena;
         }
 
         if (playerTarget == null)
@@ -1142,11 +1996,11 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
         float horizontalDistance = Mathf.Abs(playerTarget.position.x - transform.position.x);
         float verticalDistance = Mathf.Abs(playerTarget.position.y - transform.position.y);
-        playerWithinChaseHeight = verticalDistance <= chaseVerticalDistance;
-        playerInMeleeRange = playerWithinChaseHeight && horizontalDistance <= attackDistance;
-        playerInSpellCastRange = horizontalDistance <= spellCastDistance;
+        playerWithinChaseHeight = playerInBossArena || verticalDistance <= chaseVerticalDistance;
+        playerInMeleeRange = horizontalDistance <= attackDistance && verticalDistance <= GetMeleeVerticalRange();
+        playerInSpellCastRange = playerInBossArena || horizontalDistance <= spellCastDistance;
 
-        if (playerInSpellCastRange)
+        if (playerVisible || playerInBossArena)
         {
             if (!isAlerted)
             {
@@ -1163,6 +2017,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         }
 
         if (isAlerted
+            && !playerInBossArena
             && !playerVisible
             && !playerInSpellCastRange
             && lastTimeSeenPlayer > 0f
@@ -1174,6 +2029,12 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
     public Transform PlayerDetected()
     {
+        Transform playerReference = FindAnyPlayerReference();
+        if (playerReference != null && IsPlayerInsideBossArena(playerReference))
+        {
+            return playerReference;
+        }
+
         if (whatIsPlayer.value == 0)
         {
             return null;
@@ -1405,6 +2266,19 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         rangeTeleportTimer = 0f;
     }
 
+    public void ResetDamageTeleportTriggerState()
+    {
+        damageTeleportHitCount = 0;
+        currentDamageTeleportChance = damageTeleportInitialChance;
+        damageTeleportCooldownUntilTime = float.NegativeInfinity;
+
+        if (damageTeleportRoutine != null)
+        {
+            StopCoroutine(damageTeleportRoutine);
+            damageTeleportRoutine = null;
+        }
+    }
+
     public bool TryTeleportToRetreatPoint(out Vector2 destination)
     {
         if (!TryFindTeleportDestination(out destination))
@@ -1415,34 +2289,133 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         return TeleportToDestination(destination);
     }
 
+    private IEnumerator RunDamageTeleportTriggerRoutine()
+    {
+        float delay = Mathf.Max(0f, damageTeleportTriggerDelay);
+        if (delay > 0f)
+        {
+            yield return new WaitForSeconds(delay);
+        }
+
+        damageTeleportRoutine = null;
+
+        if (IsDead || stateMachine == null || stateMachine.CurrentState == retreatState || enhancedSkill3Suspended)
+        {
+            yield break;
+        }
+
+        if (Time.time < damageTeleportCooldownUntilTime)
+        {
+            yield break;
+        }
+
+        if (TryRollPercent(currentDamageTeleportChance) && TryTriggerTeleport(ignoreCooldown: true))
+        {
+            currentDamageTeleportChance = damageTeleportInitialChance;
+            damageTeleportCooldownUntilTime = Time.time + Mathf.Max(0f, damageTeleportCooldown);
+            yield break;
+        }
+
+        currentDamageTeleportChance = Mathf.Clamp(
+            currentDamageTeleportChance + damageTeleportChanceIncrement,
+            0f,
+            100f
+        );
+    }
+
     public bool TeleportToDestination(Vector2 destination)
     {
+        return TeleportToDestination(destination, true);
+    }
+
+    public bool TeleportToDestination(Vector2 destination, bool createEchoTrail)
+    {
+        if (!TryResolveSafeTeleportDestination(destination, out Vector2 safeDestination))
+        {
+            LogTeleportDebug("TeleportToDestination rejected unsafe destination", destination);
+            return false;
+        }
+
         Vector3 visualStart = GetVisualWorldPosition((Vector2)transform.position);
-        Vector3 visualEnd = GetVisualWorldPosition(destination);
+        Vector3 visualEnd = GetVisualWorldPosition(safeDestination);
+
+        LogTeleportDebug($"TeleportToDestination begin createEchoTrail={createEchoTrail}", safeDestination);
 
         if (rb != null)
         {
+            RigidbodyInterpolation2D originalInterpolation = rb.interpolation;
             rb.velocity = Vector2.zero;
-            rb.position = destination;
+            rb.position = safeDestination;
+            rb.angularVelocity = 0f;
+            rb.interpolation = RigidbodyInterpolation2D.None;
+
+            transform.position = new Vector3(safeDestination.x, safeDestination.y, transform.position.z);
+            Physics2D.SyncTransforms();
+
+            rb.interpolation = originalInterpolation;
         }
-        else
+
+        if (createEchoTrail)
         {
-            transform.position = destination;
+            Entity_VFX entityVFX = GetComponent<Entity_VFX>();
+            if (entityVFX != null)
+            {
+                entityVFX.CreateImageEchoTrail(visualStart, visualEnd, teleportImageEchoCount, teleportImageEchoLifetime);
+            }
         }
+
+        QueueTeleportVisualRestore();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[AbyssMageTeleport] Visual restore completed after teleport. createEchoTrail={createEchoTrail}", this);
+#endif
+
+        LogTeleportDebug("TeleportToDestination end", safeDestination);
+        return true;
+    }
+
+    private void QueueTeleportVisualRestore()
+    {
+        pendingTeleportVisualRestore = true;
+    }
+
+    private void LateUpdate()
+    {
+        if (!pendingTeleportVisualRestore)
+        {
+            return;
+        }
+
+        pendingTeleportVisualRestore = false;
 
         Entity_VFX entityVFX = GetComponent<Entity_VFX>();
         if (entityVFX != null)
         {
-            entityVFX.CreateImageEchoTrail(visualStart, visualEnd, teleportImageEchoCount, teleportImageEchoLifetime);
+            entityVFX.RestoreVisualState();
         }
 
-        return true;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log("[AbyssMageTeleport] Delayed visual restore applied in LateUpdate after teleport.", this);
+#endif
     }
 
     public bool TryFindTeleportDestination(out Vector2 destination)
     {
         EnsureGroundMaskAssigned();
         destination = transform.position;
+
+        ArenaBossEncounterController encounter = ArenaBossEncounterController.GetActiveInstance();
+        if (encounter != null && encounter.TryGetAbyssMageRandomPlatformTeleportDestination(this, out destination))
+        {
+            return TryResolveSafeTeleportDestination(destination, out destination)
+                && IsTeleportDestinationInsideBossArena(destination);
+        }
+
+        if (encounter != null && encounter.IsActiveAbyssMageBoss(this))
+        {
+            return false;
+        }
+
         Vector2 areaCenter = TeleportAreaCenter;
         Vector2 halfSize = TeleportAreaSize * .5f;
         Transform player = GetPlayerReference();
@@ -1493,8 +2466,11 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
                 continue;
             }
 
-            destination = candidateRootPosition;
-            return true;
+            if (TryResolveSafeTeleportDestination(candidateRootPosition, out destination)
+                && IsTeleportDestinationInsideBossArena(destination))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -1540,6 +2516,63 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         );
 
         return overlap == null;
+    }
+
+    private bool TryResolveSafeTeleportDestination(Vector2 desiredRootPosition, out Vector2 safeDestination)
+    {
+        safeDestination = desiredRootPosition;
+
+        if (IsTeleportDestinationSafe(desiredRootPosition))
+        {
+            return true;
+        }
+
+        Bounds bounds = GetColliderBounds();
+        float horizontalStep = Mathf.Max(.15f, bounds.size.x * .25f);
+        float verticalStep = Mathf.Max(.15f, bounds.size.y * .25f);
+
+        Vector2[] offsets =
+        {
+            Vector2.up * verticalStep,
+            Vector2.up * (verticalStep * 2f),
+            Vector2.left * horizontalStep,
+            Vector2.right * horizontalStep,
+            Vector2.up * verticalStep + Vector2.left * horizontalStep,
+            Vector2.up * verticalStep + Vector2.right * horizontalStep,
+            Vector2.up * (verticalStep * 2f) + Vector2.left * horizontalStep,
+            Vector2.up * (verticalStep * 2f) + Vector2.right * horizontalStep,
+            Vector2.up * (verticalStep * 3f),
+        };
+
+        for (int i = 0; i < offsets.Length; i++)
+        {
+            Vector2 candidate = desiredRootPosition + offsets[i];
+            if (IsTeleportDestinationSafe(candidate))
+            {
+                safeDestination = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsTeleportDestinationInsideBossArena(Vector2 rootPosition)
+    {
+        if (!TryGetBossArenaBounds(out Bounds arenaBounds))
+        {
+            return true;
+        }
+
+        Bounds currentBounds = GetColliderBounds();
+        Vector3 delta = new Vector3(
+            rootPosition.x - transform.position.x,
+            rootPosition.y - transform.position.y,
+            0f
+        );
+
+        currentBounds.center += delta;
+        return arenaBounds.Contains(currentBounds.min) && arenaBounds.Contains(currentBounds.max);
     }
 
     private void UpdateRangeTeleportTrigger()

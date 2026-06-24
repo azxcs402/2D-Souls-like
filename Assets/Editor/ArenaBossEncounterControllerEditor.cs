@@ -17,6 +17,7 @@ public class ArenaBossEncounterControllerEditor : Editor
     private static int previewBackgroundCount;
     private static int previewAbyssPowerCount;
     private static readonly List<PreviewCleanupEntry> previewCleanupEntries = new List<PreviewCleanupEntry>();
+    private static readonly List<GiantFireballPreviewEntry> giantFireballPreviewEntries = new List<GiantFireballPreviewEntry>();
 
     private struct PreviewCleanupEntry
     {
@@ -24,9 +25,16 @@ public class ArenaBossEncounterControllerEditor : Editor
         public double ExpireAt;
     }
 
+    private struct GiantFireballPreviewEntry
+    {
+        public Enemy_AbyssMageFireball Projectile;
+        public double LastUpdateTime;
+    }
+
     static ArenaBossEncounterControllerEditor()
     {
         EditorApplication.update += UpdatePreviewCleanup;
+        EditorApplication.update += UpdateGiantFireballPreviews;
     }
     private SerializedProperty bossEnemyProperty;
     private SerializedProperty bossPrefabProperty;
@@ -36,6 +44,7 @@ public class ArenaBossEncounterControllerEditor : Editor
     private SerializedProperty phase4HealthThresholdProperty;
     private SerializedProperty bossPhaseStatesProperty;
     private SerializedProperty bossFloatingPlatformProperty;
+    private SerializedProperty giantFireballExplosionRadiusProperty;
     private SerializedProperty abyssFiresProperty;
     private SerializedProperty abyssFireRevealDelayProperty;
     private SerializedProperty abyssPowersProperty;
@@ -47,6 +56,16 @@ public class ArenaBossEncounterControllerEditor : Editor
     private SerializedProperty abyssMagePassiveSkillPointInitialChanceProperty;
     private SerializedProperty abyssMagePassiveSkillPointChanceIncrementProperty;
     private SerializedProperty abyssMagePassiveSkillPointCheckIntervalProperty;
+    private SerializedProperty giantHorizontalWallClearanceProperty;
+    private SerializedProperty giantFireballColliderRadiusMultiplierProperty;
+    private SerializedProperty bossEnhancedSkill3CastPointProperty;
+    private SerializedProperty bossSkill5CastPointProperty;
+    private SerializedProperty normalSkill3CastsBeforeEnhancedProperty;
+    private SerializedProperty enhancedSkill3GiantFireballCountProperty;
+    private SerializedProperty enhancedSkill3FireballIntervalProperty;
+    private SerializedProperty enhancedSkill3PlatformRiseStartDelayProperty;
+    private SerializedProperty enhancedSkill3PlatformRiseCountProperty;
+    private SerializedProperty enhancedSkill3PlatformRiseIntervalProperty;
     private SerializedProperty skillPointBackgroundsProperty;
     private SerializedProperty bossHealthBarProperty;
     private SerializedProperty bossTargetProperty;
@@ -75,6 +94,7 @@ public class ArenaBossEncounterControllerEditor : Editor
         phase4HealthThresholdProperty = serializedObject.FindProperty("phase4HealthThreshold");
         bossPhaseStatesProperty = serializedObject.FindProperty("bossPhaseStates");
         bossFloatingPlatformProperty = serializedObject.FindProperty("bossFloatingPlatform");
+        giantFireballExplosionRadiusProperty = serializedObject.FindProperty("giantFireballExplosionRadius");
         abyssFiresProperty = serializedObject.FindProperty("abyssFires");
         abyssFireRevealDelayProperty = serializedObject.FindProperty("abyssFireRevealDelay");
         abyssPowersProperty = serializedObject.FindProperty("abyssPowers");
@@ -86,6 +106,16 @@ public class ArenaBossEncounterControllerEditor : Editor
         abyssMagePassiveSkillPointInitialChanceProperty = serializedObject.FindProperty("abyssMagePassiveSkillPointInitialChance");
         abyssMagePassiveSkillPointChanceIncrementProperty = serializedObject.FindProperty("abyssMagePassiveSkillPointChanceIncrement");
         abyssMagePassiveSkillPointCheckIntervalProperty = serializedObject.FindProperty("abyssMagePassiveSkillPointCheckInterval");
+        giantHorizontalWallClearanceProperty = serializedObject.FindProperty("giantHorizontalWallClearance");
+        giantFireballColliderRadiusMultiplierProperty = serializedObject.FindProperty("giantFireballColliderRadiusMultiplier");
+        bossEnhancedSkill3CastPointProperty = serializedObject.FindProperty("bossEnhancedSkill3CastPoint");
+        bossSkill5CastPointProperty = serializedObject.FindProperty("bossSkill5CastPoint");
+        normalSkill3CastsBeforeEnhancedProperty = serializedObject.FindProperty("normalSkill3CastsBeforeEnhanced");
+        enhancedSkill3GiantFireballCountProperty = serializedObject.FindProperty("enhancedSkill3GiantFireballCount");
+        enhancedSkill3FireballIntervalProperty = serializedObject.FindProperty("enhancedSkill3FireballInterval");
+        enhancedSkill3PlatformRiseStartDelayProperty = serializedObject.FindProperty("enhancedSkill3PlatformRiseStartDelay");
+        enhancedSkill3PlatformRiseCountProperty = serializedObject.FindProperty("enhancedSkill3PlatformRiseCount");
+        enhancedSkill3PlatformRiseIntervalProperty = serializedObject.FindProperty("enhancedSkill3PlatformRiseInterval");
         skillPointBackgroundsProperty = serializedObject.FindProperty("skillPointBackgrounds");
         bossHealthBarProperty = serializedObject.FindProperty("bossHealthBar");
         bossTargetProperty = serializedObject.FindProperty("bossTarget");
@@ -207,6 +237,11 @@ public class ArenaBossEncounterControllerEditor : Editor
             {
                 CreateOrRepairAbyssPowerGroup();
             }
+
+            if (GUILayout.Button("Create / Repair Boss References"))
+            {
+                CreateOrRepairBossReferences();
+            }
         }
 
         EditorGUILayout.EndVertical();
@@ -216,6 +251,7 @@ public class ArenaBossEncounterControllerEditor : Editor
     {
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("Boss Encounter", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(giantFireballExplosionRadiusProperty, new GUIContent("Giant Fireball Explosion Radius"));
         EditorGUILayout.PropertyField(bossEnemyProperty);
         EditorGUILayout.PropertyField(bossPrefabProperty);
         EditorGUILayout.PropertyField(bossPhaseCountProperty);
@@ -546,7 +582,7 @@ public class ArenaBossEncounterControllerEditor : Editor
                     ArenaBossEncounterController controller = target as ArenaBossEncounterController;
                     if (controller != null)
                     {
-                        controller.PreviewAbyssMageGiantSpellCast();
+                        controller.PreviewAbyssMageGiantSpellCast(GetGiantFireballExplosionRadius());
                     }
                 }
                 else
@@ -567,6 +603,19 @@ public class ArenaBossEncounterControllerEditor : Editor
         EditorGUILayout.PropertyField(abyssMagePassiveSkillPointInitialChanceProperty, new GUIContent("Passive Skill Point Initial Chance"));
         EditorGUILayout.PropertyField(abyssMagePassiveSkillPointChanceIncrementProperty, new GUIContent("Passive Skill Point Chance Increment"));
         EditorGUILayout.PropertyField(abyssMagePassiveSkillPointCheckIntervalProperty, new GUIContent("Passive Skill Point Check Interval"));
+        EditorGUILayout.PropertyField(giantHorizontalWallClearanceProperty, new GUIContent("Giant Horizontal Wall Clearance"));
+        EditorGUILayout.PropertyField(giantFireballColliderRadiusMultiplierProperty, new GUIContent("Giant Fireball Collider Radius Multiplier"));
+
+        EditorGUILayout.Space(4f);
+        EditorGUILayout.LabelField("Enhanced Skill 3", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(bossEnhancedSkill3CastPointProperty, new GUIContent("Boss Enhanced Skill3 Cast Point"));
+        EditorGUILayout.PropertyField(bossSkill5CastPointProperty, new GUIContent("Boss Skill5 Cast Point"));
+        EditorGUILayout.PropertyField(normalSkill3CastsBeforeEnhancedProperty, new GUIContent("Normal Skill3 Casts Before Enhanced"));
+        EditorGUILayout.PropertyField(enhancedSkill3GiantFireballCountProperty, new GUIContent("Enhanced Giant Fireball Count"));
+        EditorGUILayout.PropertyField(enhancedSkill3FireballIntervalProperty, new GUIContent("Enhanced Fireball Interval"));
+        EditorGUILayout.PropertyField(enhancedSkill3PlatformRiseStartDelayProperty, new GUIContent("Platform Rise Start Delay"));
+        EditorGUILayout.PropertyField(enhancedSkill3PlatformRiseCountProperty, new GUIContent("Platform Rise Count"));
+        EditorGUILayout.PropertyField(enhancedSkill3PlatformRiseIntervalProperty, new GUIContent("Platform Rise Interval"));
 
         EditorGUILayout.EndVertical();
     }
@@ -574,17 +623,10 @@ public class ArenaBossEncounterControllerEditor : Editor
     private void PreviewAbyssMageGiantSpellCastInEditMode()
     {
         ArenaBossEncounterController controller = target as ArenaBossEncounterController;
-        Enemy_AbyssMage mage = bossEnemyProperty != null ? bossEnemyProperty.objectReferenceValue as Enemy_AbyssMage : null;
-
-        if (mage == null)
-        {
-            mage = controller != null ? controller.GetComponentInChildren<Enemy_AbyssMage>(true) : null;
-        }
-
-        if (mage == null)
-        {
-            mage = Object.FindObjectOfType<Enemy_AbyssMage>(true);
-        }
+        bool spawnedTemporaryMage;
+        Enemy_AbyssMage mage = controller != null
+            ? controller.ResolvePreviewAbyssMageForSpellPreview(false, out spawnedTemporaryMage)
+            : null;
 
         if (mage == null)
         {
@@ -592,7 +634,7 @@ public class ArenaBossEncounterControllerEditor : Editor
             return;
         }
 
-        Enemy_AbyssMageFireball previewProjectile = mage.SpawnPreviewGiantAbyssFireball();
+        Enemy_AbyssMageFireball previewProjectile = mage.SpawnPreviewGiantAbyssFireball(null, GetGiantFireballExplosionRadius());
         if (previewProjectile == null)
         {
             Debug.LogWarning("[AbyssMageBoss] Edit-mode preview failed because the giant fireball could not be spawned.", mage);
@@ -602,7 +644,29 @@ public class ArenaBossEncounterControllerEditor : Editor
         GameObject previewObject = previewProjectile.gameObject;
         Undo.RegisterCreatedObjectUndo(previewObject, "Preview Skill3 Giant Fireball");
         RegisterPreviewCleanup(previewObject, Mathf.Max(2f, mage.GiantFireballHoverDuration + 2f));
+        RegisterGiantFireballPreview(previewProjectile);
         SceneView.RepaintAll();
+    }
+
+    private float GetGiantFireballExplosionRadius()
+    {
+        return giantFireballExplosionRadiusProperty != null
+            ? giantFireballExplosionRadiusProperty.floatValue
+            : -1f;
+    }
+
+    private static void RegisterGiantFireballPreview(Enemy_AbyssMageFireball projectile)
+    {
+        if (projectile == null)
+        {
+            return;
+        }
+
+        giantFireballPreviewEntries.Add(new GiantFireballPreviewEntry
+        {
+            Projectile = projectile,
+            LastUpdateTime = EditorApplication.timeSinceStartup
+        });
     }
 
     private static void RegisterPreviewCleanup(Object previewObject, float lifetime)
@@ -640,6 +704,45 @@ public class ArenaBossEncounterControllerEditor : Editor
 
                 previewCleanupEntries.RemoveAt(i);
             }
+        }
+    }
+
+    private static void UpdateGiantFireballPreviews()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            giantFireballPreviewEntries.Clear();
+            return;
+        }
+
+        if (giantFireballPreviewEntries.Count == 0)
+        {
+            return;
+        }
+
+        double now = EditorApplication.timeSinceStartup;
+        bool repainted = false;
+
+        for (int i = giantFireballPreviewEntries.Count - 1; i >= 0; i--)
+        {
+            GiantFireballPreviewEntry entry = giantFireballPreviewEntries[i];
+            if (entry.Projectile == null)
+            {
+                giantFireballPreviewEntries.RemoveAt(i);
+                continue;
+            }
+
+            float deltaTime = (float)System.Math.Max(0.0, now - entry.LastUpdateTime);
+            entry.LastUpdateTime = now;
+            giantFireballPreviewEntries[i] = entry;
+
+            entry.Projectile.EditorPreviewTick(deltaTime);
+            repainted = true;
+        }
+
+        if (repainted)
+        {
+            SceneView.RepaintAll();
         }
     }
 
@@ -1121,6 +1224,18 @@ public class ArenaBossEncounterControllerEditor : Editor
         CreateOrRepairAbyssPowerGroup(controller);
     }
 
+    [MenuItem("Tools/Arena Encounter/Create / Repair Boss References")]
+    private static void MenuCreateOrRepairBossReferences()
+    {
+        if (!TryGetSelectedArenaBossEncounterController(out ArenaBossEncounterController controller))
+        {
+            Debug.LogWarning("[ArenaBossEncounter] No ArenaBossEncounterController found for Boss reference repair.");
+            return;
+        }
+
+        CreateOrRepairBossReferences(controller);
+    }
+
     private static bool TryGetSelectedArenaBossEncounterController(out ArenaBossEncounterController controller)
     {
         controller = null;
@@ -1157,6 +1272,130 @@ public class ArenaBossEncounterControllerEditor : Editor
         if (changed)
         {
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        }
+    }
+
+    private void CreateOrRepairBossReferences()
+    {
+        bool changed = false;
+        foreach (Object inspectedTarget in targets)
+        {
+            ArenaBossEncounterController controller = inspectedTarget as ArenaBossEncounterController;
+            if (controller == null || controller.transform == null)
+            {
+                continue;
+            }
+
+            CreateOrRepairBossReferences(controller);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        }
+    }
+
+    private static void CreateOrRepairBossReferences(ArenaBossEncounterController controller)
+    {
+        if (controller == null || controller.transform == null)
+        {
+            return;
+        }
+
+        Undo.RegisterFullObjectHierarchyUndo(controller.gameObject, "Create Or Repair Boss References");
+
+        SerializedObject controllerSo = new SerializedObject(controller);
+        Transform controllerRoot = controller.transform.root != null ? controller.transform.root : controller.transform;
+
+        ArenaBossFloatingPlatformController floatingPlatform = controllerSo.FindProperty("bossFloatingPlatform")?.objectReferenceValue as ArenaBossFloatingPlatformController;
+        Transform castPointParent = floatingPlatform != null ? floatingPlatform.transform : controller.transform;
+
+        Enemy_AbyssMage bossMage = FindSceneBossMage(controller);
+        if (bossMage == null)
+        {
+            GameObject bossPrefab = controllerSo.FindProperty("bossPrefab")?.objectReferenceValue as GameObject;
+
+            if (bossPrefab != null)
+            {
+                GameObject bossObject = (GameObject)PrefabUtility.InstantiatePrefab(bossPrefab, controller.gameObject.scene);
+                Undo.RegisterCreatedObjectUndo(bossObject, "Create Boss Enemy");
+                Undo.SetTransformParent(bossObject.transform, controller.transform, "Parent Boss Enemy");
+                bossObject.name = bossPrefab.name;
+                if (!Application.isPlaying)
+                {
+                    bossObject.SetActive(false);
+                }
+
+                bossMage = bossObject.GetComponentInChildren<Enemy_AbyssMage>(true);
+                if (bossMage == null)
+                {
+                    bossMage = bossObject.GetComponent<Enemy_AbyssMage>();
+                }
+            }
+        }
+        else if (bossMage.transform.parent != controller.transform)
+        {
+            Undo.SetTransformParent(bossMage.transform, controller.transform, "Parent Boss Enemy");
+        }
+
+        if (bossMage != null)
+        {
+            if (!Application.isPlaying)
+            {
+                bossMage.gameObject.SetActive(false);
+            }
+
+            SetObjectReference(controllerSo, "bossEnemy", bossMage);
+            EditorUtility.SetDirty(bossMage);
+        }
+
+        Transform enhancedCastPoint = FindDeepChild(controllerRoot, "BossEnhancedSkill3CastPoint");
+        if (enhancedCastPoint == null)
+        {
+            enhancedCastPoint = EnsureEmptyChild(castPointParent, "BossEnhancedSkill3CastPoint");
+        }
+        else if (enhancedCastPoint.parent != castPointParent)
+        {
+            Undo.SetTransformParent(enhancedCastPoint, castPointParent, "Parent BossEnhancedSkill3CastPoint");
+        }
+
+        if (enhancedCastPoint != null)
+        {
+            enhancedCastPoint.localPosition = Vector3.zero;
+            enhancedCastPoint.localRotation = Quaternion.identity;
+            enhancedCastPoint.localScale = Vector3.one;
+            SetObjectReference(controllerSo, "bossEnhancedSkill3CastPoint", enhancedCastPoint);
+            EditorUtility.SetDirty(enhancedCastPoint);
+        }
+
+        Transform skill5CastPoint = FindDeepChild(controllerRoot, "BossSkill5CastPoint");
+        if (skill5CastPoint == null)
+        {
+            skill5CastPoint = EnsureEmptyChild(castPointParent, "BossSkill5CastPoint");
+        }
+        else if (skill5CastPoint.parent != castPointParent)
+        {
+            Undo.SetTransformParent(skill5CastPoint, castPointParent, "Parent BossSkill5CastPoint");
+        }
+
+        if (skill5CastPoint != null)
+        {
+            skill5CastPoint.localPosition = Vector3.zero;
+            skill5CastPoint.localRotation = Quaternion.identity;
+            skill5CastPoint.localScale = Vector3.one;
+            SetObjectReference(controllerSo, "bossSkill5CastPoint", skill5CastPoint);
+            EditorUtility.SetDirty(skill5CastPoint);
+        }
+
+        controllerSo.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(controller);
+        EditorSceneManager.MarkSceneDirty(controller.gameObject.scene);
+
+        if (bossMage != null)
+        {
+            Selection.activeGameObject = bossMage.gameObject;
+            EditorGUIUtility.PingObject(bossMage.gameObject);
         }
     }
 
@@ -1549,6 +1788,62 @@ public class ArenaBossEncounterControllerEditor : Editor
         return null;
     }
 
+    private static Enemy_AbyssMage FindSceneBossMage(ArenaBossEncounterController controller)
+    {
+        if (controller == null || controller.transform == null)
+        {
+            return null;
+        }
+
+        Transform controllerTransform = controller.transform;
+        Enemy_AbyssMage[] mages = Object.FindObjectsOfType<Enemy_AbyssMage>(true);
+
+        for (int i = 0; i < mages.Length; i++)
+        {
+            Enemy_AbyssMage mage = mages[i];
+            if (mage != null && mage.transform != null && mage.transform.IsChildOf(controllerTransform))
+            {
+                return mage;
+            }
+        }
+
+        for (int i = 0; i < mages.Length; i++)
+        {
+            Enemy_AbyssMage mage = mages[i];
+            if (mage != null && mage.gameObject != null && mage.gameObject.scene == controller.gameObject.scene)
+            {
+                return mage;
+            }
+        }
+
+        return null;
+    }
+
+    private static Transform EnsureEmptyChild(Transform parent, string childName)
+    {
+        if (parent == null || string.IsNullOrWhiteSpace(childName))
+        {
+            return null;
+        }
+
+        Transform existing = parent.Find(childName);
+        GameObject childObject = existing != null ? existing.gameObject : new GameObject(childName);
+        if (existing == null)
+        {
+            Undo.RegisterCreatedObjectUndo(childObject, $"Create {childName}");
+            Undo.SetTransformParent(childObject.transform, parent, $"Parent {childName}");
+        }
+        else if (existing.parent != parent)
+        {
+            Undo.SetTransformParent(existing, parent, $"Parent {childName}");
+        }
+
+        childObject.transform.localPosition = Vector3.zero;
+        childObject.transform.localRotation = Quaternion.identity;
+        childObject.transform.localScale = Vector3.one;
+        return childObject.transform;
+    }
+
     private static ArenaDoorController FindOrCreateDoor(Transform parent, string doorName, Vector3 localPosition)
     {
         Transform existingDoor = parent != null ? parent.Find(doorName) : null;
@@ -1741,6 +2036,11 @@ public class ArenaBossEncounterControllerEditor : Editor
         {
             property.objectReferenceValue = value;
         }
+    }
+
+    private static void SetObjectReference(SerializedObject serializedObject, string propertyName, Object value)
+    {
+        SetObject(serializedObject, propertyName, value);
     }
 
     private static void SetBool(SerializedObject serializedObject, string propertyName, bool value)

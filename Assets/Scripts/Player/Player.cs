@@ -157,6 +157,10 @@ public class Player : Entity
     [SerializeField, Tooltip("When enabled, every player attack deals 1 damage.")]
     private bool forceAllAttackDamageTo1;
 
+    [Header("Testing Health Override")]
+    [SerializeField, Tooltip("When enabled, player health is forced to 9999 for testing.")]
+    private bool forceHealthTo9999;
+
     [Header("Counter Attack Info")]
     [SerializeField, Min(0f)] private float counterDuration = .35f;
     [SerializeField, Min(.01f)] private float counterAttackTargetCheckRadiusMultiplier = 1.35f;
@@ -258,6 +262,9 @@ public class Player : Entity
     private int bossIntroMoveDirection = 1;
     private float bossIntroMoveSpeedMultiplier = 1f;
     private float bossIntroMoveTargetX;
+    [SerializeField, HideInInspector] private bool hasCachedForcedHealthState;
+    [SerializeField, HideInInspector] private int cachedForcedMaxHealth = 1;
+    [SerializeField, HideInInspector] private int cachedForcedCurrentHealth = 1;
 
     public event Action<Player> OnStaminaChanged;
     public event Action<Player> OnHealingPotionChanged;
@@ -455,6 +462,7 @@ public class Player : Entity
             || stateMachine?.CurrentState == airAttackState
             || stateMachine?.CurrentState == fallAttackState
             || stateMachine?.CurrentState == counterAttackState
+            || IsArenaCombatStaminaContext()
             || (combat != null && combat.HasTarget());
     }
     public bool IsCounterAttacking => stateMachine?.CurrentState == counterAttackState;
@@ -465,6 +473,12 @@ public class Player : Entity
     public bool IsDead => health != null && health.IsDead;
     public bool IsHazardRecoveryActive => hazardRecoveryActive;
     public bool IsMovementLocked => movementLocked;
+
+    private bool IsArenaCombatStaminaContext()
+    {
+        return ArenaEncounterController.HasActiveEncounter
+            || ArenaBossEncounterController.HasActiveEncounter;
+    }
 
     protected override void Awake()
     {
@@ -489,6 +503,8 @@ public class Player : Entity
         healingPotionInUse = false;
         combat = GetComponent<Entity_Combat>();
         combat?.SetDamage(GetBasicAttackDamage(0));
+        health = GetComponent<Entity_Health>();
+        ApplyForceHealthTo9999State();
 
         input = new PlayerInputSet();
 
@@ -522,6 +538,9 @@ public class Player : Entity
             input.Player.UsePotion.started += HandleUsePotionPerformed;
             input.Player.UsePotion.performed += HandleUsePotionPerformed;
         }
+
+        health ??= GetComponent<Entity_Health>();
+        ApplyForceHealthTo9999State();
     }
 
     private void OnDisable()
@@ -681,6 +700,11 @@ public class Player : Entity
             return false;
         }
 
+        if (!HasEnoughCounterAttackStamina())
+        {
+            return false;
+        }
+
         TryConsumeCounterAttackStamina();
         stateMachine.ChangeState(counterAttackState);
         return true;
@@ -745,6 +769,11 @@ public class Player : Entity
         ConsumeStamina(counterAttackSuccessStaminaCost, counterAttackStaminaRecoveryDelay);
         PlayCounterSuccessSfx();
         return true;
+    }
+
+    public bool HasEnoughCounterAttackStamina()
+    {
+        return currentStamina + Mathf.Epsilon >= counterAttackStaminaCost;
     }
 
     public bool TryConsumeProjectileBlockStamina()
@@ -1280,7 +1309,8 @@ public class Player : Entity
         if (basicAttackLoopCooldownTimer > 0f
             || comboDuration <= 0f
             || attackIndex < 0
-            || attackIndex >= BasicAttackCount)
+            || attackIndex >= BasicAttackCount
+            || !HasStamina)
         {
             return;
         }
@@ -1304,7 +1334,10 @@ public class Player : Entity
 
     public void OpenAirAttackComboWindow(int attackIndex, int attackDirection, float comboDuration, float turnDuration)
     {
-        if (comboDuration <= 0f || attackIndex < 0 || attackIndex >= AirAttackCount)
+        if (comboDuration <= 0f
+            || attackIndex < 0
+            || attackIndex >= AirAttackCount
+            || !HasStamina)
         {
             return;
         }
@@ -1319,7 +1352,7 @@ public class Player : Entity
 
     public void QueueBasicAttackComboAfterDash(int attackIndex, int attackDirection)
     {
-        if (attackIndex < 0 || attackIndex >= BasicAttackCount)
+        if (attackIndex < 0 || attackIndex >= BasicAttackCount || !HasStamina)
         {
             return;
         }
@@ -1333,6 +1366,12 @@ public class Player : Entity
     {
         if (!hasBasicAttackComboAfterDash)
         {
+            return;
+        }
+
+        if (!HasStamina)
+        {
+            ClearBasicAttackComboAfterDash();
             return;
         }
 
@@ -1355,7 +1394,7 @@ public class Player : Entity
 
     public void QueueAirAttackComboAfterDash(int attackIndex, int attackDirection)
     {
-        if (attackIndex < 0 || attackIndex >= AirAttackCount)
+        if (attackIndex < 0 || attackIndex >= AirAttackCount || !HasStamina)
         {
             return;
         }
@@ -1369,6 +1408,12 @@ public class Player : Entity
     {
         if (!hasAirAttackComboAfterDash)
         {
+            return;
+        }
+
+        if (!HasStamina)
+        {
+            ClearAirAttackComboAfterDash();
             return;
         }
 
@@ -1575,6 +1620,39 @@ public class Player : Entity
     {
         health ??= GetComponent<Entity_Health>();
         health?.Revive();
+    }
+
+    public void ApplyForceHealthTo9999State()
+    {
+        health ??= GetComponent<Entity_Health>();
+        if (health == null)
+        {
+            return;
+        }
+
+        if (forceHealthTo9999)
+        {
+            if (!hasCachedForcedHealthState)
+            {
+                cachedForcedMaxHealth = Mathf.Max(1, health.MaxHealth);
+                cachedForcedCurrentHealth = Mathf.Clamp(health.CurrentHealth, 0, cachedForcedMaxHealth);
+                hasCachedForcedHealthState = true;
+            }
+
+            health.SetMaxHealth(9999, true);
+            health.SetCurrentHealth(9999);
+            return;
+        }
+
+        if (!hasCachedForcedHealthState)
+        {
+            return;
+        }
+
+        int restoredMaxHealth = Mathf.Max(1, cachedForcedMaxHealth);
+        health.SetMaxHealth(restoredMaxHealth, false);
+        health.SetCurrentHealth(Mathf.Clamp(cachedForcedCurrentHealth, 0, restoredMaxHealth));
+        hasCachedForcedHealthState = false;
     }
 
     public void RestoreHealingPotionsToFull()
@@ -2415,6 +2493,8 @@ public class Player : Entity
         deathGroundVisualDownOffset = Mathf.Max(0f, deathGroundVisualDownOffset);
         deathGroundVisualBottomPadding = Mathf.Max(0f, deathGroundVisualBottomPadding);
         currentStamina = Mathf.Clamp(currentStamina <= 0f ? maxStamina : currentStamina, 0f, maxStamina);
+        health ??= GetComponent<Entity_Health>();
+        ApplyForceHealthTo9999State();
         basicAttackDashComboInputWindow = Mathf.Max(0f, basicAttackDashComboInputWindow);
         basicAttackDashTurnInputWindow = Mathf.Max(0f, basicAttackDashTurnInputWindow);
         basicAttackLoopCooldown = Mathf.Max(0f, basicAttackLoopCooldown);

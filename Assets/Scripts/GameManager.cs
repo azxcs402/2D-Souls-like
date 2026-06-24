@@ -31,6 +31,7 @@ public class GameManager : MonoBehaviour
     public string MainMenuSceneName => mainMenuSceneName;
     public bool ShouldShowMenuOnStart => showMenuOnStart;
     public bool IsMenuScene => SceneManager.GetActiveScene().name == mainMenuSceneName;
+    public bool IsGameplayPaused => gameplayControlsPaused;
 
     private Coroutine sceneChangeCoroutine;
     private Coroutine deathSequenceCoroutine;
@@ -62,6 +63,11 @@ public class GameManager : MonoBehaviour
         {
             Time.timeScale = 0f;
             SetGameplayControlsEnabled(false);
+            ApplySceneBgm(SceneManager.GetActiveScene().name);
+        }
+        else
+        {
+            ApplySceneBgm(SceneManager.GetActiveScene().name);
         }
     }
 
@@ -195,12 +201,21 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         SetGameplayControlsEnabled(true);
+        gameplayControlsPaused = false;
+    }
+
+    public void PauseGameplay()
+    {
+        Time.timeScale = 0f;
+        SetGameplayControlsEnabled(false);
+        gameplayControlsPaused = true;
     }
 
     public void ResumeMenu()
     {
         Time.timeScale = 0f;
         SetGameplayControlsEnabled(false);
+        gameplayControlsPaused = false;
     }
 
     public void QuitGame()
@@ -228,7 +243,25 @@ public class GameManager : MonoBehaviour
             yield return null;
         }
 
+        gameplayControlsPaused = false;
+        ApplySceneBgm(sceneName);
         sceneChangeCoroutine = null;
+    }
+
+    private void ApplySceneBgm(string sceneName)
+    {
+        if (AudioManager.instance == null || string.IsNullOrWhiteSpace(sceneName))
+        {
+            return;
+        }
+
+        if (sceneName == mainMenuSceneName)
+        {
+            AudioManager.instance.StartBGM(AudioKey.PlaylistMainMenu);
+            return;
+        }
+
+        AudioManager.instance.StartBGM(AudioKey.PlaylistLevels);
     }
 
     private IEnumerator PlayerDeathSequenceCo(bool freezeTime)
@@ -277,6 +310,7 @@ public class GameManager : MonoBehaviour
             }
         }
 
+        ApplySceneBgm(sceneName);
         yield return null;
 
         if (freezeTime)

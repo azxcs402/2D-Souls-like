@@ -53,21 +53,31 @@ public class AudioDatabaseSOEditor : Editor
             AudioKey.BonfireMenuClose,
             AudioKey.BonfireTravel,
             AudioKey.BonfireFlameLoop,
+            AudioKey.AbyssFireAppear,
+            AudioKey.AbyssFireDisappear,
             AudioKey.AbyssFireFlameLoop
         }),
         new("Main Menu BGM", "mainMenuMusic", new[]
         {
             AudioKey.PlaylistMainMenu
         }),
-        new("Level BGM", "levelMusic", new[]
+        new("Scene BGM", "levelMusic", new[]
         {
             AudioKey.PlaylistLevels
+        }),
+        new("Door Battle BGM", "doorBattleMusic", new[]
+        {
+            AudioKey.PlaylistDoorBattle
+        }),
+        new("Boss Battle BGM", "bossBattleMusic", new[]
+        {
+            AudioKey.PlaylistBossBattle
         })
     };
 
     private bool[] foldouts =
     {
-        true, true, true, true, true, true
+        true, true, true, true, true, true, true, true
     };
 
     public override void OnInspectorGUI()
@@ -280,10 +290,10 @@ public class AudioDatabaseSOEditor : Editor
                     }
                 }
 
-                if (maxVolume != null)
-                {
-                    maxVolume.floatValue = EditorGUILayout.Slider("Volume", maxVolume.floatValue, 0f, 1f);
-                }
+            if (maxVolume != null)
+            {
+                maxVolume.floatValue = EditorGUILayout.Slider("Volume", maxVolume.floatValue, 0f, 3f);
+            }
 
                 if (maxHearDistance != null)
                 {
@@ -361,7 +371,7 @@ public class AudioDatabaseSOEditor : Editor
             SerializedProperty maxVolume = element.FindPropertyRelative("maxVolume");
             if (maxVolume != null)
             {
-                maxVolume.floatValue = Mathf.Clamp01(maxVolume.floatValue);
+                maxVolume.floatValue = Mathf.Clamp(maxVolume.floatValue, 0f, 3f);
             }
 
             SerializedProperty maxHearDistance = element.FindPropertyRelative("maxHearDistance");

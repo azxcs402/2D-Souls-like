@@ -82,7 +82,8 @@ public class Player_AirAttackState : EntityState
             return;
         }
 
-        if (!player.AirAttackComboGroundDetected()
+        if (player.HasStamina
+            && !player.AirAttackComboGroundDetected()
             && IsInsideLeftComboInputWindow()
             && player.AttackInputPressed())
         {
@@ -199,6 +200,11 @@ public class Player_AirAttackState : EntityState
             return false;
         }
 
+        if (!player.HasStamina)
+        {
+            return false;
+        }
+
         if (player.AirAttackComboGroundDetected())
         {
             return false;
@@ -211,6 +217,7 @@ public class Player_AirAttackState : EntityState
     {
         return HasNextCombo()
             && rightWindow > 0f
+            && player.HasStamina
             && !player.AirAttackComboGroundDetected();
     }
 

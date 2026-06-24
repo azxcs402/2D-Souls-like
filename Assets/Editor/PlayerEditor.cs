@@ -8,9 +8,15 @@ public class PlayerEditor : Editor
 
     private string searchQuery;
     private bool showOnlyMatches;
+    private SerializedProperty forceHealthTo9999Property;
 
     private static readonly SearchableSection[] Sections =
     {
+        new SearchableSection(
+            "Testing Health Override",
+            "Temporary testing switch for forcing player health to 9999.",
+            new SearchableField("forceHealthTo9999", "Force Health To 9999", "9999 health test override")
+        ),
         new SearchableSection(
             "Damage Override Info",
             "Temporary testing switches for forcing all player attack damage.",
@@ -177,21 +183,24 @@ public class PlayerEditor : Editor
     private void OnEnable()
     {
         searchQuery = EditorPrefs.GetString(SearchPrefsKey, string.Empty);
+        forceHealthTo9999Property = serializedObject.FindProperty("forceHealthTo9999");
     }
 
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
 
+        DrawHealthOverrideBar();
+        EditorGUILayout.Space(4f);
         SearchableInspectorDrawer.DrawScriptField(serializedObject);
         SearchableInspectorDrawer.DrawSearchBar(
             ref searchQuery,
             ref showOnlyMatches,
             SearchPrefsKey,
             "Player Inspector Search",
-            new[] { "Move", "Jump", "Dash", "Basic Attack", "Air Attack", "Fall Attack", "Damage Override", "Stamina", "Healing Potion", "Death" }
+            new[] { "Health Override", "Move", "Jump", "Dash", "Basic Attack", "Air Attack", "Fall Attack", "Damage Override", "Stamina", "Healing Potion", "Death" }
         );
-        SearchableInspectorDrawer.DrawQuickFindButtons(SetSearch, "move", "jump", "dash", "basic attack", "air attack", "fall attack", "damage override", "stamina", "healing potion", "death");
+        SearchableInspectorDrawer.DrawQuickFindButtons(SetSearch, "health override", "move", "jump", "dash", "basic attack", "air attack", "fall attack", "damage override", "stamina", "healing potion", "death");
 
         EditorGUILayout.Space();
         SearchableInspectorDrawer.DrawSections(serializedObject, Sections, searchQuery, showOnlyMatches);
@@ -204,5 +213,42 @@ public class PlayerEditor : Editor
         searchQuery = value;
         EditorPrefs.SetString(SearchPrefsKey, searchQuery ?? string.Empty);
         GUI.FocusControl(null);
+    }
+
+    private void DrawHealthOverrideBar()
+    {
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("Testing Health Override", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("Enable this to force player health to 9999 for testing.", MessageType.Info);
+
+        if (forceHealthTo9999Property != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            EditorGUILayout.PropertyField(forceHealthTo9999Property, new GUIContent("Force Health To 9999"));
+            if (EditorGUI.EndChangeCheck())
+            {
+                serializedObject.ApplyModifiedProperties();
+                ApplyHealthOverrideToTarget();
+                serializedObject.Update();
+            }
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("forceHealthTo9999 property is missing.", MessageType.Warning);
+        }
+
+        EditorGUILayout.EndVertical();
+    }
+
+    private void ApplyHealthOverrideToTarget()
+    {
+        Player player = target as Player;
+        if (player == null)
+        {
+            return;
+        }
+
+        player.ApplyForceHealthTo9999State();
+        EditorUtility.SetDirty(player);
     }
 }

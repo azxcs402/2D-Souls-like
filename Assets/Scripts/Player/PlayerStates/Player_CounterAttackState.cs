@@ -2,9 +2,12 @@ using UnityEngine;
 
 public class Player_CounterAttackState : EntityState
 {
+    private const float MovingCounterReleaseDelay = .12f;
+
     private Entity_Combat combat;
     private bool counterPerformed;
     private bool performedAnimationFinished;
+    private float performedReleaseTimer;
 
     public Player_CounterAttackState(Player player, StateMachine stateMachine)
         : base(player, stateMachine)
@@ -19,6 +22,7 @@ public class Player_CounterAttackState : EntityState
         combat ??= player.GetComponent<Entity_Combat>();
         counterPerformed = false;
         performedAnimationFinished = false;
+        performedReleaseTimer = 0f;
         stateTimer = player.CounterDuration;
 
         player.SetAnimation(false, false);
@@ -55,7 +59,14 @@ public class Player_CounterAttackState : EntityState
             return;
         }
 
-        if (performedAnimationFinished || stateTimer <= 0f)
+        if (performedReleaseTimer > 0f)
+        {
+            performedReleaseTimer -= Time.deltaTime;
+        }
+
+        if (performedAnimationFinished
+            || stateTimer <= 0f
+            || (performedReleaseTimer <= 0f && ShouldReleaseToMovement()))
         {
             FinishCounter();
         }
@@ -118,6 +129,7 @@ public class Player_CounterAttackState : EntityState
         counterPerformed = true;
         performedAnimationFinished = false;
         stateTimer = Mathf.Max(.01f, player.GetAnimationLength(player.CounterAttackPerformedAnimationState));
+        performedReleaseTimer = MovingCounterReleaseDelay;
 
         player.TryConsumeCounterAttackSuccessStamina();
 
@@ -130,13 +142,23 @@ public class Player_CounterAttackState : EntityState
 
     private void FinishCounter()
     {
+        player.SetCounterAttack(false);
+        player.SetCounterAttackPerformed(false);
+
         if (!player.GroundDetected())
         {
             stateMachine.ChangeState(player.fallState);
             return;
         }
 
-        stateMachine.ChangeState(Mathf.Abs(player.moveInput.x) > .05f ? player.moveState : player.idleState);
+        bool shouldMove = Mathf.Abs(player.moveInput.x) > .05f;
+        stateMachine.ChangeState(shouldMove ? player.moveState : player.idleState);
+    }
+
+    private bool ShouldReleaseToMovement()
+    {
+        return player.GroundDetected()
+            && Mathf.Abs(xInput) > .05f;
     }
 
     private void PlayAnimation(string animationState)

@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Audio;
+using UnityEngine.SceneManagement;
 
 public class AudioManager : MonoBehaviour
 {
@@ -22,6 +23,7 @@ public class AudioManager : MonoBehaviour
     private Coroutine currentBgmCo;
     private Coroutine currentBgmStopCo;
     private Coroutine volumeApplyCo;
+    private AudioListener runtimeAudioListener;
     private float masterVolume = AudioVolumeDefaults.Master;
     private float bgmVolume = AudioVolumeDefaults.Bgm;
     private float sfxVolume = AudioVolumeDefaults.Sfx;
@@ -41,6 +43,18 @@ public class AudioManager : MonoBehaviour
         EnsureAudioDatabase();
         ApplyMixerRouting();
         InitializeVolumeSettings();
+        EnsureAudioListener();
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+        ApplySceneBgm(SceneManager.GetActiveScene().name);
+    }
+
+    private void OnDestroy()
+    {
+        if (instance == this)
+        {
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            instance = null;
+        }
     }
 
     private void OnValidate()
@@ -67,6 +81,12 @@ public class AudioManager : MonoBehaviour
         {
             StopBGM();
         }
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        EnsureAudioListener();
+        ApplySceneBgm(scene.name);
     }
 
     public void StartBGM(AudioKey musicGroup)
@@ -224,12 +244,58 @@ public class AudioManager : MonoBehaviour
 
     public void PlayGlobalSFX(AudioKey soundName)
     {
-        PlayAudioByName(AudioKeyMap.GetAudioName(soundName), sfxSource, 5f, false);
+        PlayAudioByName(AudioKeyMap.GetAudioName(soundName), sfxSource, 5f, false, 1f);
     }
 
     public void PlayGlobalSFX(string soundName)
     {
-        PlayAudioByName(soundName, sfxSource, 5f, false);
+        PlayAudioByName(soundName, sfxSource, 5f, false, 1f);
+    }
+
+    public void PlayGlobalSFX(AudioKey soundName, float volumeMultiplier)
+    {
+        PlayAudioByName(AudioKeyMap.GetAudioName(soundName), sfxSource, 5f, false, volumeMultiplier);
+    }
+
+    public void PlayGlobalSFX(string soundName, float volumeMultiplier)
+    {
+        PlayAudioByName(soundName, sfxSource, 5f, false, volumeMultiplier);
+    }
+
+    public bool PlayGlobalSFXInstance(AudioKey soundName, float volumeMultiplier, out AudioSource source, out float baseVolume)
+    {
+        return PlayGlobalSFXInstance(AudioKeyMap.GetAudioName(soundName), volumeMultiplier, out source, out baseVolume);
+    }
+
+    public bool PlayGlobalSFXInstance(string soundName, float volumeMultiplier, out AudioSource source, out float baseVolume)
+    {
+        source = null;
+        baseVolume = 0f;
+
+        if (!TryResolveAudioData(soundName, out _, out AudioClipData data))
+        {
+            return false;
+        }
+
+        if (!data.TryGetRandomClip(out AudioClip clip))
+        {
+            return false;
+        }
+
+        GameObject tempObject = new GameObject($"Temp SFX: {soundName}");
+        source = tempObject.AddComponent<AudioSource>();
+        ConfigurePlaybackSource(source, false, 0f);
+
+        float pitch = Random.Range(.95f, 1.1f);
+        baseVolume = data.maxVolume;
+        source.pitch = pitch;
+        source.volume = baseVolume * Mathf.Clamp01(volumeMultiplier);
+        source.clip = clip;
+        source.Play();
+
+        float lifetime = (clip.length / Mathf.Max(.01f, pitch)) + 0.25f;
+        Object.Destroy(tempObject, lifetime);
+        return true;
     }
 
     public bool PlayLocalizedSFX(AudioKey soundName, AudioSource source, float maxHearDistance)
@@ -348,7 +414,7 @@ public class AudioManager : MonoBehaviour
         }
     }
 
-    private bool PlayAudioByName(string soundName, AudioSource source, float maxHearDistance, bool useDistanceFalloff)
+    private bool PlayAudioByName(string soundName, AudioSource source, float maxHearDistance, bool useDistanceFalloff, float volumeMultiplier = 1f)
     {
         if (source == null || !TryResolveAudioData(soundName, out _, out AudioClipData data))
         {
@@ -371,7 +437,7 @@ public class AudioManager : MonoBehaviour
         }
 
         source.pitch = Random.Range(.95f, 1.1f);
-        source.volume = data.maxVolume;
+        source.volume = data.maxVolume * Mathf.Clamp01(volumeMultiplier);
         source.PlayOneShot(clip);
         return true;
     }
@@ -635,6 +701,69 @@ public class AudioManager : MonoBehaviour
             : audioNameOrKey;
 
         return audioDB.TryGet(resolvedName, out data);
+    }
+
+    private void EnsureAudioListener()
+    {
+        AudioListener[] listeners = FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        bool hasOtherEnabledListener = false;
+
+        for (int i = 0; i < listeners.Length; i++)
+        {
+            AudioListener listener = listeners[i];
+            if (listener == null)
+            {
+                continue;
+            }
+
+            if (listener.gameObject == gameObject)
+            {
+                runtimeAudioListener = listener;
+                continue;
+            }
+
+            if (listener.enabled && listener.gameObject.activeInHierarchy)
+            {
+                hasOtherEnabledListener = true;
+                break;
+            }
+        }
+
+        if (hasOtherEnabledListener)
+        {
+            if (runtimeAudioListener != null && runtimeAudioListener.gameObject == gameObject)
+            {
+                Destroy(runtimeAudioListener);
+                runtimeAudioListener = null;
+            }
+
+            return;
+        }
+
+        if (runtimeAudioListener == null)
+        {
+            runtimeAudioListener = gameObject.GetComponent<AudioListener>();
+            if (runtimeAudioListener == null)
+            {
+                runtimeAudioListener = gameObject.AddComponent<AudioListener>();
+            }
+        }
+    }
+
+    private void ApplySceneBgm(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName))
+        {
+            return;
+        }
+
+        if (sceneName == "MainMenu")
+        {
+            StartBGM(AudioKey.PlaylistMainMenu);
+            return;
+        }
+
+        StartBGM(AudioKey.PlaylistLevels);
     }
 
 }

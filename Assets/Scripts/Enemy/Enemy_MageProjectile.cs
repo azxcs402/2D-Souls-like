@@ -185,6 +185,11 @@ public class Enemy_MageProjectile : MonoBehaviour, IProjectileBreakable
         Impact(null);
     }
 
+    public bool CanBeBrokenByAttack(Entity_Combat damageSource)
+    {
+        return true;
+    }
+
     private void OnDestroy()
     {
         ReleaseHoverReservation();

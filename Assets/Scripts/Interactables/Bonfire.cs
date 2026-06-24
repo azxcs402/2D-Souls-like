@@ -360,11 +360,6 @@ public class Bonfire : MonoBehaviour, ISaveable
 
         PlayAudio(restSfxKey);
 
-        if (!bonfireActivated)
-        {
-            SetActivated(true);
-        }
-
         StartCoroutine(RestAtBonfireRoutine());
         UpdatePromptVisual();
     }

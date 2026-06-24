@@ -30,28 +30,6 @@ public static class MainMenuSceneGenerator
         Debug.Log("MainMenu scene generated.");
     }
 
-    [MenuItem("Tools/2D Souls-like/Rebuild Main Menu Scene Layout")]
-    public static void RebuildMainMenuSceneLayout()
-    {
-        Scene activeScene = SceneManager.GetActiveScene();
-        if (!activeScene.IsValid() || !activeScene.isLoaded || activeScene.name != MainMenuSceneName)
-        {
-            Debug.LogError("Open the MainMenu scene before rebuilding its layout.");
-            return;
-        }
-
-        GameObject menuRoot = GameObject.Find(MainMenuRootName);
-        if (menuRoot == null)
-        {
-            Debug.LogError("MainMenuRoot was not found in the active scene.");
-            return;
-        }
-
-        RebuildMenuHierarchy(menuRoot.transform);
-        EditorSceneManager.MarkSceneDirty(activeScene);
-        Debug.Log("MainMenu layout rebuilt.");
-    }
-
     private static void EnsureSceneAsset()
     {
         if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainMenuScenePath) != null)
@@ -181,13 +159,12 @@ public static class MainMenuSceneGenerator
         CreateOrMoveSliderRow(optionsSettings.transform, "Master Volume", out Slider volumeSlider);
         CreateOrMoveSliderRow(optionsSettings.transform, "BGM Volume", out Slider bgmVolumeSlider);
         CreateOrMoveSliderRow(optionsSettings.transform, "SFX Volume", out Slider sfxVolumeSlider);
-        CreateOrMoveToggleRow(optionsSettings.transform, "Fullscreen", out Toggle fullscreenToggle);
         Button resetButton = CreateOrMoveButton(optionsFooter.transform, "ResetVolumeButton", "Restore Defaults");
         Button backButton = CreateOrMoveButton(optionsFooter.transform, "BackButton", "Back");
         DecorateMainButton(backButton, false);
 
         options.Configure(mainPanel);
-        options.Bind(volumeSlider, bgmVolumeSlider, sfxVolumeSlider, fullscreenToggle);
+        options.Bind(volumeSlider, bgmVolumeSlider, sfxVolumeSlider);
         optionsPanel.SetActive(false);
 
         mainMenu.Configure(mainPanel, optionsPanel);
@@ -195,7 +172,7 @@ public static class MainMenuSceneGenerator
         mainMenuObject.FindProperty("continueButton").objectReferenceValue = continueButton;
         mainMenuObject.ApplyModifiedPropertiesWithoutUndo();
 
-        BindMenuButtons(playButton, continueButton, newGameButton, optionsButton, quitButton, resetButton, backButton, options, volumeSlider, bgmVolumeSlider, sfxVolumeSlider, fullscreenToggle);
+        BindMenuButtons(playButton, continueButton, newGameButton, optionsButton, quitButton, resetButton, backButton, options, volumeSlider, bgmVolumeSlider, sfxVolumeSlider);
 
         EditorUtility.SetDirty(gameManager);
         EditorUtility.SetDirty(saveManager);
@@ -204,79 +181,6 @@ public static class MainMenuSceneGenerator
         EditorUtility.SetDirty(menuRoot);
         EditorUtility.SetDirty(canvas.gameObject);
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-    }
-
-    private static void RebuildMenuHierarchy(Transform menuRoot)
-    {
-        GameObject backdrop = CreateOrGetPanel(menuRoot, "Backdrop", new Color(0.02f, 0.02f, 0.03f, 0.9f));
-        StretchFull(backdrop.GetComponent<RectTransform>());
-        CreateBackdropAccent(menuRoot, "BackdropAccentLeft", new Vector2(0f, 0.5f), new Vector2(18f, 760f), new Vector2(68f, 0f), new Color(0.85f, 0.74f, 0.35f, 0.06f));
-        CreateBackdropAccent(menuRoot, "BackdropAccentRight", new Vector2(1f, 0.5f), new Vector2(18f, 760f), new Vector2(-68f, 0f), new Color(0.85f, 0.74f, 0.35f, 0.035f));
-
-        GameObject mainPanel = CreateOrGetPanel(menuRoot, MainPanelName, new Color(0.06f, 0.06f, 0.08f, 0.98f));
-        SetupPanelRect(mainPanel.GetComponent<RectTransform>(), new Vector2(720f, 780f));
-        SetupPanelStack(mainPanel, 14f, new RectOffset(44, 52, 46, 40));
-        CreatePanelFrame(mainPanel.transform, MainFrameName, new Color(0.12f, 0.12f, 0.14f, 0.96f));
-        GameObject mainContent = CreateOrGetContainer(mainPanel.transform, MainContentName);
-        SetupStack(mainContent, 18f);
-
-        GameObject mainHeader = CreateOrGetContainer(mainContent.transform, HeaderContainerName);
-        SetupStack(mainHeader, 10f);
-
-        GameObject mainActions = CreateOrGetContainer(mainContent.transform, ActionsContainerName);
-        SetupStack(mainActions, 14f);
-
-        GameObject mainFooter = CreateOrGetContainer(mainContent.transform, FooterContainerName);
-        SetupStack(mainFooter, 8f);
-
-        CreateOrMoveText(mainHeader.transform, "Tagline", "ADVENTURE / ACTION RPG", 18, FontStyle.Bold, TextAnchor.MiddleCenter, new Color(0.83f, 0.76f, 0.55f, 0.92f), 28f);
-        CreateOrMoveDivider(mainHeader.transform, "TitleRuleTop", new Color(0.85f, 0.74f, 0.35f, 0.35f), 2f, 170f);
-        CreateOrMoveText(mainHeader.transform, "Title", "2D Souls-like", 62, FontStyle.Bold, TextAnchor.MiddleCenter, new Color(0.98f, 0.94f, 0.8f, 1f), 120f);
-        CreateOrMoveText(mainHeader.transform, "Subtitle", "Main Menu", 22, FontStyle.Normal, TextAnchor.MiddleCenter, new Color(0.9f, 0.9f, 0.92f, 0.78f), 38f);
-        CreateOrMoveDivider(mainHeader.transform, "TitleRuleBottom", new Color(0.85f, 0.74f, 0.35f, 0.22f), 1f, 210f);
-        CreateOrMoveButton(mainActions.transform, "PlayButton", "Play");
-        CreateOrMoveButton(mainActions.transform, "ContinueButton", "Continue");
-        CreateOrMoveButton(mainActions.transform, "NewGameButton", "New Game");
-        CreateOrMoveButton(mainActions.transform, "OptionsButton", "Options");
-        CreateOrMoveButton(mainActions.transform, "QuitButton", "Quit");
-        CreateOrMoveText(mainFooter.transform, "Hint", "Enter the world, adjust settings, or exit cleanly.", 16, FontStyle.Normal, TextAnchor.MiddleCenter, new Color(0.85f, 0.85f, 0.88f, 0.62f), 26f);
-
-        GameObject optionsPanel = CreateOrGetPanel(menuRoot, OptionsPanelName, new Color(0.06f, 0.06f, 0.08f, 0.98f));
-        SetupPanelRect(optionsPanel.GetComponent<RectTransform>(), new Vector2(680f, 760f));
-        SetupPanelStack(optionsPanel, 16f, new RectOffset(44, 48, 44, 40));
-        CreatePanelFrame(optionsPanel.transform, MainFrameName, new Color(0.12f, 0.12f, 0.14f, 0.96f));
-        GameObject optionsContent = CreateOrGetContainer(optionsPanel.transform, MainContentName);
-        SetupStack(optionsContent, 16f);
-
-        GameObject optionsHeader = CreateOrGetContainer(optionsContent.transform, HeaderContainerName);
-        SetupStack(optionsHeader, 8f);
-
-        GameObject optionsSettings = CreateOrGetContainer(optionsContent.transform, SettingsContainerName);
-        SetupStack(optionsSettings, 18f);
-
-        GameObject optionsFooter = CreateOrGetContainer(optionsContent.transform, FooterContainerName);
-        SetupStack(optionsFooter, 8f);
-
-        CreateOrMoveText(optionsHeader.transform, "OptionsTitle", "Options", 50, FontStyle.Bold, TextAnchor.MiddleCenter, new Color(0.98f, 0.94f, 0.8f, 1f), 92f);
-        CreateOrMoveDivider(optionsHeader.transform, "OptionsRule", new Color(0.85f, 0.74f, 0.35f, 0.25f), 1f, 180f);
-        CreateOrMoveSliderRow(optionsSettings.transform, "Master Volume", out Slider volumeSlider);
-        CreateOrMoveSliderRow(optionsSettings.transform, "BGM Volume", out Slider bgmVolumeSlider);
-        CreateOrMoveSliderRow(optionsSettings.transform, "SFX Volume", out Slider sfxVolumeSlider);
-        CreateOrMoveToggleRow(optionsSettings.transform, "Fullscreen", out Toggle fullscreenToggle);
-        CreateOrMoveButton(optionsFooter.transform, "ResetVolumeButton", "Restore Defaults");
-        CreateOrMoveButton(optionsFooter.transform, "BackButton", "Back");
-
-        UI_MainMenu mainMenu = menuRoot.GetComponent<UI_MainMenu>();
-        if (mainMenu != null)
-        {
-            mainMenu.Configure(mainPanel, optionsPanel);
-        }
-
-        UI_Options options = optionsPanel.GetComponent<UI_Options>();
-        if (options != null)
-        {
-            options.Configure(mainPanel);
-        }
     }
 
     private static void CreateCamera()
@@ -609,26 +513,6 @@ public static class MainMenuSceneGenerator
         }
     }
 
-    private static GameObject CreateOrMoveToggleRow(Transform parent, string label, out Toggle toggle)
-    {
-        string rowName = label.Replace(" ", "") + "Row";
-        Transform existing = FindDeepChild(parent.root, rowName);
-        if (existing == null)
-        {
-            return CreateToggleRow(parent, label, out toggle);
-        }
-
-        existing.SetParent(parent, false);
-        toggle = existing.Find(label + "Toggle")?.GetComponent<Toggle>();
-        if (toggle == null)
-        {
-            GameObject createdRow = CreateToggleRow(parent, label, out toggle);
-            return createdRow;
-        }
-
-        return existing.gameObject;
-    }
-
     private static void MoveIfExists(Transform searchRoot, string objectName, Transform newParent)
     {
         Transform existing = FindDeepChild(searchRoot, objectName);
@@ -649,8 +533,7 @@ public static class MainMenuSceneGenerator
         UI_Options options,
         Slider volumeSlider,
         Slider bgmVolumeSlider,
-        Slider sfxVolumeSlider,
-        Toggle fullscreenToggle)
+        Slider sfxVolumeSlider)
     {
         UI_MainMenu mainMenu = playButton != null ? playButton.GetComponentInParent<UI_MainMenu>() : null;
         if (mainMenu == null && quitButton != null)
@@ -719,12 +602,6 @@ public static class MainMenuSceneGenerator
         {
             ClearPersistentListeners(sfxVolumeSlider.onValueChanged);
             UnityEventTools.AddPersistentListener(sfxVolumeSlider.onValueChanged, options.SfxVolumeValue);
-        }
-
-        if (fullscreenToggle != null && options != null)
-        {
-            ClearPersistentListeners(fullscreenToggle.onValueChanged);
-            UnityEventTools.AddPersistentListener(fullscreenToggle.onValueChanged, options.FullscreenValue);
         }
     }
 

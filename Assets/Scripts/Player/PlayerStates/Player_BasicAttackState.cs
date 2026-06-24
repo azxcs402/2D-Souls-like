@@ -65,7 +65,9 @@ public class Player_BasicAttackState : EntityState
         attackTimer += Time.deltaTime;
         player.SetYVelocity(player.rb.velocity.y);
 
-        if (IsInsideLeftComboInputWindow() && player.AttackInputPressed())
+        if (player.HasStamina
+            && IsInsideLeftComboInputWindow()
+            && player.AttackInputPressed())
         {
             comboInputBuffered = true;
         }
@@ -180,13 +182,19 @@ public class Player_BasicAttackState : EntityState
             return false;
         }
 
+        if (!player.HasStamina)
+        {
+            return false;
+        }
+
         return comboInputBuffered || player.AttackInputHeld();
     }
 
     private bool CanOpenRightComboInputWindow(float rightWindow)
     {
         return player.BasicAttackCount > 0
-            && rightWindow > 0f;
+            && rightWindow > 0f
+            && player.HasStamina;
     }
 
     private bool IsInsideLeftComboInputWindow()

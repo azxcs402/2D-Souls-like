@@ -91,6 +91,7 @@ public class Entity_Health : MonoBehaviour, IDamagable
             return false;
         }
 
+        damage = ApplyDifficultyDamageModifier(damage);
         currentHealth = Mathf.Max(0, currentHealth - damage);
         ApplyKnockback(knockbackVelocity);
         OnDamageTaken(damage, damageSource as Entity_Combat);
@@ -113,6 +114,27 @@ public class Entity_Health : MonoBehaviour, IDamagable
         }
 
         currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
+        UpdateHealthBar();
+    }
+
+    public void SetMaxHealth(int value, bool restoreCurrentHealth = true)
+    {
+        maxHealth = Mathf.Max(1, value);
+        if (restoreCurrentHealth)
+        {
+            currentHealth = maxHealth;
+        }
+        else
+        {
+            currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+        }
+
+        UpdateHealthBar();
+    }
+
+    public void SetCurrentHealth(int value)
+    {
+        currentHealth = Mathf.Clamp(value, 0, maxHealth);
         UpdateHealthBar();
     }
 
@@ -182,6 +204,17 @@ public class Entity_Health : MonoBehaviour, IDamagable
             player.RestoreAliveColliderProfile();
             player.RestoreAlivePhysicsProfile();
         }
+    }
+
+    private int ApplyDifficultyDamageModifier(int damage)
+    {
+        if (!TryGetComponent<Player>(out _))
+        {
+            return damage;
+        }
+
+        float damageMultiplier = GameDifficultySettings.IncomingDamageMultiplier;
+        return Mathf.Max(1, Mathf.CeilToInt(damage * damageMultiplier));
     }
 
     public void SetMiniHealthBarVisible(bool visible)

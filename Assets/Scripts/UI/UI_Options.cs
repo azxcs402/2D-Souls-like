@@ -4,8 +4,6 @@ using System.Collections.Generic;
 
 public class UI_Options : MonoBehaviour
 {
-    private const string FullscreenKey = "fullscreen_enabled";
-
     private enum VolumeChannel
     {
         Master,
@@ -24,13 +22,11 @@ public class UI_Options : MonoBehaviour
     [SerializeField] private Slider masterVolumeSlider;
     [SerializeField] private Slider bgmVolumeSlider;
     [SerializeField] private Slider sfxVolumeSlider;
-    [SerializeField] private Toggle fullscreenToggle;
     [SerializeField] private GameObject mainPanel;
 
     private bool masterListenerWired;
     private bool bgmListenerWired;
     private bool sfxListenerWired;
-    private bool fullscreenListenerWired;
 
     private void Awake()
     {
@@ -73,13 +69,6 @@ public class UI_Options : MonoBehaviour
         ApplyVolumeState(new VolumeState(AudioVolumeDefaults.Master, AudioVolumeDefaults.Bgm, AudioVolumeDefaults.Sfx));
     }
 
-    public void FullscreenValue(bool isFullscreen)
-    {
-        Screen.fullScreen = isFullscreen;
-        PlayerPrefs.SetInt(FullscreenKey, isFullscreen ? 1 : 0);
-        PlayerPrefs.Save();
-    }
-
     public void GoMainMenuBTN()
     {
         UIAudio.PlayButtonClick();
@@ -104,20 +93,15 @@ public class UI_Options : MonoBehaviour
     public void LoadUpSettings()
     {
         VolumeState savedState = LoadVolumeState();
-        bool fullscreen = PlayerPrefs.GetInt(FullscreenKey, 1) == 1;
 
         ApplyVolumeState(savedState);
-
-        Screen.fullScreen = fullscreen;
-        fullscreenToggle?.SetIsOnWithoutNotify(fullscreen);
     }
 
-    public void Bind(Slider volumeSlider, Slider bgmSlider, Slider sfxSlider, Toggle fullscreen)
+    public void Bind(Slider volumeSlider, Slider bgmSlider, Slider sfxSlider)
     {
         masterVolumeSlider = volumeSlider;
         bgmVolumeSlider = bgmSlider;
         sfxVolumeSlider = sfxSlider;
-        fullscreenToggle = fullscreen;
         WireControls();
         LoadUpSettings();
     }
@@ -137,11 +121,6 @@ public class UI_Options : MonoBehaviour
         if (sfxVolumeSlider == null)
         {
             sfxVolumeSlider = FindDeepChild(transform, "SFX VolumeSlider")?.GetComponent<Slider>();
-        }
-
-        if (fullscreenToggle == null)
-        {
-            fullscreenToggle = FindDeepChild(transform, "FullscreenToggle")?.GetComponent<Toggle>();
         }
 
         if (mainPanel == null && transform.parent != null)
@@ -172,12 +151,6 @@ public class UI_Options : MonoBehaviour
         {
             sfxVolumeSlider.onValueChanged.AddListener(SfxVolumeValue);
             sfxListenerWired = true;
-        }
-
-        if (fullscreenToggle != null && !fullscreenListenerWired && fullscreenToggle.onValueChanged.GetPersistentEventCount() == 0)
-        {
-            fullscreenToggle.onValueChanged.AddListener(FullscreenValue);
-            fullscreenListenerWired = true;
         }
     }
 
@@ -274,6 +247,7 @@ public class UI_Options : MonoBehaviour
         bgmVolumeSlider?.SetValueWithoutNotify(state.bgm);
         sfxVolumeSlider?.SetValueWithoutNotify(state.sfx);
     }
+
     private readonly struct VolumeState
     {
         public readonly float master;

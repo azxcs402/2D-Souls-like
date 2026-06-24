@@ -1,8 +1,10 @@
 My Audio import manifest
 
 Music
-- Goblins_Den_(Regular).wav -> playlist_mainMenu
-- Goblins_Dance_(Battle).wav -> playlist_levels
+- m-art_Doll.mp3 -> playlist_mainMenu
+- m-art_CrestOfTheRoyalFamily.mp3 -> playlist_levels
+- m-art_SiegePerilous.mp3 -> playlist_doorBattle
+- m-art_ReverseClock.mp3 -> playlist_bossBattle
 
 Combat SFX
 - 26_sword_hit_1.wav / 26_sword_hit_2.wav / 26_sword_hit_3.wav -> player_attackHit

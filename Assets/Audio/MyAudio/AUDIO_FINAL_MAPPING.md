@@ -4,8 +4,10 @@
 
 | AudioKey | Resource | Trigger |
 | --- | --- | --- |
-| `PlaylistMainMenu` | `Goblins_Den_(Regular).wav` | Main menu |
-| `PlaylistLevels` | `Goblins_Dance_(Battle).wav` | Level scenes |
+| `PlaylistMainMenu` | `m-art_Doll.mp3` | Main menu |
+| `PlaylistLevels` | `m-art_CrestOfTheRoyalFamily.mp3` | Scene traversal |
+| `PlaylistDoorBattle` | `m-art_SiegePerilous.mp3` | Door encounter |
+| `PlaylistBossBattle` | `m-art_ReverseClock.mp3` | Abyss Mage boss encounter |
 
 ## Combat SFX
 
@@ -45,7 +47,7 @@
 - Audio keys are mapped in `Assets/Scripts/Audio/AudioKey.cs`.
 - Resources are mounted in `Assets/Resources/Audio/AUDIO DATABASE.asset`.
 - UI button click audio is centralized through `UIAudio.PlayButtonClick()`.
-- Bonfire and arena door audio are driven by `AudioKey`, not raw strings.
+- Door and boss battle music are driven by `AudioKey`, not raw strings.
 
 ## Notes
 

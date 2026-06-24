@@ -698,7 +698,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 0}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 60
+  m_MaxValue: 333
   m_WholeNumbers: 1
   m_Value: 0
   m_OnValueChanged:
@@ -867,8 +867,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 180.91, y: -1.48, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 1.2, y: 1.2, z: 1.2}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 6929537511819298384}
   - {fileID: 4799666280697504519}
@@ -988,7 +988,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 60
+  maxHealth: 333
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1679848339229094340}
@@ -1036,7 +1036,7 @@ MonoBehaviour:
   wallCheckVerticalSpan: 0.65
   primaryWallCheck: {fileID: 4799666280697504519}
   secondaryWallCheck: {fileID: 565028296081151195}
-  maxHealth: 60
+  maxHealth: 600
   canTakeDamage: 1
   combatSoundDistance: 12
   stunAttackRecoveryDelay: 0.6
@@ -1072,6 +1072,10 @@ MonoBehaviour:
   rangeTeleportInitialChance: 6
   rangeTeleportChanceIncrement: 2
   rangeTeleportCheckInterval: 1
+  damageTeleportInitialChance: 25
+  damageTeleportChanceIncrement: 15
+  damageTeleportTriggerDelay: 0.6
+  damageTeleportCooldown: 6
   stunnedDuration: 1
   stunnedVelocity: {x: 7, y: 7}
   canBeStunned: 1
@@ -1104,15 +1108,18 @@ MonoBehaviour:
   projectileHoverMaxPlacementAttempts: 24
   giantFireballHoverDuration: 2
   giantFireballScaleMultiplier: 10
-  giantFireballDamageMultiplier: 5
+  abyssFireballDamage: 18
+  hybridCoreFireballDamage: 36
+  giantFireballDamage: 40
   giantFireballFallSpeedMultiplier: 3
   giantFireballFollowSpeed: 18
-  skill1FireballDamageMultiplier: 0.5
   specialAttackLockDuration: 3
   skill3CooldownDuration: 10
+  skill4GiantFireballHoverDurationBonus: 1
   behindCollisionCheck: {fileID: 8731610343475063690}
   hasRecoveryAnimation: 1
   canBeKnockedBack: 1
+  meleeDamage: 28
   abyssMageAttackData:
     targetCheckOffset: {x: 0.7, y: 0}
     targetCheckRadius: 0.6
@@ -1165,7 +1172,7 @@ RectTransform:
   m_Father: {fileID: 8201382870227406044}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}

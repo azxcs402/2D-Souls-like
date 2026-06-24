@@ -32,11 +32,19 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
     [SerializeField, Min(.01f)] private float hoverDriftChangeInterval = .18f;
     [SerializeField, Min(0f)] private float hoverDriftMoveSpeed = 1.6f;
 
+    [Header("Giant Hover Drift")]
+    [SerializeField, Min(0f)] private float giantHoverDriftRadius = .18f;
+    [SerializeField, Min(.01f)] private float giantHoverDriftChangeInterval = .18f;
+    [SerializeField, Min(0f)] private float giantHoverDriftMoveSpeed = 1.6f;
+
     [Header("Impact")]
     [SerializeField] private LayerMask whatCanCollideWith;
     [SerializeField] private Vector2 impactKnockback = new Vector2(4f, 2f);
     [SerializeField, Min(0f)] private float destroyDelayAfterImpact = 2f;
     [SerializeField, Min(0f)] private float collisionArmDistance = 0.45f;
+    [SerializeField, Min(0f), Tooltip("Base explosion damage radius used by giant fireballs when no override is supplied.")]
+    private float giantExplosionRadius = 1.75f;
+    [SerializeField, HideInInspector, Min(0f)] private float giantHorizontalWallClearance = 0.2f;
     [SerializeField] private AudioKey explosionSfxKey = AudioKey.AbyssMageFireballExplosion;
     [SerializeField, Min(0.01f)] private float explosionAudioMaxDistance = 12f;
     [SerializeField] private AudioKey windLoopSfxKey = AudioKey.SpellWindLoop;
@@ -53,6 +61,7 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
     private Enemy_AbyssMage owner;
     private Entity_Combat combat;
     private Entity_Combat selfCombat;
+    private int projectileDamage = 1;
     private Rigidbody2D rb;
     private Collider2D col;
     private Animator anim;
@@ -71,24 +80,44 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
     private Vector2 hoverDriftOffset;
     private Vector2 hoverDriftTargetOffset;
     private float nextHoverDriftChangeTime;
+    private Vector2 giantHoverDriftOffset;
+    private Vector2 giantHoverDriftTargetOffset;
+    private float nextGiantHoverDriftChangeTime;
     private int hoverLaneIndex;
     private Vector2 flightStartPosition;
     private bool flightStarted;
     private bool giantFireballMode;
     private Transform giantCeilingReferencePoint;
     private float giantHoverDuration;
+    private bool giantFollowTargetDuringHover = true;
+    private bool giantFixedSpawnX;
+    private float giantFixedSpawnXValue;
+    private float giantHoverDriftPhaseOffset;
     private float giantScaleMultiplier = 10f;
-    private float giantDamageMultiplier = 5f;
     private float giantFallSpeedMultiplier = 3f;
     private float giantFollowSpeed = 18f;
     private float giantCeilingY;
     private bool giantFalling;
+    private float giantMinFollowX = float.NegativeInfinity;
+    private float giantMaxFollowX = float.PositiveInfinity;
     private float nextHybridPlayerDamageTime;
-    private int regularBaseDamage = 1;
-    private bool regularDamageConfigured;
+    private float hybridOrbitScaleMultiplier = 1f;
+    private float hybridOrbitRotationSpeedMultiplier = 1f;
+    private float hybridAutoExplodeAfterSeconds = -1f;
+    private bool hybridImmuneToPlayerAttacks;
+    private bool hybridIgnoreEnvironmentCollisions;
+    private bool hybridAutoExplosionTriggered;
+    private bool hybridOrbitDamageConfigured;
+    private bool immuneToAttacks;
+    private int hybridOuterOrbDamage = 18;
+    private int hybridCoreOrbDamage = 36;
     private Collider2D[] ignoredAbyssPowerColliders = System.Array.Empty<Collider2D>();
+    private Collider2D[] ignoredOwnerColliders = System.Array.Empty<Collider2D>();
     private readonly System.Collections.Generic.List<Enemy_AbyssMageHybridOrb> hybridOrbs = new System.Collections.Generic.List<Enemy_AbyssMageHybridOrb>();
     private Enemy_AbyssMageHybridOrb hybridCoreOrb;
+    private bool impactResolvedEventRaised;
+
+    public event System.Action<Enemy_AbyssMageFireball> ImpactResolved;
 
     private void Awake()
     {
@@ -123,6 +152,9 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         hoverDriftRadius = Mathf.Max(0f, hoverDriftRadius);
         hoverDriftChangeInterval = Mathf.Max(.01f, hoverDriftChangeInterval);
         hoverDriftMoveSpeed = Mathf.Max(0f, hoverDriftMoveSpeed);
+        giantHoverDriftRadius = Mathf.Max(0f, giantHoverDriftRadius);
+        giantHoverDriftChangeInterval = Mathf.Max(.01f, giantHoverDriftChangeInterval);
+        giantHoverDriftMoveSpeed = Mathf.Max(0f, giantHoverDriftMoveSpeed);
         orbitRotationSpeed = Mathf.Max(0f, orbitRotationSpeed);
         hybridOrbHitboxRadius = Mathf.Max(0.01f, hybridOrbHitboxRadius);
         hybridOrbHitCooldown = Mathf.Max(0f, hybridOrbHitCooldown);
@@ -133,6 +165,8 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         hybridCoreOrbitRadiusScale = Mathf.Max(1f, hybridCoreOrbitRadiusScale);
         destroyDelayAfterImpact = Mathf.Max(0f, destroyDelayAfterImpact);
         collisionArmDistance = Mathf.Max(0f, collisionArmDistance);
+        giantExplosionRadius = Mathf.Max(0f, giantExplosionRadius);
+        giantHorizontalWallClearance = Mathf.Max(0f, giantHorizontalWallClearance);
         explosionAudioMaxDistance = Mathf.Max(0.01f, explosionAudioMaxDistance);
         windLoopVolume = Mathf.Clamp01(windLoopVolume);
         windLoopMinDistance = Mathf.Max(0.01f, windLoopMinDistance);
@@ -175,7 +209,7 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
             return;
         }
 
-        orbitVisualRoot.Rotate(0f, 0f, orbitRotationSpeed * Time.deltaTime);
+        orbitVisualRoot.Rotate(0f, 0f, orbitRotationSpeed * hybridOrbitRotationSpeedMultiplier * Time.deltaTime);
 
         if (!windLoopStarted)
         {
@@ -189,6 +223,8 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         windLoopStarted = false;
     }
 
+    public bool IsImmuneToAttacks => immuneToAttacks;
+
     public void SetupProjectile(Enemy_AbyssMage owner, Transform target, Entity_Combat combat, int hoverReservationId, Vector2 hoverLocalOffset)
     {
         SetupProjectile(owner, target, combat, 0, hoverReservationId, hoverLocalOffset);
@@ -198,11 +234,13 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
     {
         this.owner = owner;
         this.target = target;
-        this.combat = combat;
+        this.combat = combat != null ? combat : selfCombat;
+        projectileDamage = Mathf.Max(1, selfCombat != null ? selfCombat.Damage : (combat != null ? combat.Damage : 1));
         this.hoverLaneIndex = Mathf.Clamp(laneIndex, 0, 1);
         this.hoverReservationId = hoverReservationId;
         this.hoverLocalOffset = hoverLocalOffset;
         hasImpacted = false;
+        impactResolvedEventRaised = false;
         colliderEnabled = false;
         hoverSlotReleased = false;
         elapsedTime = 0f;
@@ -211,21 +249,39 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         hoverDriftOffset = Vector2.zero;
         hoverDriftTargetOffset = Vector2.zero;
         nextHoverDriftChangeTime = arrivalDuration;
+        giantHoverDriftOffset = Vector2.zero;
+        giantHoverDriftTargetOffset = Vector2.zero;
+        nextGiantHoverDriftChangeTime = arrivalDuration;
         flightStartPosition = Vector2.zero;
         flightStarted = false;
         giantFireballMode = false;
         giantCeilingReferencePoint = null;
         giantHoverDuration = 0f;
+        giantFollowTargetDuringHover = true;
+        giantFixedSpawnX = false;
+        giantFixedSpawnXValue = 0f;
+        giantHoverDriftPhaseOffset = 0f;
         giantScaleMultiplier = 10f;
-        giantDamageMultiplier = 5f;
         giantFallSpeedMultiplier = 3f;
         giantFollowSpeed = 18f;
         giantCeilingY = 0f;
         giantFalling = false;
+        giantMinFollowX = float.NegativeInfinity;
+        giantMaxFollowX = float.PositiveInfinity;
         nextHybridPlayerDamageTime = 0f;
-        regularBaseDamage = 1;
-        regularDamageConfigured = false;
+        projectileDamage = Mathf.Max(1, selfCombat != null ? selfCombat.Damage : (combat != null ? combat.Damage : 1));
+        hybridOrbitScaleMultiplier = 1f;
+        hybridOrbitRotationSpeedMultiplier = 1f;
+        hybridAutoExplodeAfterSeconds = -1f;
+        hybridImmuneToPlayerAttacks = false;
+        hybridIgnoreEnvironmentCollisions = false;
+        hybridAutoExplosionTriggered = false;
+        hybridOrbitDamageConfigured = false;
+        immuneToAttacks = false;
+        hybridOuterOrbDamage = 18;
+        hybridCoreOrbDamage = 36;
         ignoredAbyssPowerColliders = System.Array.Empty<Collider2D>();
+        ignoredOwnerColliders = System.Array.Empty<Collider2D>();
 
         if (rb == null)
         {
@@ -269,35 +325,76 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         Transform ceilingReferencePoint,
         float hoverDuration,
         float scaleMultiplier,
-        float damageMultiplier,
+        int damage,
         float fallSpeedMultiplier,
-        float followSpeed)
+        float followSpeed,
+        float horizontalWallClearance,
+        float colliderRadiusMultiplier,
+        float explosionRadiusMultiplier,
+        bool followTargetDuringHover = true,
+        float hoverDriftPhaseOffset = 0f,
+        float explosionRadius = -1f)
     {
         giantFireballMode = true;
         giantCeilingReferencePoint = ceilingReferencePoint;
         giantHoverDuration = Mathf.Max(0f, hoverDuration);
+        giantFollowTargetDuringHover = followTargetDuringHover;
+        giantFixedSpawnX = !followTargetDuringHover;
+        giantFixedSpawnXValue = spawnPosition.x;
+        giantHoverDriftPhaseOffset = Mathf.Max(0f, hoverDriftPhaseOffset);
         giantScaleMultiplier = Mathf.Max(1f, scaleMultiplier);
-        giantDamageMultiplier = Mathf.Max(1f, damageMultiplier);
         giantFallSpeedMultiplier = Mathf.Max(0f, fallSpeedMultiplier);
         giantFollowSpeed = Mathf.Max(0f, followSpeed);
+        giantHorizontalWallClearance = Mathf.Max(0f, horizontalWallClearance);
+        float effectiveColliderRadiusMultiplier = Mathf.Clamp(colliderRadiusMultiplier, 0.1f, 3f);
+        if (explosionRadius <= 0f)
+        {
+            ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+            if (controller != null)
+            {
+                explosionRadius = controller.GiantFireballExplosionRadius;
+            }
+        }
+
+        if (explosionRadius > 0f)
+        {
+            giantExplosionRadius = Mathf.Max(0f, explosionRadius);
+        }
         giantCeilingY = giantCeilingReferencePoint != null
             ? giantCeilingReferencePoint.position.y
             : transform.position.y;
         giantFalling = false;
+        immuneToAttacks = true;
+        giantHoverDriftOffset = Vector2.zero;
+        giantHoverDriftTargetOffset = Vector2.zero;
+        nextGiantHoverDriftChangeTime = arrivalDuration + giantHoverDriftPhaseOffset;
+
+        CircleCollider2D circleCollider = GetComponent<CircleCollider2D>();
+        if (circleCollider != null)
+        {
+            circleCollider.radius *= effectiveColliderRadiusMultiplier;
+        }
+
+        transform.localScale *= giantScaleMultiplier;
+        CacheGiantHorizontalFollowRange();
 
         if (rb != null)
         {
             rb.gravityScale = 0f;
             rb.velocity = Vector2.zero;
             rb.angularVelocity = 0f;
-            rb.position = new Vector2(target != null ? target.position.x : transform.position.x, giantCeilingY);
+            float initialX = giantFixedSpawnX
+                ? giantFixedSpawnXValue
+                : GetClampedGiantFollowX(target != null ? target.position.x : transform.position.x);
+            rb.position = new Vector2(initialX, giantCeilingY);
         }
 
-        transform.localScale *= giantScaleMultiplier;
+        projectileDamage = Mathf.Max(1, damage);
 
-        if (combat != null)
+        EnemyProjectileHealth projectileHealth = GetComponent<EnemyProjectileHealth>();
+        if (projectileHealth != null)
         {
-            combat.SetDamage(Mathf.Max(1, Mathf.RoundToInt(combat.Damage * giantDamageMultiplier)));
+            projectileHealth.SetImmuneToAttacks(true);
         }
 
         if (col != null)
@@ -307,52 +404,103 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         }
 
         IgnoreAbyssPowerCollisions(true);
+        IgnoreOwnerCollisions(true);
     }
 
-    public void ConfigureRegularFireballDamage(float damageMultiplier)
+    public void ConfigureExplicitDamage(int damage)
     {
-        if (combat == null)
+        if (combat == null && selfCombat == null)
         {
             return;
         }
 
-        if (!regularDamageConfigured)
+        projectileDamage = Mathf.Max(1, damage);
+    }
+
+    public void ConfigureHybridOrbitDamage(int outerOrbDamage, int coreOrbDamage)
+    {
+        hybridOrbitDamageConfigured = true;
+        hybridOuterOrbDamage = Mathf.Max(1, outerOrbDamage);
+        hybridCoreOrbDamage = Mathf.Max(1, coreOrbDamage);
+        PrepareHybridOrbitDamageEntities();
+    }
+
+    public void ConfigureHybridOrbitMode(
+        float orbitScaleMultiplier,
+        float orbitRotationSpeedMultiplier,
+        float autoExplodeAfterSeconds,
+        bool immuneToPlayerAttacks,
+        bool ignoreEnvironmentCollisions)
+    {
+        if (!useHybridOrbitVisuals)
         {
-            regularBaseDamage = Mathf.Max(1, combat.Damage);
-            regularDamageConfigured = true;
+            return;
         }
 
-        float multiplier = Mathf.Max(0f, damageMultiplier);
-        combat.SetDamage(Mathf.Max(1, Mathf.RoundToInt(regularBaseDamage * multiplier)));
+        hybridOrbitScaleMultiplier = Mathf.Max(1f, orbitScaleMultiplier);
+        hybridOrbitRotationSpeedMultiplier = Mathf.Max(0f, orbitRotationSpeedMultiplier);
+        hybridAutoExplodeAfterSeconds = autoExplodeAfterSeconds > 0f ? autoExplodeAfterSeconds : -1f;
+        hybridImmuneToPlayerAttacks = immuneToPlayerAttacks;
+        hybridIgnoreEnvironmentCollisions = ignoreEnvironmentCollisions;
+        hybridAutoExplosionTriggered = false;
+
+        transform.localScale = Vector3.Scale(transform.localScale, Vector3.one * hybridOrbitScaleMultiplier);
+        PrepareHybridOrbitDamageEntities();
     }
 
     private void FixedUpdate()
+    {
+        AdvanceMotion(Time.fixedDeltaTime, false);
+    }
+
+    public void EditorPreviewTick(float deltaTime)
+    {
+        if (Application.isPlaying)
+        {
+            return;
+        }
+
+        AdvanceMotion(deltaTime, true);
+    }
+
+    private void AdvanceMotion(float deltaTime, bool editorPreviewMode)
     {
         if (hasImpacted || rb == null)
         {
             return;
         }
 
-        elapsedTime += Time.fixedDeltaTime;
+        float step = Mathf.Max(0f, deltaTime);
+        elapsedTime += step;
+
+        if (useHybridOrbitVisuals
+            && !hasImpacted
+            && hybridAutoExplodeAfterSeconds > 0f
+            && elapsedTime >= hybridAutoExplodeAfterSeconds
+            && !hybridAutoExplosionTriggered)
+        {
+            TriggerHybridAutoExplosion();
+            return;
+        }
 
         if (giantFireballMode)
         {
-            UpdateGiantFireballMotion();
+            UpdateGiantFireballMotion(step, editorPreviewMode);
             return;
         }
 
         if (elapsedTime < arrivalDuration)
         {
-            rb.velocity = Vector2.zero;
-            rb.position = Vector2.Lerp(spawnPosition, GetHoverWorldPosition(), arrivalDuration <= 0f ? 1f : Mathf.Clamp01(elapsedTime / arrivalDuration));
+            SetVelocity(Vector2.zero);
+            SetWorldPosition(Vector2.Lerp(spawnPosition, GetHoverWorldPosition(), arrivalDuration <= 0f ? 1f : Mathf.Clamp01(elapsedTime / arrivalDuration)));
             return;
         }
 
         if (elapsedTime < arrivalDuration + hoverDuration)
         {
             UpdateHoverDrift();
-            rb.velocity = Vector2.zero;
-            rb.position = GetHoverWorldPosition() + hoverDriftOffset;
+            SetVelocity(Vector2.zero);
+            SetWorldPosition(GetHoverWorldPosition() + hoverDriftOffset);
             return;
         }
 
@@ -376,7 +524,7 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
             lockedFlightDirection = direction.normalized;
         }
 
-        rb.velocity = lockedFlightDirection * flightSpeed;
+        SetVelocity(lockedFlightDirection * flightSpeed);
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
@@ -386,19 +534,85 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
 
     public void BreakProjectile()
     {
+        if (useHybridOrbitVisuals && hybridImmuneToPlayerAttacks)
+        {
+            TriggerHybridAutoExplosion();
+            return;
+        }
+
         Impact(null, null);
     }
 
     public void BreakProjectile(Component damageSource)
     {
+        if (useHybridOrbitVisuals && hybridImmuneToPlayerAttacks)
+        {
+            TriggerHybridAutoExplosion();
+            return;
+        }
+
         Impact(null, damageSource);
+    }
+
+    public bool CanBeBrokenByAttack(Entity_Combat damageSource)
+    {
+        if (!hybridImmuneToPlayerAttacks)
+        {
+            return true;
+        }
+
+        return damageSource == null || damageSource.GetComponentInParent<Player>() == null;
+    }
+
+    private void TriggerHybridAutoExplosion()
+    {
+        if (hybridAutoExplosionTriggered || hasImpacted)
+        {
+            return;
+        }
+
+        hybridAutoExplosionTriggered = true;
+        hasImpacted = true;
+        ReleaseHoverReservation();
+
+        if (hybridCoreOrb != null)
+        {
+            hybridCoreOrb.ForceBreakWithoutNotify();
+            hybridCoreOrb = null;
+        }
+
+        BreakRemainingHybridOrbs(null, null);
+
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+        }
+
+        if (col != null)
+        {
+            col.enabled = false;
+        }
+
+        if (orbitVisualRoot != null)
+        {
+            orbitVisualRoot.gameObject.SetActive(false);
+        }
+
+        PlayExplosionAudio();
+        Destroy(gameObject);
     }
 
     private void OnDestroy()
     {
+        if (giantFireballMode)
+        {
+            RaiseImpactResolved();
+        }
+
         StopWindLoopAudio();
         windLoopStarted = false;
         IgnoreAbyssPowerCollisions(false);
+        IgnoreOwnerCollisions(false);
         ReleaseHoverReservation();
     }
 
@@ -416,6 +630,11 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
 
         if (collision != null)
         {
+            if (giantFireballMode && !IsValidGiantImpactCollision(collision))
+            {
+                return;
+            }
+
             if (((1 << collision.gameObject.layer) & whatCanCollideWith) == 0)
             {
                 Log($"Ignored collision with {collision.name} on layer {LayerMask.LayerToName(collision.gameObject.layer)}");
@@ -482,14 +701,24 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
 
         if (dealDamage && collision != null)
         {
-            Entity_Combat targetCombat = collision.GetComponentInParent<Entity_Combat>();
-            if (targetCombat != null && combat != null)
+            if (giantFireballMode)
             {
-                Vector2 knockback = collision.transform.position.x >= transform.position.x
-                    ? new Vector2(impactKnockback.x, impactKnockback.y)
-                    : new Vector2(-impactKnockback.x, impactKnockback.y);
+                ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+                controller?.TryForceTimedPlatformDown(collision);
+                ApplyGiantExplosionDamage(collision);
+            }
+            else
+            {
+                Entity_Combat targetCombat = collision.GetComponentInParent<Entity_Combat>();
+                if (targetCombat != null && combat != null)
+                {
+                    Vector2 knockback = collision.transform.position.x >= transform.position.x
+                        ? new Vector2(impactKnockback.x, impactKnockback.y)
+                        : new Vector2(-impactKnockback.x, impactKnockback.y);
 
-                targetCombat.ReceiveHit(combat, knockback);
+                    Entity_Health targetHealth = targetCombat.GetComponentInParent<Entity_Health>();
+                    targetHealth?.TakeDamage(projectileDamage, combat, knockback);
+                }
             }
         }
 
@@ -514,10 +743,22 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         }
 
         PlayExplosionAudio();
+        RaiseImpactResolved();
         Destroy(gameObject, destroyDelayAfterImpact);
     }
 
-    private void UpdateGiantFireballMotion()
+    private void RaiseImpactResolved()
+    {
+        if (impactResolvedEventRaised)
+        {
+            return;
+        }
+
+        impactResolvedEventRaised = true;
+        ImpactResolved?.Invoke(this);
+    }
+
+    private void UpdateGiantFireballMotion(float deltaTime, bool editorPreviewMode)
     {
         if (rb == null)
         {
@@ -525,14 +766,21 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         }
 
         Vector2 currentPosition = rb.position;
-        float targetX = target != null ? target.position.x : currentPosition.x;
+        float targetX = giantFixedSpawnX
+            ? giantFixedSpawnXValue
+            : GetClampedGiantFollowX(target != null ? target.position.x : currentPosition.x);
+        if (!giantFollowTargetDuringHover && !giantFixedSpawnX)
+        {
+            targetX = currentPosition.x;
+        }
 
         if (!giantFalling && elapsedTime < giantHoverDuration)
         {
             Vector2 hoverTarget = new Vector2(targetX, giantCeilingY);
-            float followStep = giantFollowSpeed * Time.fixedDeltaTime;
-            rb.velocity = Vector2.zero;
-            rb.position = Vector2.MoveTowards(currentPosition, hoverTarget, followStep);
+            float followStep = giantFollowSpeed * deltaTime;
+            UpdateGiantHoverDrift();
+            SetVelocity(Vector2.zero);
+            SetWorldPosition(Vector2.MoveTowards(currentPosition, hoverTarget + giantHoverDriftOffset, followStep));
             giantCeilingY = giantCeilingReferencePoint != null ? giantCeilingReferencePoint.position.y : giantCeilingY;
             return;
         }
@@ -549,7 +797,201 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
 
         giantCeilingY = giantCeilingReferencePoint != null ? giantCeilingReferencePoint.position.y : giantCeilingY;
         float fallSpeed = Mathf.Max(.1f, flightSpeed * giantFallSpeedMultiplier);
-        rb.velocity = Vector2.down * fallSpeed;
+        Vector2 nextVelocity = Vector2.down * fallSpeed;
+        Vector2 nextPosition = currentPosition + nextVelocity * deltaTime;
+        nextPosition.x = giantFixedSpawnX ? giantFixedSpawnXValue : GetClampedGiantFollowX(nextPosition.x);
+
+        if (editorPreviewMode && TryResolveEditorPreviewGiantGroundImpact(currentPosition, nextPosition))
+        {
+            return;
+        }
+
+        SetVelocity(nextVelocity);
+        SetWorldPosition(nextPosition);
+    }
+
+    private bool TryResolveEditorPreviewGiantGroundImpact(Vector2 currentPosition, Vector2 nextPosition)
+    {
+        int groundLayer = LayerMask.NameToLayer("Ground");
+        if (groundLayer < 0)
+        {
+            return false;
+        }
+
+        float travelDistance = Mathf.Abs(currentPosition.y - nextPosition.y);
+        float castDistance = travelDistance + Mathf.Max(0.05f, GetColliderRadius());
+        RaycastHit2D hit = Physics2D.Raycast(currentPosition, Vector2.down, castDistance, 1 << groundLayer);
+        if (hit.collider == null)
+        {
+            return false;
+        }
+
+        float visualOffset = Mathf.Max(0.02f, GetColliderRadius() * 0.2f);
+        SetWorldPosition(new Vector2(currentPosition.x, hit.point.y + visualOffset));
+        Impact(hit.collider, null);
+        return true;
+    }
+
+    private bool IsValidGiantImpactCollision(Collider2D collision)
+    {
+        if (collision == null)
+        {
+            return false;
+        }
+
+        if (collision.GetComponentInParent<Player>() != null)
+        {
+            return true;
+        }
+
+        return IsGroundLayer(collision.gameObject.layer);
+    }
+
+    private void ApplyGiantExplosionDamage(Collider2D impactCollision)
+    {
+        float explosionRadius = GetGiantExplosionDamageRadius();
+        if (combat == null || explosionRadius <= 0f)
+        {
+            return;
+        }
+
+        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
+        if (hits == null || hits.Length == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider2D hit = hits[i];
+            if (hit == null)
+            {
+                continue;
+            }
+
+            Player player = hit.GetComponentInParent<Player>();
+            if (player == null)
+            {
+                continue;
+            }
+
+            if (IsDashingPlayer(hit))
+            {
+                continue;
+            }
+
+            Entity_Health targetHealth = player.GetComponent<Entity_Health>();
+            if (targetHealth == null)
+            {
+                targetHealth = player.GetComponentInChildren<Entity_Health>();
+            }
+
+            if (targetHealth == null || targetHealth.IsDead)
+            {
+                continue;
+            }
+
+            if (IsExplosionBlockedByGround(player, impactCollision))
+            {
+                continue;
+            }
+
+            Vector2 knockback = player.transform.position.x >= transform.position.x
+                ? new Vector2(impactKnockback.x, impactKnockback.y)
+                : new Vector2(-impactKnockback.x, impactKnockback.y);
+
+            targetHealth.TakeDamage(projectileDamage, combat, knockback);
+            return;
+        }
+    }
+
+    private bool IsExplosionBlockedByGround(Player player, Collider2D impactCollision)
+    {
+        if (player == null)
+        {
+            return false;
+        }
+
+        int groundLayer = LayerMask.NameToLayer("Ground");
+        if (groundLayer < 0)
+        {
+            return false;
+        }
+
+        Collider2D playerCollider = player.GetComponent<Collider2D>();
+        if (playerCollider == null)
+        {
+            playerCollider = player.GetComponentInChildren<Collider2D>();
+        }
+
+        Bounds? impactBounds = null;
+        Vector2 origin = transform.position;
+        if (impactCollision != null)
+        {
+            impactBounds = impactCollision.bounds;
+            float originOffset = Mathf.Max(0.02f, GetColliderRadius() * 0.1f);
+            if (IsGroundLayer(impactCollision.gameObject.layer))
+            {
+                float playerBottomY = playerCollider != null ? playerCollider.bounds.min.y : player.transform.position.y;
+                if (playerBottomY >= impactBounds.Value.max.y - 0.02f)
+                {
+                    return false;
+                }
+
+                origin = new Vector2(impactBounds.Value.center.x, impactBounds.Value.max.y + originOffset);
+            }
+            else
+            {
+                origin = new Vector2(impactBounds.Value.center.x, impactBounds.Value.center.y + originOffset);
+            }
+        }
+
+        Vector2 targetPoint = playerCollider != null
+            ? playerCollider.bounds.center
+            : (Vector2)player.transform.position;
+        Vector2 direction = targetPoint - origin;
+        float distance = direction.magnitude;
+        if (distance <= 0.01f)
+        {
+            return false;
+        }
+
+        RaycastHit2D[] hits = Physics2D.RaycastAll(origin, direction / distance, distance, 1 << groundLayer);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider2D blocker = hits[i].collider;
+            if (blocker == null)
+            {
+                continue;
+            }
+
+            if (hits[i].distance <= 0.01f)
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsGroundLayer(int layer)
+    {
+        return (whatCanCollideWith.value & (1 << layer)) != 0
+            && layer == LayerMask.NameToLayer("Ground");
+    }
+
+    private static LayerMask BuildPlayerOnlyCollisionMask()
+    {
+        LayerMask mask = 0;
+        int playerLayer = LayerMask.NameToLayer("Player");
+        if (playerLayer >= 0)
+        {
+            mask |= 1 << playerLayer;
+        }
+
+        return mask;
     }
 
     private void IgnoreAbyssPowerCollisions(bool ignore)
@@ -614,6 +1056,55 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         }
 
         ignoredAbyssPowerColliders = System.Array.Empty<Collider2D>();
+    }
+
+    private void IgnoreOwnerCollisions(bool ignore)
+    {
+        if (col == null || owner == null)
+        {
+            return;
+        }
+
+        if (ignore)
+        {
+            if (ignoredOwnerColliders.Length > 0)
+            {
+                return;
+            }
+
+            Collider2D[] ownerColliders = owner.GetComponentsInChildren<Collider2D>(true);
+            if (ownerColliders == null || ownerColliders.Length == 0)
+            {
+                return;
+            }
+
+            System.Collections.Generic.List<Collider2D> colliders = new System.Collections.Generic.List<Collider2D>();
+            for (int i = 0; i < ownerColliders.Length; i++)
+            {
+                Collider2D ownerCollider = ownerColliders[i];
+                if (ownerCollider == null || ownerCollider == col)
+                {
+                    continue;
+                }
+
+                Physics2D.IgnoreCollision(col, ownerCollider, true);
+                colliders.Add(ownerCollider);
+            }
+
+            ignoredOwnerColliders = colliders.ToArray();
+            return;
+        }
+
+        for (int i = 0; i < ignoredOwnerColliders.Length; i++)
+        {
+            Collider2D ownerCollider = ignoredOwnerColliders[i];
+            if (ownerCollider != null)
+            {
+                Physics2D.IgnoreCollision(col, ownerCollider, false);
+            }
+        }
+
+        ignoredOwnerColliders = System.Array.Empty<Collider2D>();
     }
 
     private Vector2 GetFlightDirection()
@@ -726,34 +1217,64 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
 
     private void UpdateHoverDrift()
     {
-        if (hoverDriftRadius <= 0f)
-        {
-            hoverDriftOffset = Vector2.zero;
-            return;
-        }
-
-        if (elapsedTime >= nextHoverDriftChangeTime)
-        {
-            hoverDriftTargetOffset = GetRandomHoverDriftOffset();
-            nextHoverDriftChangeTime = elapsedTime + hoverDriftChangeInterval;
-        }
-
-        hoverDriftOffset = Vector2.MoveTowards(
-            hoverDriftOffset,
-            hoverDriftTargetOffset,
-            hoverDriftMoveSpeed * Time.fixedDeltaTime
+        UpdateHoverDrift(
+            hoverDriftRadius,
+            hoverDriftChangeInterval,
+            hoverDriftMoveSpeed,
+            ref hoverDriftOffset,
+            ref hoverDriftTargetOffset,
+            ref nextHoverDriftChangeTime
         );
     }
 
-    private Vector2 GetRandomHoverDriftOffset()
+    private void UpdateGiantHoverDrift()
     {
-        if (hoverDriftRadius <= 0f)
+        UpdateHoverDrift(
+            giantHoverDriftRadius,
+            giantHoverDriftChangeInterval,
+            giantHoverDriftMoveSpeed,
+            ref giantHoverDriftOffset,
+            ref giantHoverDriftTargetOffset,
+            ref nextGiantHoverDriftChangeTime
+        );
+    }
+
+    private void UpdateHoverDrift(
+        float driftRadius,
+        float driftChangeInterval,
+        float driftMoveSpeed,
+        ref Vector2 driftOffset,
+        ref Vector2 driftTargetOffset,
+        ref float nextDriftChangeTime)
+    {
+        if (driftRadius <= 0f)
+        {
+            driftOffset = Vector2.zero;
+            return;
+        }
+
+        if (elapsedTime >= nextDriftChangeTime)
+        {
+            driftTargetOffset = GetRandomHoverDriftOffset(driftRadius);
+            nextDriftChangeTime = elapsedTime + driftChangeInterval;
+        }
+
+        driftOffset = Vector2.MoveTowards(
+            driftOffset,
+            driftTargetOffset,
+            driftMoveSpeed * Time.fixedDeltaTime
+        );
+    }
+
+    private Vector2 GetRandomHoverDriftOffset(float driftRadius)
+    {
+        if (driftRadius <= 0f)
         {
             return Vector2.zero;
         }
 
-        float randomX = Random.Range(-hoverDriftRadius, hoverDriftRadius);
-        float randomY = Random.Range(-hoverDriftRadius, hoverDriftRadius);
+        float randomX = Random.Range(-driftRadius, driftRadius);
+        float randomY = Random.Range(-driftRadius, driftRadius);
         return new Vector2(randomX, randomY);
     }
 
@@ -1016,6 +1537,13 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
             breakRangeCollider.enabled = false;
         }
 
+        LayerMask hybridCollisionMask = hybridIgnoreEnvironmentCollisions
+            ? BuildPlayerOnlyCollisionMask()
+            : whatCanCollideWith;
+        if (hybridIgnoreEnvironmentCollisions && hybridCollisionMask.value == 0)
+        {
+            hybridCollisionMask = whatCanCollideWith;
+        }
         int baseDamage = combat != null ? Mathf.Max(1, combat.Damage) : 1;
         int childCount = orbitVisualRoot.childCount;
         for (int i = 0; i < childCount; i++)
@@ -1047,7 +1575,9 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
                 hybridOrb = orbitChild.gameObject.AddComponent<Enemy_AbyssMageHybridOrb>();
             }
 
-            int orbDamage = Mathf.Max(1, Mathf.RoundToInt(baseDamage * hybridOuterOrbDamageMultiplier));
+            int orbDamage = hybridOrbitDamageConfigured
+                ? hybridOuterOrbDamage
+                : Mathf.Max(1, Mathf.RoundToInt(baseDamage * hybridOuterOrbDamageMultiplier));
             hybridOrb.Configure(
                 this,
                 Enemy_AbyssMageHybridOrb.OrbKind.Outer,
@@ -1055,9 +1585,10 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
                 hybridOrbHitCooldown,
                 hybridOrbHitboxRadius,
                 1f,
-                whatCanCollideWith,
+                hybridCollisionMask,
                 impactKnockback,
-                GetHybridOrbExplosionAnimatorController()
+                GetHybridOrbExplosionAnimatorController(),
+                !hybridImmuneToPlayerAttacks
             );
             hybridOrbs.Add(hybridOrb);
         }
@@ -1091,7 +1622,9 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
             coreOrb = coreTransform.gameObject.AddComponent<Enemy_AbyssMageHybridOrb>();
         }
 
-        int coreDamage = Mathf.Max(1, Mathf.RoundToInt(baseDamage * hybridCoreOrbDamageMultiplier));
+        int coreDamage = hybridOrbitDamageConfigured
+            ? hybridCoreOrbDamage
+            : Mathf.Max(1, Mathf.RoundToInt(baseDamage * hybridCoreOrbDamageMultiplier));
         coreOrb.Configure(
             this,
             Enemy_AbyssMageHybridOrb.OrbKind.Core,
@@ -1099,9 +1632,10 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
             hybridOrbHitCooldown,
             hybridOrbHitboxRadius,
             hybridCoreOrbitRadiusScale,
-            whatCanCollideWith,
+            hybridCollisionMask,
             impactKnockback,
-            GetHybridOrbExplosionAnimatorController()
+            GetHybridOrbExplosionAnimatorController(),
+            !hybridImmuneToPlayerAttacks
         );
         hybridCoreOrb = coreOrb;
     }
@@ -1226,6 +1760,89 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         return 0.4f;
     }
 
+    private float GetGiantExplosionDamageRadius()
+    {
+        return Mathf.Max(0f, giantExplosionRadius);
+    }
+
+    private void CacheGiantHorizontalFollowRange()
+    {
+        giantMinFollowX = float.NegativeInfinity;
+        giantMaxFollowX = float.PositiveInfinity;
+
+        ArenaBossEncounterController controller = ArenaBossEncounterController.GetActiveInstance();
+        if (controller == null || !controller.TryGetBossArenaHorizontalBounds(out float leftX, out float rightX))
+        {
+            return;
+        }
+
+        float radius = GetColliderRadius();
+        float clearance = GetEffectiveGiantHorizontalWallClearance();
+        giantMinFollowX = leftX + radius + clearance;
+        giantMaxFollowX = rightX - radius - clearance;
+
+        if (giantMaxFollowX < giantMinFollowX)
+        {
+            float midpoint = (leftX + rightX) * 0.5f;
+            giantMinFollowX = midpoint;
+            giantMaxFollowX = midpoint;
+        }
+    }
+
+    private float GetEffectiveGiantHorizontalWallClearance()
+    {
+        float clearance = Mathf.Max(0f, giantHorizontalWallClearance);
+        Player player = target != null ? target.GetComponentInParent<Player>() : null;
+        if (player == null)
+        {
+            return clearance;
+        }
+
+        if (!player.TryGetActiveColliderBounds(out Bounds playerBounds))
+        {
+            return clearance;
+        }
+
+        float playerHalfWidth = Mathf.Max(0f, playerBounds.extents.x);
+        if (playerHalfWidth <= 0f)
+        {
+            return clearance;
+        }
+
+        return Mathf.Min(clearance, playerHalfWidth * 0.49f);
+    }
+
+    private float GetClampedGiantFollowX(float desiredX)
+    {
+        if (float.IsNegativeInfinity(giantMinFollowX) || float.IsPositiveInfinity(giantMaxFollowX))
+        {
+            return desiredX;
+        }
+
+        return Mathf.Clamp(desiredX, giantMinFollowX, giantMaxFollowX);
+    }
+
+    private void SetVelocity(Vector2 velocity)
+    {
+        if (rb != null)
+        {
+            rb.velocity = velocity;
+        }
+    }
+
+    private void SetWorldPosition(Vector2 position)
+    {
+        if (rb != null)
+        {
+            rb.position = position;
+        }
+
+        Vector3 worldPosition = transform.position;
+        worldPosition.x = position.x;
+        worldPosition.y = position.y;
+        transform.position = worldPosition;
+    }
+
     private void Log(string message)
     {
         // Intentionally disabled to keep the console quiet.
@@ -1269,6 +1886,16 @@ public class Enemy_AbyssMageFireball : MonoBehaviour, IProjectileBreakable
         breakRangeCollider.radius = breakRangeRadius;
         breakRangeCollider.offset = Vector2.zero;
         breakRangeCollider.transform.localPosition = breakRangeOffset;
+    }
+
+    private void OnDrawGizmos()
+    {
+        float giantDamageRadius = GetGiantExplosionDamageRadius();
+        if (giantDamageRadius > 0f)
+        {
+            Gizmos.color = new Color(1f, .45f, .1f, .85f);
+            Gizmos.DrawWireSphere(transform.position, giantDamageRadius);
+        }
     }
 
     private void OnDrawGizmosSelected()

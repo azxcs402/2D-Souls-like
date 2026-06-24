@@ -107,12 +107,9 @@ MonoBehaviour:
   loopAnimation: 1
   autoLoadDefaultFrames: 0
   flameTint: {r: 1, g: 0.92, b: 0.78, a: 1}
-  flameLoopSfxKey: 24
-  flameLoopVolume: 0.35
-  flameLoopMinDistance: 0.75
-  flameLoopMaxDistance: 3.5
+  appearSfxKey: 25
+  disappearSfxKey: 26
   flameRenderer: {fileID: 4281167935145217655}
-  flameLoopSource: {fileID: -6349883916918248748}
 --- !u!82 &-6349883916918248748
 AudioSource:
   m_ObjectHideFlags: 0

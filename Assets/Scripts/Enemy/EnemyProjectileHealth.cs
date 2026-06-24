@@ -19,6 +19,11 @@ public class EnemyProjectileHealth : Entity_Health
         abyssMageHybridOrb = GetComponent<Enemy_AbyssMageHybridOrb>();
     }
 
+    public void SetImmuneToAttacks(bool immune)
+    {
+        canTakeDamage = !immune;
+    }
+
     public override bool TakeDamage(int damage, Entity_Combat damageSource, Vector2 knockbackVelocity)
     {
         return base.TakeDamage(damage, damageSource, knockbackVelocity);
@@ -27,6 +32,26 @@ public class EnemyProjectileHealth : Entity_Health
     protected override bool CanReceiveDamageFrom(Entity_Combat damageSource)
     {
         if (damageSource == null)
+        {
+            return false;
+        }
+
+        if (abyssMageFireball != null && abyssMageFireball.IsImmuneToAttacks)
+        {
+            return false;
+        }
+
+        if (mageProjectile != null && !mageProjectile.CanBeBrokenByAttack(damageSource))
+        {
+            return false;
+        }
+
+        if (abyssMageFireball != null && !abyssMageFireball.CanBeBrokenByAttack(damageSource))
+        {
+            return false;
+        }
+
+        if (abyssMageHybridOrb != null && !abyssMageHybridOrb.CanBeBrokenByAttack(damageSource))
         {
             return false;
         }

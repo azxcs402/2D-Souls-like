@@ -32,10 +32,12 @@ public class Enemy_AbyssMageRetreatState : EnemyState
         if (mage.ConsumeQueuedTeleportDestination(out Vector2 queuedDestination))
         {
             teleported = mage.TeleportToDestination(queuedDestination);
+            Debug.Log($"[AbyssMageRetreat] queued teleport result={teleported}, destination={queuedDestination}", mage);
         }
         else
         {
             teleported = mage.TryTeleportToRetreatPoint(out _);
+            Debug.Log($"[AbyssMageRetreat] random teleport result={teleported}", mage);
         }
 
         stateTimer = teleported ? mage.TeleportPostDelay : 0f;

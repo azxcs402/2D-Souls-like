@@ -12,6 +12,8 @@ public class AudioDatabaseSO : ScriptableObject
     [Header("Music Lists")]
     public List<AudioClipData> mainMenuMusic;
     public List<AudioClipData> levelMusic;
+    public List<AudioClipData> doorBattleMusic;
+    public List<AudioClipData> bossBattleMusic;
 
 
     private Dictionary<string, AudioClipData> clipCollection;
@@ -26,6 +28,8 @@ public class AudioDatabaseSO : ScriptableObject
         AddToCollection(bonfireAudio);
         AddToCollection(mainMenuMusic);
         AddToCollection(levelMusic);
+        AddToCollection(doorBattleMusic);
+        AddToCollection(bossBattleMusic);
     }
 
     public bool TryGet(AudioKey audioKey, out AudioClipData data)
@@ -72,7 +76,7 @@ public class AudioClipData
 {
     public string audioName;
     public List<AudioClip> clips = new List<AudioClip>();
-    [Range(0f, 1f)] public float maxVolume = 1f;
+    [Range(0f, 3f)] public float maxVolume = 1f;
     [Min(0.01f)] public float maxHearDistance = 12f;
 
     public bool TryGetRandomClip(out AudioClip clip)

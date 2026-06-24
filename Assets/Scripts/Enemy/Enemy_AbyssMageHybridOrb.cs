@@ -24,6 +24,7 @@ public class Enemy_AbyssMageHybridOrb : MonoBehaviour, IProjectileBreakable
     private OrbKind orbKind = OrbKind.Outer;
     private float nextDamageTime;
     private bool isBroken;
+    private bool canBeBrokenByPlayerAttacks = true;
 
     public bool IsCore => orbKind == OrbKind.Core;
 
@@ -50,7 +51,8 @@ public class Enemy_AbyssMageHybridOrb : MonoBehaviour, IProjectileBreakable
         float orbitRadiusScale,
         LayerMask whatCanCollideWith,
         Vector2 impactKnockback,
-        RuntimeAnimatorController explosionAnimatorController)
+        RuntimeAnimatorController explosionAnimatorController,
+        bool canBeBrokenByPlayerAttacks = true)
     {
         this.owner = owner;
         this.orbKind = orbKind;
@@ -60,6 +62,7 @@ public class Enemy_AbyssMageHybridOrb : MonoBehaviour, IProjectileBreakable
         this.whatCanCollideWith = whatCanCollideWith;
         this.impactKnockback = impactKnockback;
         this.explosionAnimatorController = explosionAnimatorController;
+        this.canBeBrokenByPlayerAttacks = canBeBrokenByPlayerAttacks;
         nextDamageTime = 0f;
         isBroken = false;
 
@@ -150,7 +153,7 @@ public class Enemy_AbyssMageHybridOrb : MonoBehaviour, IProjectileBreakable
             return false;
         }
 
-        if (player.IsCounterAttacking)
+        if (player.IsCounterAttacking && canBeBrokenByPlayerAttacks)
         {
             if (player.TryConsumeProjectileBlockStamina())
             {
@@ -229,6 +232,16 @@ public class Enemy_AbyssMageHybridOrb : MonoBehaviour, IProjectileBreakable
         }
 
         Destroy(gameObject);
+    }
+
+    public bool CanBeBrokenByAttack(Entity_Combat damageSource)
+    {
+        if (canBeBrokenByPlayerAttacks)
+        {
+            return true;
+        }
+
+        return damageSource == null || damageSource.GetComponentInParent<Player>() == null;
     }
 
     public void ForceBreakWithoutNotify()

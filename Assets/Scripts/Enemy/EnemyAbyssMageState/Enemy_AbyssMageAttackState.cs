@@ -51,6 +51,7 @@ public class Enemy_AbyssMageAttackState : Enemy_AbyssMageGroundedState
             mage.SetAttackAnimationSpeed(1f);
             enemy.SetVelocity(0f, rb != null ? rb.velocity.y : 0f);
             PlayAttackAnimation();
+            ArenaBossEncounterController.GetActiveInstance()?.NotifyAbyssMageMeleeAttackStarted(mage);
         }
     }
 
