@@ -72,6 +72,7 @@ public class EnemySkeletonEditor : Editor
             new SearchableField("skeletonAttackMoveDistance", "Skeleton Attack Move Distance", "attack move"),
             new SearchableField("skeletonAttackKnockbackForce", "Skeleton Attack Knockback Force", "knockback", true),
             new SearchableField("skeletonAttackData", "Skeleton Attack Data", "attack data"),
+            new SearchableField("enableFallbackFullLayerDetection", "Enable Fallback Full Layer Detection", "full layer fallback detection attack miss"),
             new SearchableField("skeletonAttackMoveDuration", "Skeleton Attack Move Duration", "attack move"),
             new SearchableField("skeletonAttackMoveXDelay", "Skeleton Attack Move X Delay", "move delay"),
             new SearchableField("skeletonAttackMoveYDelay", "Skeleton Attack Move Y Delay", "move delay"),

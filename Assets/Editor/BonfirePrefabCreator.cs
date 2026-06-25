@@ -138,6 +138,12 @@ public static class BonfirePrefabCreator
         }
 
         SetObject(bonfireSo, "interactionCollider", collider);
+        SetString(bonfireSo, "restPrompt", "Rest");
+        SetString(bonfireSo, "travelPrompt", "Travel");
+        SetString(bonfireSo, "ignitePrompt", "Press F to Light the Bonfire");
+        SetString(bonfireSo, "travelMenuTitle", "Teleport Destinations");
+        SetString(bonfireSo, "travelMenuHint", "W/S Select  F Teleport  ESC Close  Click to Select");
+        SetString(bonfireSo, "travelMenuEmptyText", "No bonfires available for travel");
         bonfireSo.ApplyModifiedPropertiesWithoutUndo();
 
         EditorUtility.SetDirty(bonfire);

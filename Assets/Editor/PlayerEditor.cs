@@ -32,7 +32,10 @@ public class PlayerEditor : Editor
         new SearchableSection(
             "Jump Info",
             "Jump impulse and related tuning.",
-            new SearchableField("jumpForce", "Jump Force", "jump hop")
+            new SearchableField("jumpForce", "Jump Force", "jump hop"),
+            new SearchableField("jumpHeadClearanceHeight", "Jump Head Clearance Height", "jump clearance"),
+            new SearchableField("jumpHeadClearanceWidthMultiplier", "Jump Head Clearance Width Multiplier", "jump clearance width"),
+            new SearchableField("jumpHeadClearanceBottomOffset", "Jump Head Clearance Bottom Offset", "jump clearance offset")
         ),
         new SearchableSection(
             "Wall Slide Info",
@@ -108,7 +111,8 @@ public class PlayerEditor : Editor
             "Fall Attack Info",
             "Downward attack tuning and landing response.",
             new SearchableField("fallAttackStartAnimationName", "Fall Attack Start Animation Name", "fall attack"),
-            new SearchableField("fallAttackEndAnimationName", "Fall Attack End Animation Name", "fall attack"),
+            new SearchableField("fallAttackPerformed1AnimationName", "Fall Attack Performed 1 Animation Name", "fall attack performed 1"),
+            new SearchableField("fallAttackPerformed2AnimationName", "Fall Attack Performed 2 Animation Name", "fall attack performed 2"),
             new SearchableField("fallAttackAnimationSpeed", "Fall Attack Animation Speed", "speed"),
             new SearchableField("fallAttackWindupDuration", "Fall Attack Windup Duration", "windup"),
             new SearchableField("fallAttackGravityMultiplier", "Fall Attack Gravity Multiplier", "gravity"),
@@ -116,6 +120,7 @@ public class PlayerEditor : Editor
             new SearchableField("fallAttackDiveAngle", "Fall Attack Dive Angle", "angle"),
             new SearchableField("fallAttackGroundCheckDistance", "Fall Attack Ground Check Distance", "ground"),
             new SearchableField("fallAttackGroundSearchDistance", "Fall Attack Ground Search Distance", "ground"),
+            new SearchableField("fallAttackDamageWindowDuration", "Fall Attack Damage Window Duration", "damage window"),
             new SearchableField("fallAttackEndAnimationMinSpeed", "Fall Attack End Animation Min Speed", "end speed"),
             new SearchableField("fallAttackEndAnimationMaxSpeed", "Fall Attack End Animation Max Speed", "end speed"),
             new SearchableField("fallAttackEndAnimationLandingOffset", "Fall Attack End Animation Landing Offset", "landing"),
@@ -151,6 +156,7 @@ public class PlayerEditor : Editor
             new SearchableField("nonCombatDashStaminaRecoveryDelay", "Non Combat Dash Stamina Recovery Delay", "dash"),
             new SearchableField("counterAttackStaminaCost", "Counter Attack Stamina Cost", "counter"),
             new SearchableField("counterAttackSuccessStaminaCost", "Counter Attack Success Stamina Cost", "counter"),
+            new SearchableField("projectileBlockStaminaCost", "Projectile Block Stamina Cost", "projectile block"),
             new SearchableField("counterAttackStaminaRecoveryDelay", "Counter Attack Stamina Recovery Delay", "counter"),
             new SearchableField("wallHoldStaminaDrainPerSecond", "Wall Hold Stamina Drain Per Second", "wall hold"),
             new SearchableField("wallSlideStaminaDrainPerSecond", "Wall Slide Stamina Drain Per Second", "wall slide"),

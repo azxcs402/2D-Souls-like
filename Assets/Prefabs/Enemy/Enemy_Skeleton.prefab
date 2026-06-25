@@ -250,6 +250,7 @@ MonoBehaviour:
     targetCheckOffset: {x: 0.7, y: 0}
     targetCheckRadius: 0.6
     knockbackForce: {x: 4, y: 2}
+  enableFallbackFullLayerDetection: 0
   skeletonAttackMoveDuration: 0.12
   skeletonAttackMoveXDelay: 0
   skeletonAttackMoveYDelay: 0

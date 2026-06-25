@@ -169,7 +169,7 @@ public class Player : Entity
 
     [Header("Stamina Info")]
     [SerializeField, Min(1f)] private float maxStamina = 200f;
-    [SerializeField, Min(0f)] private float staminaRecoveryPerSecond = 45f;
+    [SerializeField, Min(0f)] private float staminaRecoveryPerSecond = 55f;
     [SerializeField, Min(0f)] private float staminaEmptyRecoveryDelay = 1f;
     [SerializeField, Min(0f)] private float jumpStaminaCost = 20f;
     [SerializeField, Min(0f)] private float jumpStaminaRecoveryDelay = .15f;

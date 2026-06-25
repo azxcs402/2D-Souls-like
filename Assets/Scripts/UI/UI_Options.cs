@@ -50,17 +50,17 @@ public class UI_Options : MonoBehaviour
 
     public void MasterVolumeValue(float value)
     {
-        ApplySingleVolumeSetting(VolumeChannel.Master, value, clampedValue => AudioListener.volume = clampedValue);
+        AudioVolumeRuntime.SetMasterVolume(value);
     }
 
     public void BgmVolumeValue(float value)
     {
-        ApplySingleVolumeSetting(VolumeChannel.Bgm, value, null);
+        AudioVolumeRuntime.SetBgmVolume(value);
     }
 
     public void SfxVolumeValue(float value)
     {
-        ApplySingleVolumeSetting(VolumeChannel.Sfx, value, null);
+        AudioVolumeRuntime.SetSfxVolume(value);
     }
 
     public void ResetVolumeDefaults()
@@ -92,9 +92,7 @@ public class UI_Options : MonoBehaviour
 
     public void LoadUpSettings()
     {
-        VolumeState savedState = LoadVolumeState();
-
-        ApplyVolumeState(savedState);
+        ApplyVolumeState(LoadVolumeState());
     }
 
     public void Bind(Slider volumeSlider, Slider bgmSlider, Slider sfxSlider)
@@ -160,15 +158,7 @@ public class UI_Options : MonoBehaviour
         float clampedBgm = Mathf.Clamp01(state.bgm);
         float clampedSfx = Mathf.Clamp01(state.sfx);
 
-        if (AudioManager.instance != null)
-        {
-            AudioManager.instance.SetVolumeSettings(clampedMaster, clampedBgm, clampedSfx);
-        }
-        else
-        {
-            AudioListener.volume = clampedMaster;
-            SaveVolumePrefs(clampedMaster, clampedBgm, clampedSfx);
-        }
+        AudioVolumeRuntime.SetVolumeSettings(clampedMaster, clampedBgm, clampedSfx);
 
         ApplyVolumeUIState(new VolumeState(clampedMaster, clampedBgm, clampedSfx));
     }
@@ -195,34 +185,6 @@ public class UI_Options : MonoBehaviour
         }
 
         return null;
-    }
-
-    private void ApplySingleVolumeSetting(VolumeChannel channel, float value, System.Action<float> applyFallback)
-    {
-        float clampedValue = Mathf.Clamp01(value);
-        string prefsKey = VolumePrefsKeys[channel];
-
-        if (AudioManager.instance != null)
-        {
-            switch (channel)
-            {
-                case VolumeChannel.Master:
-                    AudioManager.instance.SetMasterVolume(clampedValue);
-                    break;
-                case VolumeChannel.Bgm:
-                    AudioManager.instance.SetBgmVolume(clampedValue);
-                    break;
-                case VolumeChannel.Sfx:
-                    AudioManager.instance.SetSfxVolume(clampedValue);
-                    break;
-            }
-
-            return;
-        }
-
-        applyFallback?.Invoke(clampedValue);
-        PlayerPrefs.SetFloat(prefsKey, clampedValue);
-        PlayerPrefs.Save();
     }
 
     private static void SaveVolumePrefs(float master, float bgm, float sfx)

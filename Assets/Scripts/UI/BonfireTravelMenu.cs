@@ -470,7 +470,6 @@ public class BonfireTravelMenu : MonoBehaviour
     {
         destinationRecords.Clear();
         HashSet<string> seenKeys = new();
-        string currentKey = sourceBonfire != null ? sourceBonfire.TravelKey : string.Empty;
 
         Bonfire[] liveBonfires = FindObjectsByType<Bonfire>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
         for (int i = 0; i < liveBonfires.Length; i++)
@@ -487,8 +486,8 @@ public class BonfireTravelMenu : MonoBehaviour
                 continue;
             }
 
-            string key = record.GetKey();
-            if (key == currentKey || !seenKeys.Add(key))
+            string key = GetDestinationSignature(record);
+            if (!seenKeys.Add(key))
             {
                 continue;
             }
@@ -509,8 +508,8 @@ public class BonfireTravelMenu : MonoBehaviour
                     continue;
                 }
 
-                string key = record.GetKey();
-                if (key == currentKey || !seenKeys.Add(key))
+                string key = GetDestinationSignature(record);
+                if (!seenKeys.Add(key))
                 {
                     continue;
                 }
@@ -928,7 +927,7 @@ public class BonfireTravelMenu : MonoBehaviour
             return sourceBonfire.TravelMenuTitle;
         }
 
-        return "\u4f20\u9001\u5730\u70b9";
+        return "Teleport Destinations";
     }
 
     private string GetTravelMenuHint()
@@ -938,7 +937,7 @@ public class BonfireTravelMenu : MonoBehaviour
             return sourceBonfire.TravelMenuHint;
         }
 
-        return "W/S \u9009\u62e9  F \u4f20\u9001  ESC \u5173\u95ed  \u9f20\u6807\u70b9\u51fb\u53ef\u9009\u4e2d";
+        return "W/S Select  F Teleport  ESC Close  Click to Select";
     }
 
     private string GetTravelMenuEmptyText()
@@ -948,7 +947,7 @@ public class BonfireTravelMenu : MonoBehaviour
             return sourceBonfire.TravelMenuEmptyText;
         }
 
-        return "\u6ca1\u6709\u53ef\u4f20\u9001\u7684\u7bdd\u706b";
+        return "No bonfires available for travel";
     }
 
     private string GetTravelMenuCursorSymbol()
@@ -986,6 +985,37 @@ public class BonfireTravelMenu : MonoBehaviour
         }
 
         return label;
+    }
+
+    private static string GetDestinationSignature(GameData.BonfireRecord record)
+    {
+        if (record == null)
+        {
+            return string.Empty;
+        }
+
+        string name = ResolveRecordName(record);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = ExtractReadableName(record.bonfireId);
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = record.bonfireId ?? string.Empty;
+        }
+
+        return $"{name.Trim().ToLowerInvariant()}|{GetWorldPositionKey(record.worldPosition)}";
+    }
+
+    private static string GetWorldPositionKey(Vector3 position)
+    {
+        return $"{RoundToKey(position.x)}:{RoundToKey(position.y)}:{RoundToKey(position.z)}";
+    }
+
+    private static int RoundToKey(float value)
+    {
+        return Mathf.RoundToInt(value * 100f);
     }
 
     private static string ExtractReadableName(string bonfireId)

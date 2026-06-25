@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.SceneManagement;
@@ -19,11 +20,13 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioSource sfxSource;
     [Space]
     private AudioClip lastMusicPlayed;
+    private float currentBgmBaseVolume = 1f;
     private string currentBgmGroupName;
     private Coroutine currentBgmCo;
     private Coroutine currentBgmStopCo;
     private Coroutine volumeApplyCo;
     private AudioListener runtimeAudioListener;
+    private readonly Dictionary<AudioSource, float> trackedSfxSourceBaseVolumes = new();
     private float masterVolume = AudioVolumeDefaults.Master;
     private float bgmVolume = AudioVolumeDefaults.Bgm;
     private float sfxVolume = AudioVolumeDefaults.Sfx;
@@ -39,6 +42,7 @@ public class AudioManager : MonoBehaviour
 
         instance = this;
         DontDestroyOnLoad(gameObject);
+        ResolveAudioMixerReferences();
         EnsureSources();
         EnsureAudioDatabase();
         ApplyMixerRouting();
@@ -59,6 +63,7 @@ public class AudioManager : MonoBehaviour
 
     private void OnValidate()
     {
+        ResolveAudioMixerReferences();
         ApplyMixerRouting();
     }
 
@@ -124,6 +129,7 @@ public class AudioManager : MonoBehaviour
         }
 
         currentBgmGroupName = resolvedName;
+        currentBgmBaseVolume = data.maxVolume;
 
         CancelBgmStop();
 
@@ -209,7 +215,7 @@ public class AudioManager : MonoBehaviour
         bgmSource.volume = 0f;
         bgmSource.Play();
 
-        StartCoroutine(FadeVolumeCo(bgmSource, data.maxVolume, 1f));
+        StartCoroutine(FadeVolumeCo(bgmSource, GetBgmTargetVolume(), 1f));
     }
 
     private IEnumerator FadeVolumeCo(AudioSource source, float targetVolume, float duration)
@@ -289,7 +295,7 @@ public class AudioManager : MonoBehaviour
         float pitch = Random.Range(.95f, 1.1f);
         baseVolume = data.maxVolume;
         source.pitch = pitch;
-        source.volume = baseVolume * Mathf.Clamp01(volumeMultiplier);
+        ApplySfxSourceVolume(source, baseVolume * Mathf.Clamp01(volumeMultiplier));
         source.clip = clip;
         source.Play();
 
@@ -322,7 +328,7 @@ public class AudioManager : MonoBehaviour
 
         ConfigurePlaybackSource(source, true, maxHearDistance);
         source.pitch = Random.Range(.95f, 1.1f);
-        source.volume = data.maxVolume;
+        ApplySfxSourceVolume(source, data.maxVolume);
         source.PlayOneShot(clip);
         return true;
     }
@@ -352,7 +358,7 @@ public class AudioManager : MonoBehaviour
 
         float pitch = Random.Range(.95f, 1.1f);
         tempSource.pitch = pitch;
-        tempSource.volume = data.maxVolume;
+        ApplySfxSourceVolume(tempSource, data.maxVolume);
         tempSource.clip = clip;
         tempSource.Play();
 
@@ -384,7 +390,7 @@ public class AudioManager : MonoBehaviour
         loopSource.playOnAwake = false;
         loopSource.loop = true;
         loopSource.pitch = 1f;
-        loopSource.volume = targetVolume;
+        ApplySfxSourceVolume(loopSource, targetVolume);
         loopSource.clip = clip;
         loopSource.outputAudioMixerGroup = ResolveMixerGroup(sfxMixerGroup, "Sound effects");
 
@@ -437,7 +443,7 @@ public class AudioManager : MonoBehaviour
         }
 
         source.pitch = Random.Range(.95f, 1.1f);
-        source.volume = data.maxVolume * Mathf.Clamp01(volumeMultiplier);
+        ApplySfxSourceVolume(source, data.maxVolume * Mathf.Clamp01(volumeMultiplier));
         source.PlayOneShot(clip);
         return true;
     }
@@ -568,6 +574,54 @@ public class AudioManager : MonoBehaviour
         }
     }
 
+    private void ResolveAudioMixerReferences()
+    {
+        if (audioMixer == null)
+        {
+            AudioMixer[] loadedMixers = Resources.FindObjectsOfTypeAll<AudioMixer>();
+            for (int i = 0; i < loadedMixers.Length; i++)
+            {
+                AudioMixer mixer = loadedMixers[i];
+                if (mixer != null && mixer.name == "AudioMixer")
+                {
+                    audioMixer = mixer;
+                    break;
+                }
+            }
+        }
+
+        if (audioMixer == null)
+        {
+            return;
+        }
+
+        if (bgmMixerGroup == null)
+        {
+            bgmMixerGroup = FindMixerGroup(audioMixer, "Background music");
+        }
+
+        if (sfxMixerGroup == null)
+        {
+            sfxMixerGroup = FindMixerGroup(audioMixer, "Sound effects");
+        }
+    }
+
+    private static AudioMixerGroup FindMixerGroup(AudioMixer mixer, string groupName)
+    {
+        if (mixer == null || string.IsNullOrWhiteSpace(groupName))
+        {
+            return null;
+        }
+
+        AudioMixerGroup[] groups = mixer.FindMatchingGroups(groupName);
+        if (groups != null && groups.Length > 0)
+        {
+            return groups[0];
+        }
+
+        return null;
+    }
+
     private void ApplyAllVolumeSettings()
     {
         ApplyMixerVolumes(masterVolume, bgmVolume, sfxVolume);
@@ -606,7 +660,7 @@ public class AudioManager : MonoBehaviour
         volumeField = Mathf.Clamp01(value);
         PlayerPrefs.SetFloat(prefsKey, volumeField);
         PlayerPrefs.Save();
-        QueueVolumeApply();
+        ApplyAllVolumeSettings();
     }
 
     private void PersistVolumeSettings()
@@ -615,7 +669,7 @@ public class AudioManager : MonoBehaviour
         PlayerPrefs.SetFloat(AudioVolumeKeys.Bgm, bgmVolume);
         PlayerPrefs.SetFloat(AudioVolumeKeys.Sfx, sfxVolume);
         PlayerPrefs.Save();
-        QueueVolumeApply();
+        ApplyAllVolumeSettings();
     }
 
     private IEnumerator ApplyVolumeSettingsNextFrameCo()
@@ -627,15 +681,84 @@ public class AudioManager : MonoBehaviour
 
     private void ApplyMixerVolumes(float masterVolume, float bgmVolume, float sfxVolume)
     {
+        AudioListener.volume = masterVolume;
+
         if (audioMixer != null)
         {
-            audioMixer.SetFloat(BgmMixerParam, LinearToDecibels(masterVolume * bgmVolume));
-            audioMixer.SetFloat(SfxMixerParam, LinearToDecibels(masterVolume * sfxVolume));
+            audioMixer.SetFloat(BgmMixerParam, LinearToDecibels(bgmVolume));
+            audioMixer.SetFloat(SfxMixerParam, LinearToDecibels(sfxVolume));
         }
         else
         {
-            AudioListener.volume = masterVolume;
+            ApplyFallbackSourceVolumes();
         }
+    }
+
+    private void ApplyFallbackSourceVolumes()
+    {
+        if (bgmSource != null)
+        {
+            bgmSource.volume = currentBgmBaseVolume * bgmVolume;
+        }
+
+        if (trackedSfxSourceBaseVolumes.Count == 0)
+        {
+            if (sfxSource != null)
+            {
+                sfxSource.volume = sfxVolume;
+            }
+
+            return;
+        }
+
+        List<AudioSource> staleSources = null;
+        foreach (KeyValuePair<AudioSource, float> entry in trackedSfxSourceBaseVolumes)
+        {
+            AudioSource source = entry.Key;
+            if (source == null)
+            {
+                staleSources ??= new List<AudioSource>();
+                staleSources.Add(source);
+                continue;
+            }
+
+            source.volume = entry.Value * sfxVolume;
+        }
+
+        if (staleSources == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < staleSources.Count; i++)
+        {
+            trackedSfxSourceBaseVolumes.Remove(staleSources[i]);
+        }
+    }
+
+    private void ApplySfxSourceVolume(AudioSource source, float baseVolume)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        float resolvedBaseVolume = Mathf.Max(0f, baseVolume);
+
+        if (audioMixer != null)
+        {
+            source.volume = resolvedBaseVolume;
+            return;
+        }
+
+        trackedSfxSourceBaseVolumes[source] = resolvedBaseVolume;
+        source.volume = resolvedBaseVolume * sfxVolume;
+    }
+
+    private float GetBgmTargetVolume()
+    {
+        float resolvedBaseVolume = Mathf.Max(0f, currentBgmBaseVolume);
+        return audioMixer != null ? resolvedBaseVolume : resolvedBaseVolume * bgmVolume;
     }
 
     private static float LinearToDecibels(float normalizedVolume)

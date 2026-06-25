@@ -2371,12 +2371,12 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 846895994668022169, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
-      propertyPath: enableFallbackFullLayerDetection
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 846895994668022169, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: skeletonAttackMoveDistance.x
       value: -0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 846895994668022169, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
+      propertyPath: enableFallbackFullLayerDetection
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2150274433085264076, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: m_Size.x
@@ -4222,9 +4222,9 @@ RectTransform:
   - {fileID: 514087052}
   m_Father: {fileID: 1615325855}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: -55.2, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 73.1, y: -114}
   m_SizeDelta: {x: 96, y: 96}
   m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &400419400
@@ -4239,12 +4239,6 @@ MonoBehaviour:
   m_Script: {fileID: 722366767}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 960879540}
-  playerHealth: {fileID: 960879544}
-  potionImage: {fileID: 400419401}
-  cooldownImage: {fileID: 1582822511}
-  countText: {fileID: 514087053}
-  countTextOffset: {x: 0, y: 30.5}
 --- !u!114 &400419401
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4295,12 +4289,6 @@ MonoBehaviour:
   m_Script: {fileID: 1482225111}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 0}
-  playerHealth: {fileID: 0}
-  potionImage: {fileID: 0}
-  cooldownImage: {fileID: 0}
-  countText: {fileID: 0}
-  countTextOffset: {x: 0, y: -10}
 --- !u!114 &400419404
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -54577,8 +54565,6 @@ MonoBehaviour:
   m_Script: {fileID: 1089225577}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 960879540}
-  spriteRenderer: {fileID: 744383127}
 --- !u!212 &744383127
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -54643,8 +54629,6 @@ MonoBehaviour:
   m_Script: {fileID: 1013616266}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 0}
-  spriteRenderer: {fileID: 0}
 --- !u!114 &744383129
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -57973,7 +57957,7 @@ MonoBehaviour:
   counterAttackAnimationState: playerCounterAttack
   counterAttackPerformedAnimationState: playerCounterAttack_performed
   maxStamina: 200
-  staminaRecoveryPerSecond: 35
+  staminaRecoveryPerSecond: 55
   staminaEmptyRecoveryDelay: 1
   jumpStaminaCost: 18
   jumpStaminaRecoveryDelay: 0.65
@@ -60225,7 +60209,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.04, g: 0.04, b: 0.05, a: 0.82}
+  m_Color: {r: 0.08, g: 0.02, b: 0.02, a: 0.9}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -62445,7 +62429,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.88, g: 0.25, b: 0.18, a: 1}
+  m_Color: {r: 0.98, g: 0.78, b: 0.2, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -62713,7 +62697,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: -0.70000076}
-  m_SizeDelta: {x: 0, y: -0.0000014901161}
+  m_SizeDelta: {x: 0, y: 0.0000014901161}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1582822511
 MonoBehaviour:
@@ -62848,15 +62832,15 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2029321891}
   - {fileID: 400419399}
+  - {fileID: 2029321891}
   m_Father: {fileID: 1642914518}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 631, y: 84}
-  m_SizeDelta: {x: 300, y: 100}
-  m_Pivot: {x: 0.5, y: 0}
+  m_AnchorMin: {x: 1, y: 0}
+  m_AnchorMax: {x: 1, y: 0}
+  m_AnchoredPosition: {x: -431, y: 155.6}
+  m_SizeDelta: {x: 250.1572, y: 132.2175}
+  m_Pivot: {x: 1, y: 0}
 --- !u!114 &1615325856
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -63247,7 +63231,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f5f2f1d2a5f4ec8b8d2eaf0d1adf6ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  targetSceneName: SampleScene
 --- !u!1 &1645471763
 GameObject:
   m_ObjectHideFlags: 0
@@ -64583,12 +64566,12 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: 846895994668022169, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
-      propertyPath: enableFallbackFullLayerDetection
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 846895994668022169, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: skeletonAttackMoveDistance.x
       value: -0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 846895994668022169, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
+      propertyPath: enableFallbackFullLayerDetection
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2150274433085264076, guid: d2d309cc03ed37d43b5aa95938e63427, type: 3}
       propertyPath: m_Size.x
@@ -66800,7 +66783,7 @@ MonoBehaviour:
   bossSkill5CastPoint: {fileID: 1791016329}
   skill5TriggerHealthPercent: 0.35
   skill5MaxRecoverHealthPercent: 0.65
-  skill5HealPercentPerSecond: 0.012
+  skill5HealPercentPerSecond: 0.03
   skill5GiantFireballInterval: 0.8
   skill5MaxActiveGiantFireballs: 3
   skill5PlatformDurationIncreasePerSecond: 1.1
@@ -67571,9 +67554,9 @@ RectTransform:
   - {fileID: 1664904174}
   m_Father: {fileID: 1615325855}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 55.6, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 177.5, y: -114}
   m_SizeDelta: {x: 96, y: 96}
   m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &2029321893

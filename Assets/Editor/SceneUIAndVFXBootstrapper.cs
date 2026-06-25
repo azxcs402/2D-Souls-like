@@ -608,21 +608,23 @@ public static class SceneUIAndVFXBootstrapper
             return false;
         }
 
+        bool changed = EnsureSkillBarRootLayout(skillBarTransform);
         GameObject skillBarObject = skillBarTransform.gameObject;
         Transform existingSlot = skillBarObject.transform.Find(DashSkillSlotName);
         if (existingSlot == null)
         {
-            return false;
+            return changed;
         }
 
         GameObject slotObject = existingSlot.gameObject;
         slotObject.transform.SetParent(skillBarObject.transform, false);
+        changed |= EnsureSkillBarItemManualSizing(slotObject.GetComponent<RectTransform>());
         UI_DashCooldownImage dashSkillSlot = GetOrAddComponent<UI_DashCooldownImage>(slotObject);
         Transform cooldownImageTransform = slotObject.transform.Find("CooldownImage");
         Image cooldownImage = cooldownImageTransform != null ? cooldownImageTransform.GetComponent<Image>() : null;
         if (cooldownImage == null)
         {
-            return false;
+            return changed;
         }
 
         dashSkillSlot.Configure(cooldownImage);
@@ -643,8 +645,8 @@ public static class SceneUIAndVFXBootstrapper
             return false;
         }
 
+        bool changed = EnsureSkillBarRootLayout(skillBarTransform);
         Sprite potionSprite = LoadSprite(HealingPotionIconAssetPath, HealingPotionIconSpriteName);
-        bool changed = false;
 
         GameObject potionObject = null;
         Transform existingPotion = skillBarTransform.Find(HealingPotionObjectName);
@@ -661,6 +663,7 @@ public static class SceneUIAndVFXBootstrapper
             }
 
             potionObject = existingPotion.gameObject;
+            changed |= EnsureSkillBarItemManualSizing(potionObject.GetComponent<RectTransform>());
         }
 
         if (potionObject == null)
@@ -1017,6 +1020,18 @@ public static class SceneUIAndVFXBootstrapper
         return null;
     }
 
+    private static bool EnsureSkillBarRootLayout(Transform skillBarTransform)
+    {
+        if (skillBarTransform == null)
+        {
+            return false;
+        }
+
+        bool changed = EnsureSkillBarLayout(skillBarTransform as RectTransform);
+        changed |= NormalizeSkillBarChildOrder(skillBarTransform);
+        return changed;
+    }
+
     private static bool EnsureSkillBarLayout(RectTransform skillBarRect)
     {
         if (skillBarRect == null)
@@ -1029,71 +1044,16 @@ public static class SceneUIAndVFXBootstrapper
         Vector2 pivot = new Vector2(1f, 0f);
         Vector2 targetPosition = new Vector2(-431f, 155.6f);
         HorizontalLayoutGroup layoutGroup = skillBarRect.GetComponent<HorizontalLayoutGroup>();
-        if (layoutGroup == null)
+        if (layoutGroup != null)
         {
-            layoutGroup = skillBarRect.gameObject.AddComponent<HorizontalLayoutGroup>();
-            changed = true;
-        }
-
-        if (layoutGroup.childAlignment != TextAnchor.MiddleRight)
-        {
-            layoutGroup.childAlignment = TextAnchor.MiddleRight;
-            changed = true;
-        }
-
-        if (layoutGroup.childControlWidth)
-        {
-            layoutGroup.childControlWidth = false;
-            changed = true;
-        }
-
-        if (layoutGroup.childControlHeight)
-        {
-            layoutGroup.childControlHeight = false;
-            changed = true;
-        }
-
-        if (layoutGroup.childForceExpandWidth)
-        {
-            layoutGroup.childForceExpandWidth = false;
-            changed = true;
-        }
-
-        if (layoutGroup.childForceExpandHeight)
-        {
-            layoutGroup.childForceExpandHeight = false;
-            changed = true;
-        }
-
-        if (!Mathf.Approximately(layoutGroup.spacing, 12f))
-        {
-            layoutGroup.spacing = 12f;
-            changed = true;
-        }
-
-        RectOffset padding = layoutGroup.padding;
-        if (padding.left != 0 || padding.right != 0 || padding.top != 0 || padding.bottom != 0)
-        {
-            layoutGroup.padding = new RectOffset(0, 0, 0, 0);
+            Undo.DestroyObjectImmediate(layoutGroup);
             changed = true;
         }
 
         ContentSizeFitter fitter = skillBarRect.GetComponent<ContentSizeFitter>();
-        if (fitter == null)
+        if (fitter != null)
         {
-            fitter = skillBarRect.gameObject.AddComponent<ContentSizeFitter>();
-            changed = true;
-        }
-
-        if (fitter.horizontalFit != ContentSizeFitter.FitMode.PreferredSize)
-        {
-            fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            changed = true;
-        }
-
-        if (fitter.verticalFit != ContentSizeFitter.FitMode.PreferredSize)
-        {
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            Undo.DestroyObjectImmediate(fitter);
             changed = true;
         }
 
@@ -1137,45 +1097,24 @@ public static class SceneUIAndVFXBootstrapper
             return false;
         }
 
-        bool changed = false;
+        return EnsureSkillBarItemManualSizing(itemRect);
+    }
+
+    private static bool EnsureSkillBarItemManualSizing(RectTransform itemRect)
+    {
+        if (itemRect == null)
+        {
+            return false;
+        }
+
         LayoutElement layoutElement = itemRect.GetComponent<LayoutElement>();
         if (layoutElement == null)
         {
-            layoutElement = itemRect.gameObject.AddComponent<LayoutElement>();
-            changed = true;
+            return false;
         }
 
-        if (!Mathf.Approximately(layoutElement.preferredWidth, preferredWidth))
-        {
-            layoutElement.preferredWidth = preferredWidth;
-            changed = true;
-        }
-
-        if (!Mathf.Approximately(layoutElement.preferredHeight, preferredHeight))
-        {
-            layoutElement.preferredHeight = preferredHeight;
-            changed = true;
-        }
-
-        if (layoutElement.flexibleWidth != 0f)
-        {
-            layoutElement.flexibleWidth = 0f;
-            changed = true;
-        }
-
-        if (layoutElement.flexibleHeight != 0f)
-        {
-            layoutElement.flexibleHeight = 0f;
-            changed = true;
-        }
-
-        if (layoutElement.ignoreLayout)
-        {
-            layoutElement.ignoreLayout = false;
-            changed = true;
-        }
-
-        return changed;
+        Undo.DestroyObjectImmediate(layoutElement);
+        return true;
     }
 
     private static bool NormalizeSkillBarChildOrder(Transform skillBarTransform)

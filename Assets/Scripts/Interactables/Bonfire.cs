@@ -59,9 +59,9 @@ public class Bonfire : MonoBehaviour, ISaveable
 
     [Header("Interaction Prompt")]
     [SerializeField] private Font promptFont;
-    [SerializeField] private string restPrompt = "\u4f11\u606f";
-    [SerializeField] private string travelPrompt = "\u4f20\u9001";
-    [SerializeField] private string ignitePrompt = "\u6309\u4e0bF\u6fc0\u6d3b\u7bdd\u706b";
+    [SerializeField] private string restPrompt = "Rest";
+    [SerializeField] private string travelPrompt = "Travel";
+    [SerializeField] private string ignitePrompt = "Press F to Light the Bonfire";
     [SerializeField] private string promptCursorSymbol = ">";
     [SerializeField] private Sprite restPromptIcon;
     [SerializeField] private Sprite travelPromptIcon;
@@ -82,9 +82,9 @@ public class Bonfire : MonoBehaviour, ISaveable
 
     [Header("Travel Menu")]
     [SerializeField] private Font travelMenuFont;
-    [SerializeField] private string travelMenuTitle = "\u4f20\u9001\u5730\u70b9";
-    [SerializeField] private string travelMenuHint = "W/S \u9009\u62e9  F \u4f20\u9001  ESC \u5173\u95ed  \u9f20\u6807\u70b9\u51fb\u53ef\u9009\u4e2d";
-    [SerializeField] private string travelMenuEmptyText = "\u6ca1\u6709\u53ef\u4f20\u9001\u7684\u7bdd\u706b";
+    [SerializeField] private string travelMenuTitle = "Teleport Destinations";
+    [SerializeField] private string travelMenuHint = "W/S Select  F Teleport  ESC Close  Click to Select";
+    [SerializeField] private string travelMenuEmptyText = "No bonfires available for travel";
     [SerializeField] private string travelMenuCloseLabel = "X";
     [SerializeField] private string travelMenuCursorSymbol = ">";
     [SerializeField] private Sprite travelMenuCloseIcon;
@@ -122,7 +122,7 @@ public class Bonfire : MonoBehaviour, ISaveable
     public string BonfireDisplayName => bonfireDisplayName;
     public string SceneName => GetSceneName();
     public string TravelKey => GetTravelKey();
-    public string InteractPrompt => bonfireActivated ? restPrompt : ignitePrompt;
+    public string InteractPrompt => bonfireActivated ? RestPrompt : IgnitePrompt;
     public bool IsActivated => bonfireActivated;
     public bool IsLit => isLit;
 
@@ -139,14 +139,14 @@ public class Bonfire : MonoBehaviour, ISaveable
     public Color PromptRowSelectedBackground => promptRowSelectedBackground;
     public Color PromptSelectedColor => selectedPromptColor;
     public Color PromptUnselectedColor => unselectedPromptColor;
-    public string RestPrompt => restPrompt;
-    public string TravelPrompt => travelPrompt;
-    public string IgnitePrompt => ignitePrompt;
+    public string RestPrompt => NormalizeLegacyPromptText(restPrompt, "Rest");
+    public string TravelPrompt => NormalizeLegacyPromptText(travelPrompt, "Travel");
+    public string IgnitePrompt => NormalizeLegacyPromptText(ignitePrompt, "Press F to Light the Bonfire");
     public string PromptCursorSymbol => promptCursorSymbol;
     public Font TravelMenuFont => travelMenuFont;
-    public string TravelMenuTitle => travelMenuTitle;
-    public string TravelMenuHint => travelMenuHint;
-    public string TravelMenuEmptyText => travelMenuEmptyText;
+    public string TravelMenuTitle => NormalizeLegacyPromptText(travelMenuTitle, "Teleport Destinations");
+    public string TravelMenuHint => NormalizeLegacyPromptText(travelMenuHint, "W/S Select  F Teleport  ESC Close  Click to Select");
+    public string TravelMenuEmptyText => NormalizeLegacyPromptText(travelMenuEmptyText, "No bonfires available for travel");
     public string TravelMenuCloseLabel => travelMenuCloseLabel;
     public string TravelMenuCursorSymbol => travelMenuCursorSymbol;
     public Sprite TravelMenuCloseIcon => travelMenuCloseIcon;
@@ -1246,7 +1246,7 @@ public class Bonfire : MonoBehaviour, ISaveable
         ignitePromptText.color = promptColor;
         ignitePromptText.horizontalOverflow = HorizontalWrapMode.Overflow;
         ignitePromptText.verticalOverflow = VerticalWrapMode.Overflow;
-        ignitePromptText.text = ignitePrompt;
+        ignitePromptText.text = IgnitePrompt;
     }
 
     private void PlayAudio(AudioKey audioKey)
@@ -1309,8 +1309,8 @@ public class Bonfire : MonoBehaviour, ISaveable
             fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            litPromptOptions[0] = CreatePromptOption(panel.transform, "RestOption", restPrompt, restPromptIcon, 0, OnRestSelected);
-            litPromptOptions[1] = CreatePromptOption(panel.transform, "TravelOption", travelPrompt, travelPromptIcon, 1, OnTravelSelected);
+            litPromptOptions[0] = CreatePromptOption(panel.transform, "RestOption", RestPrompt, restPromptIcon, 0, OnRestSelected);
+            litPromptOptions[1] = CreatePromptOption(panel.transform, "TravelOption", TravelPrompt, travelPromptIcon, 1, OnTravelSelected);
         }
 
         UpdatePromptOptionVisuals();
@@ -1412,6 +1412,7 @@ public class Bonfire : MonoBehaviour, ISaveable
 
             if (option.label != null)
             {
+                option.label.text = i == 0 ? RestPrompt : TravelPrompt;
                 option.label.color = selected ? selectedPromptColor : unselectedPromptColor;
             }
         }
@@ -1461,6 +1462,26 @@ public class Bonfire : MonoBehaviour, ISaveable
         }
 
         return Font.CreateDynamicFontFromOSFont("Arial", 16);
+    }
+
+    private static string NormalizeLegacyPromptText(string value, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        string trimmed = value.Trim();
+        return trimmed switch
+        {
+            "\u4f11\u606f" => "Rest",
+            "\u4f20\u9001" => "Travel",
+            "\u6309\u4e0bF\u6fc0\u6d3b\u7bdd\u706b" => "Press F to Light the Bonfire",
+            "\u4f20\u9001\u5730\u70b9" => "Teleport Destinations",
+            "W/S \u9009\u62e9  F \u4f20\u9001  ESC \u5173\u95ed  \u9f20\u6807\u70b9\u51fb\u53ef\u9009\u4e2d" => "W/S Select  F Teleport  ESC Close  Click to Select",
+            "\u6ca1\u6709\u53ef\u4f20\u9001\u7684\u7bdd\u706b" => "No bonfires available for travel",
+            _ => trimmed
+        };
     }
 
     private static Text CreateText(Transform parent, string name, string text, int fontSize, FontStyle style, TextAnchor alignment, Font font = null)

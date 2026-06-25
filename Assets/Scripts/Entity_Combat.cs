@@ -99,7 +99,7 @@ public class Entity_Combat : MonoBehaviour
 
     public bool AttackTrigger(Entity_AttackData attackData)
     {
-        return AttackTrigger(attackData, GetNextAttackId());
+        return AttackTrigger(attackData, GetNextAttackId(), true);
     }
 
     public int CreateAttackId()
@@ -108,6 +108,16 @@ public class Entity_Combat : MonoBehaviour
     }
 
     public bool AttackTrigger(Entity_AttackData attackData, int attackId)
+    {
+        return AttackTrigger(attackData, attackId, true);
+    }
+
+    public bool AttackTrigger(Entity_AttackData attackData, bool allowFallbackFullLayerDetection)
+    {
+        return AttackTrigger(attackData, GetNextAttackId(), allowFallbackFullLayerDetection);
+    }
+
+    public bool AttackTrigger(Entity_AttackData attackData, int attackId, bool allowFallbackFullLayerDetection)
     {
         Vector2 attackCenter = GetAttackCenter(attackData);
         float attackRadius = attackData.TargetCheckRadius;
@@ -119,7 +129,7 @@ public class Entity_Combat : MonoBehaviour
             strictLayerMatch: true
         );
 
-        if (!hitAnyTarget)
+        if (!hitAnyTarget && allowFallbackFullLayerDetection)
         {
             hitAnyTarget = TryAttackTargets(
                 Physics2D.OverlapCircleAll(attackCenter, attackRadius, ~0),

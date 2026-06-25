@@ -36,6 +36,7 @@ public class Enemy_Skeleton : Enemy, ICounterable, IEnemyBattleResponder
     [SerializeField] private Vector2 skeletonAttackMoveDistance = Vector2.zero;
     [SerializeField, HideInInspector] private Vector2 skeletonAttackKnockbackForce = new Vector2(4f, 2f);
     [SerializeField] private Entity_AttackData skeletonAttackData = new Entity_AttackData(new Vector2(.7f, 0f), .6f, new Vector2(4f, 2f));
+    [SerializeField] private bool enableFallbackFullLayerDetection = false;
     [SerializeField, Min(.01f)] private float skeletonAttackMoveDuration = .12f;
     [SerializeField, Min(0f)] private float skeletonAttackMoveXDelay = 0f;
     [SerializeField, Min(0f)] private float skeletonAttackMoveYDelay = 0f;
@@ -94,6 +95,7 @@ public class Enemy_Skeleton : Enemy, ICounterable, IEnemyBattleResponder
     public Vector2 SkeletonAttackMoveDistance => skeletonAttackMoveDistance;
     public Vector2 SkeletonAttackKnockbackForce => skeletonAttackKnockbackForce;
     public Entity_AttackData SkeletonAttackData => skeletonAttackData;
+    public bool EnableFallbackFullLayerDetection => enableFallbackFullLayerDetection;
     public float SkeletonAttackMoveDuration => skeletonAttackMoveDuration;
     public float SkeletonAttackMoveXDelay => skeletonAttackMoveXDelay;
     public float SkeletonAttackMoveYDelay => skeletonAttackMoveYDelay;

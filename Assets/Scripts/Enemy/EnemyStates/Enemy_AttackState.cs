@@ -100,14 +100,10 @@ public class Enemy_AttackState : Enemy_GroundedState
             return;
         }
 
+        damageTriggered = true;
         damageWindowActive = true;
-        bool hitPlayer = TryApplyAttackDamage();
+        TryApplyAttackDamage();
         damageWindowActive = false;
-
-        if (hitPlayer)
-        {
-            damageTriggered = true;
-        }
     }
 
     public void AttackOver()
@@ -128,7 +124,7 @@ public class Enemy_AttackState : Enemy_GroundedState
             ? skeleton.SkeletonAttackData
             : new Entity_AttackData(Vector2.zero, .6f, Vector2.zero);
 
-        bool hitPlayer = combat.AttackTrigger(attackData);
+        bool hitPlayer = combat.AttackTrigger(attackData, skeleton == null || skeleton.EnableFallbackFullLayerDetection);
 
         return hitPlayer;
     }

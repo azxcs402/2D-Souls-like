@@ -698,7 +698,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 0}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 333
+  m_MaxValue: 400
   m_WholeNumbers: 1
   m_Value: 0
   m_OnValueChanged:
@@ -988,7 +988,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 242b96f7107552043bdcb1dceed2d79b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 333
+  maxHealth: 400
   canTakeDamage: 1
   knockbackDuration: 0.15
   healthBar: {fileID: 1679848339229094340}

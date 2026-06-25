@@ -142,12 +142,10 @@ public class ArenaBossEncounterController : MonoBehaviour
     [SerializeField] private Transform bossSkill5CastPoint;
     [SerializeField, Range(0f, 1f)] private float skill5TriggerHealthPercent = 0.35f;
     [SerializeField, Range(0f, 1f)] private float skill5MaxRecoverHealthPercent = 0.65f;
-    [SerializeField, Min(0f)] private float skill5HealPercentPerSecond = 0.012f;
+    [SerializeField, Min(0f)] private float skill5HealPercentPerSecond = 0.03f;
     [SerializeField, Min(0.05f)] private float skill5GiantFireballInterval = 0.8f;
     [SerializeField, Min(1)] private int skill5MaxActiveGiantFireballs = 3;
     [SerializeField, Min(0f)] private float skill5PlatformDurationIncreasePerSecond = 1.1f;
-
-    private const float Skill5HealPercentPerSecondRuntime = 0.02f;
 
     [Header("Skill Point Backgrounds")]
     [SerializeField] private GameObject[] skillPointBackgrounds = Array.Empty<GameObject>();
@@ -221,6 +219,7 @@ public class ArenaBossEncounterController : MonoBehaviour
     private bool pendingAbyssMageGiantSpellCastRequest;
     private bool pendingAbyssMageSkill4Request;
     private bool skill5PendingStart;
+    private bool abyssMageDebugInputsUnlocked;
     private int normalSkill2CastCounter;
     private int normalSkill3CastCounter;
     private bool enhancedSkill3Active;
@@ -280,6 +279,7 @@ public class ArenaBossEncounterController : MonoBehaviour
     private void Update()
     {
         TryBeginEncounterFromPlayerPresence();
+        HandleAbyssMageDebugInputUnlockInput();
         HandleAbyssMageForceSpellCastInput();
         HandleAbyssMageForceEnhancedSkill2Input();
         HandleAbyssMageForceGiantSpellCastInput();
@@ -1669,6 +1669,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageManualSpellCastInput()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.iKey.wasPressedThisFrame;
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.I);
 
@@ -1682,6 +1687,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageForceSpellCastInput()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.oKey.wasPressedThisFrame;
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.O);
 
@@ -1697,6 +1707,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageForceEnhancedSkill2Input()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null
             && (Keyboard.current.digit2Key.wasPressedThisFrame || Keyboard.current.numpad2Key.wasPressedThisFrame);
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2);
@@ -1713,6 +1728,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageForceGiantSpellCastInput()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.lKey.wasPressedThisFrame;
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.L);
 
@@ -1728,6 +1748,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageForceEnhancedSkill3Input()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null
             && (Keyboard.current.digit3Key.wasPressedThisFrame || Keyboard.current.numpad3Key.wasPressedThisFrame);
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3);
@@ -1744,6 +1769,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageForceSkill4Input()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null
             && (Keyboard.current.digit4Key.wasPressedThisFrame || Keyboard.current.numpad4Key.wasPressedThisFrame);
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4);
@@ -1760,6 +1790,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageDecrementSkillPointInput()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame;
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.K);
 
@@ -2046,6 +2081,11 @@ public class ArenaBossEncounterController : MonoBehaviour
 
     private void HandleAbyssMageForceSkill5HealthInput()
     {
+        if (!CanProcessAbyssMageDebugInputs())
+        {
+            return;
+        }
+
         bool pressedByInputSystem = Keyboard.current != null
             && (Keyboard.current.digit5Key.wasPressedThisFrame || Keyboard.current.numpad5Key.wasPressedThisFrame);
         bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5);
@@ -2058,6 +2098,36 @@ public class ArenaBossEncounterController : MonoBehaviour
         ResolveAbyssMageForSkill4Debug();
         ForceBossHealthPercent(0.34f);
         LogAbyssMageDebug($"5 pressed. Boss health forced to 34%. boss={(bossAbyssMage != null ? bossAbyssMage.name : "null")}");
+    }
+
+    private void HandleAbyssMageDebugInputUnlockInput()
+    {
+        if (abyssMageDebugInputsUnlocked)
+        {
+            return;
+        }
+
+        bool pressedByInputSystem = Keyboard.current != null
+            && (Keyboard.current.digit9Key.wasPressedThisFrame || Keyboard.current.numpad9Key.wasPressedThisFrame);
+        bool pressedByLegacyInput = Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9);
+
+        if (!pressedByInputSystem && !pressedByLegacyInput)
+        {
+            return;
+        }
+
+        abyssMageDebugInputsUnlocked = true;
+        LogAbyssMageDebug("9 pressed. Abyss Mage debug inputs unlocked.");
+    }
+
+    private bool CanProcessAbyssMageDebugInputs()
+    {
+        if (abyssMageDebugInputsUnlocked)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private void ForceBossHealthPercent(float percent)
@@ -2210,7 +2280,7 @@ public class ArenaBossEncounterController : MonoBehaviour
                     nextSpawnTime = Time.time + skill5GiantFireballInterval;
                 }
 
-                healAccumulator += bossHealth.MaxHealth * Skill5HealPercentPerSecondRuntime * Time.deltaTime;
+                healAccumulator += bossHealth.MaxHealth * skill5HealPercentPerSecond * Time.deltaTime;
                 int healAmount = Mathf.FloorToInt(healAccumulator);
                 if (healAmount > 0)
                 {

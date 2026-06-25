@@ -40,6 +40,7 @@ public class UI_PauseMenu : MonoBehaviour
     private bool cursorStateCaptured;
     private bool originalCursorVisible;
     private CursorLockMode originalCursorLockState;
+    private bool listenersWired;
 
     private void Awake()
     {
@@ -62,6 +63,11 @@ public class UI_PauseMenu : MonoBehaviour
         }
 
         CaptureCursorState();
+        if (!gameObject.activeSelf)
+        {
+            gameObject.SetActive(true);
+        }
+
         menuRoot.SetActive(true);
         ShowMainPanel();
         PauseGameplayContext();
@@ -104,15 +110,9 @@ public class UI_PauseMenu : MonoBehaviour
 
     public void RefreshVolumeUI()
     {
-        float master = AudioManager.instance != null
-            ? AudioManager.instance.GetMasterVolume()
-            : PlayerPrefs.GetFloat(AudioVolumeKeys.Master, AudioVolumeDefaults.Master);
-        float bgm = AudioManager.instance != null
-            ? AudioManager.instance.GetBgmVolume()
-            : PlayerPrefs.GetFloat(AudioVolumeKeys.Bgm, AudioVolumeDefaults.Bgm);
-        float sfx = AudioManager.instance != null
-            ? AudioManager.instance.GetSfxVolume()
-            : PlayerPrefs.GetFloat(AudioVolumeKeys.Sfx, AudioVolumeDefaults.Sfx);
+        float master = AudioVolumeRuntime.GetMasterVolume();
+        float bgm = AudioVolumeRuntime.GetBgmVolume();
+        float sfx = AudioVolumeRuntime.GetSfxVolume();
 
         masterSlider?.SetValueWithoutNotify(master);
         bgmSlider?.SetValueWithoutNotify(bgm);
@@ -136,17 +136,17 @@ public class UI_PauseMenu : MonoBehaviour
 
     public void MasterVolumeValue(float value)
     {
-        ApplyVolume(AudioVolumeKeys.Master, Mathf.Clamp01(value), volume => AudioManager.instance?.SetMasterVolume(volume));
+        AudioVolumeRuntime.SetMasterVolume(value);
     }
 
     public void BgmVolumeValue(float value)
     {
-        ApplyVolume(AudioVolumeKeys.Bgm, Mathf.Clamp01(value), volume => AudioManager.instance?.SetBgmVolume(volume));
+        AudioVolumeRuntime.SetBgmVolume(value);
     }
 
     public void SfxVolumeValue(float value)
     {
-        ApplyVolume(AudioVolumeKeys.Sfx, Mathf.Clamp01(value), volume => AudioManager.instance?.SetSfxVolume(volume));
+        AudioVolumeRuntime.SetSfxVolume(value);
     }
 
     public void HandleEscapeRequest()
@@ -322,44 +322,81 @@ public class UI_PauseMenu : MonoBehaviour
 
     private void WireButtons()
     {
+        if (listenersWired)
+        {
+            return;
+        }
+
         if (resumeButton != null && resumeButton.onClick.GetPersistentEventCount() == 0)
         {
-            resumeButton.onClick.AddListener(CloseMenu);
+            resumeButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                CloseMenu();
+            });
         }
 
         if (mainMenuButton != null && mainMenuButton.onClick.GetPersistentEventCount() == 0)
         {
-            mainMenuButton.onClick.AddListener(GoMainMenu);
+            mainMenuButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                GoMainMenu();
+            });
         }
 
         if (volumeButton != null && volumeButton.onClick.GetPersistentEventCount() == 0)
         {
-            volumeButton.onClick.AddListener(ShowVolumePanel);
+            volumeButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                ShowVolumePanel();
+            });
         }
 
         if (difficultyButton != null && difficultyButton.onClick.GetPersistentEventCount() == 0)
         {
-            difficultyButton.onClick.AddListener(ShowDifficultyPanel);
+            difficultyButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                ShowDifficultyPanel();
+            });
         }
 
         if (volumeBackButton != null && volumeBackButton.onClick.GetPersistentEventCount() == 0)
         {
-            volumeBackButton.onClick.AddListener(ShowMainPanel);
+            volumeBackButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                ShowMainPanel();
+            });
         }
 
         if (difficultyBackButton != null && difficultyBackButton.onClick.GetPersistentEventCount() == 0)
         {
-            difficultyBackButton.onClick.AddListener(ShowMainPanel);
+            difficultyBackButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                ShowMainPanel();
+            });
         }
 
         if (easyButton != null && easyButton.onClick.GetPersistentEventCount() == 0)
         {
-            easyButton.onClick.AddListener(SetEasyDifficulty);
+            easyButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                SetEasyDifficulty();
+            });
         }
 
         if (normalButton != null && normalButton.onClick.GetPersistentEventCount() == 0)
         {
-            normalButton.onClick.AddListener(SetNormalDifficulty);
+            normalButton.onClick.AddListener(() =>
+            {
+                UIAudio.PlayButtonClick();
+                SetNormalDifficulty();
+            });
         }
 
         if (masterSlider != null && masterSlider.onValueChanged.GetPersistentEventCount() == 0)
@@ -376,6 +413,8 @@ public class UI_PauseMenu : MonoBehaviour
         {
             sfxSlider.onValueChanged.AddListener(SfxVolumeValue);
         }
+
+        listenersWired = true;
     }
 
     private void CaptureCursorState()
@@ -437,22 +476,6 @@ public class UI_PauseMenu : MonoBehaviour
         }
 
         return null;
-    }
-
-    private static void ApplyVolume(string prefsKey, float value, System.Action<float> applyRuntime)
-    {
-        if (applyRuntime != null)
-        {
-            applyRuntime(value);
-        }
-
-        if (prefsKey == AudioVolumeKeys.Master)
-        {
-            AudioListener.volume = value;
-        }
-
-        PlayerPrefs.SetFloat(prefsKey, value);
-        PlayerPrefs.Save();
     }
 
     private bool IsMenuVisible()
