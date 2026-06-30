@@ -97,9 +97,11 @@ public class Entity_Combat : MonoBehaviour
         }
     }
 
+    // Public combat API
+    // 1) Current attack entry points used by player/enemy attack states.
     public bool AttackTrigger(Entity_AttackData attackData)
     {
-        return AttackTrigger(attackData, GetNextAttackId(), true);
+        return AttackTriggerInternal(attackData, GetNextAttackId(), true);
     }
 
     public int CreateAttackId()
@@ -107,17 +109,28 @@ public class Entity_Combat : MonoBehaviour
         return GetNextAttackId();
     }
 
-    public bool AttackTrigger(Entity_AttackData attackData, int attackId)
+    public bool AttackTriggerWithId(Entity_AttackData attackData, int attackId)
     {
-        return AttackTrigger(attackData, attackId, true);
+        return AttackTriggerInternal(attackData, attackId, true);
     }
 
-    public bool AttackTrigger(Entity_AttackData attackData, bool allowFallbackFullLayerDetection)
+    public bool AttackTriggerWithoutFallback(Entity_AttackData attackData)
     {
-        return AttackTrigger(attackData, GetNextAttackId(), allowFallbackFullLayerDetection);
+        return AttackTriggerInternal(attackData, GetNextAttackId(), false);
     }
 
-    public bool AttackTrigger(Entity_AttackData attackData, int attackId, bool allowFallbackFullLayerDetection)
+    // 2) Damage intake API used when this entity is the target.
+    public bool ReceiveHit(Entity_Combat attacker, Vector2 knockbackVelocity)
+    {
+        return ReceiveHitInternal(attacker, knockbackVelocity, GetNextAttackId());
+    }
+
+    public bool TryReceiveHitFromCollider(Entity_Combat attacker, Vector2 attackCenter, float attackRadius, Vector2 knockbackVelocity)
+    {
+        return TryReceiveHitFromColliderInternal(attacker, attackCenter, attackRadius, knockbackVelocity, GetNextAttackId());
+    }
+
+    private bool AttackTriggerInternal(Entity_AttackData attackData, int attackId, bool allowFallbackFullLayerDetection)
     {
         Vector2 attackCenter = GetAttackCenter(attackData);
         float attackRadius = attackData.TargetCheckRadius;
@@ -151,46 +164,7 @@ public class Entity_Combat : MonoBehaviour
         return hitAnyTarget;
     }
 
-    public bool AttackTriggerFromTargetCheck(float attackRadius, Vector2 knockbackForce)
-    {
-        return AttackTriggerFromTargetCheck(attackRadius, knockbackForce, GetNextAttackId());
-    }
-
-    public bool AttackTriggerFromTargetCheck(float attackRadius, Vector2 knockbackForce, int attackId)
-    {
-        Vector2 attackCenter = GetTargetCheckWorldPosition();
-
-        bool hitAnyTarget = TryAttackTargets(
-            Physics2D.OverlapCircleAll(attackCenter, attackRadius, whatIsTarget),
-            new Entity_AttackData(Vector2.zero, attackRadius, knockbackForce),
-            attackId,
-            strictLayerMatch: true
-        );
-
-        if (!hitAnyTarget)
-        {
-            hitAnyTarget = TryAttackTargets(
-                Physics2D.OverlapCircleAll(attackCenter, attackRadius, ~0),
-                new Entity_AttackData(Vector2.zero, attackRadius, knockbackForce),
-                attackId,
-                strictLayerMatch: false
-            );
-        }
-
-        return hitAnyTarget;
-    }
-
-    public bool AttackTrigger(Vector2 knockbackForce)
-    {
-        return AttackTrigger(new Entity_AttackData(GetLegacyTargetCheckOffset(), targetCheckRadius, knockbackForce));
-    }
-
-    public bool ReceiveHit(Entity_Combat attacker, Vector2 knockbackVelocity)
-    {
-        return ReceiveHit(attacker, knockbackVelocity, GetNextAttackId());
-    }
-
-    public bool ReceiveHit(Entity_Combat attacker, Vector2 knockbackVelocity, int attackId)
+    private bool ReceiveHitInternal(Entity_Combat attacker, Vector2 knockbackVelocity, int attackId)
     {
         if (!CanReceiveAttack(attacker, attackId))
         {
@@ -202,12 +176,7 @@ public class Entity_Combat : MonoBehaviour
             && health.TakeDamage(attacker != null ? attacker.Damage : 0, attacker, knockbackVelocity);
     }
 
-    public bool TryReceiveHitFromCollider(Entity_Combat attacker, Vector2 attackCenter, float attackRadius, Vector2 knockbackVelocity)
-    {
-        return TryReceiveHitFromCollider(attacker, attackCenter, attackRadius, knockbackVelocity, GetNextAttackId());
-    }
-
-    public bool TryReceiveHitFromCollider(Entity_Combat attacker, Vector2 attackCenter, float attackRadius, Vector2 knockbackVelocity, int attackId)
+    private bool TryReceiveHitFromColliderInternal(Entity_Combat attacker, Vector2 attackCenter, float attackRadius, Vector2 knockbackVelocity, int attackId)
     {
         Collider2D targetCollider = GetComponentInParent<Collider2D>();
         if (targetCollider == null)
@@ -221,9 +190,10 @@ public class Entity_Combat : MonoBehaviour
             return false;
         }
 
-        return ReceiveHit(attacker, knockbackVelocity, attackId);
+        return ReceiveHitInternal(attacker, knockbackVelocity, attackId);
     }
 
+    // Internal combat helpers
     private bool TryAttackTargets(Collider2D[] targets, Entity_AttackData attackData, int attackId, bool strictLayerMatch)
     {
         HashSet<Entity_Health> damagedTargets = new HashSet<Entity_Health>();
@@ -319,6 +289,7 @@ public class Entity_Combat : MonoBehaviour
         return new Vector2(knockbackForce.x * direction, knockbackForce.y);
     }
 
+    // Public read helpers used by animation/state logic and debug tooling.
     public Vector2 GetAttackCenter(Entity_AttackData attackData)
     {
         Vector2 offset = attackData.TargetCheckOffset;
@@ -337,22 +308,6 @@ public class Entity_Combat : MonoBehaviour
         }
 
         return (Vector2)transform.position + offset;
-    }
-
-    public Vector2 GetTargetCheckWorldPosition()
-    {
-        EnsureTargetCheck();
-        if (targetCheck != null)
-        {
-            return targetCheck.position;
-        }
-
-        return transform.position;
-    }
-
-    public Entity_AttackData GetLegacyAttackData(Vector2 knockbackForce)
-    {
-        return new Entity_AttackData(GetLegacyTargetCheckOffset(), targetCheckRadius, knockbackForce);
     }
 
     public bool HasTarget()
@@ -387,6 +342,7 @@ public class Entity_Combat : MonoBehaviour
         return false;
     }
 
+    // Setup / auto-configuration
     private void EnsureTargetCheck()
     {
         if (targetCheck != null)
@@ -405,26 +361,6 @@ public class Entity_Combat : MonoBehaviour
         targetCheckObject.transform.SetParent(transform, false);
         targetCheckObject.transform.localPosition = Vector3.zero;
         targetCheck = targetCheckObject.transform;
-    }
-
-    private Vector2 GetLegacyTargetCheckOffset()
-    {
-        EnsureTargetCheck();
-
-        if (targetCheck == null)
-        {
-            return Vector2.zero;
-        }
-
-        Vector2 offset = targetCheck.position - transform.position;
-        if (owner == null)
-        {
-            owner = GetComponent<Entity>();
-        }
-
-        int direction = owner != null ? owner.FacingDirection : 1;
-        offset.x *= direction;
-        return offset;
     }
 
     private void AutoAssignTargetLayerIfEmpty()
@@ -493,6 +429,7 @@ public class Entity_Combat : MonoBehaviour
         }
     }
 
+    // Query helpers
     private bool IsSelfCollider(Collider2D targetCollider)
     {
         return targetCollider.transform == transform
@@ -523,6 +460,7 @@ public class Entity_Combat : MonoBehaviour
         return null;
     }
 
+    // Gizmos / editor visualization
     private void OnDrawGizmos()
     {
         if (alwaysShowTargetCheckGizmos)

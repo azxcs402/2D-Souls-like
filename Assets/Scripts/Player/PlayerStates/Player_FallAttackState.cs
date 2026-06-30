@@ -172,10 +172,10 @@ public class Player_FallAttackState : EntityState
 
         player.SetCombatDamage(player.FallAttackDamage);
 
-        bool hitAnyTarget = combat.AttackTrigger(player.FallAttackData, attackId);
+        bool hitAnyTarget = combat.AttackTriggerWithId(player.FallAttackData, attackId);
         if (!hitAnyTarget)
         {
-            hitAnyTarget = combat.AttackTrigger(player.FallAttackExtendedData, attackId);
+            hitAnyTarget = combat.AttackTriggerWithId(player.FallAttackExtendedData, attackId);
         }
 
         if (hitAnyTarget)
@@ -309,10 +309,10 @@ public class Player_FallAttackState : EntityState
 
         player.SetCombatDamage(player.FallAttackDamage);
 
-        bool hitAnyTarget = combat.AttackTrigger(player.FallAttackData, attackId);
+        bool hitAnyTarget = combat.AttackTriggerWithId(player.FallAttackData, attackId);
         if (!hitAnyTarget)
         {
-            hitAnyTarget = combat.AttackTrigger(player.FallAttackExtendedData, attackId);
+            hitAnyTarget = combat.AttackTriggerWithId(player.FallAttackExtendedData, attackId);
         }
 
         if (hitAnyTarget)

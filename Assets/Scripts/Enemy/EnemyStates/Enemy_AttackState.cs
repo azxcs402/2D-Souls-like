@@ -124,7 +124,9 @@ public class Enemy_AttackState : Enemy_GroundedState
             ? skeleton.SkeletonAttackData
             : new Entity_AttackData(Vector2.zero, .6f, Vector2.zero);
 
-        bool hitPlayer = combat.AttackTrigger(attackData, skeleton == null || skeleton.EnableFallbackFullLayerDetection);
+        bool hitPlayer = skeleton == null || skeleton.EnableFallbackFullLayerDetection
+            ? combat.AttackTrigger(attackData)
+            : combat.AttackTriggerWithoutFallback(attackData);
 
         return hitPlayer;
     }
