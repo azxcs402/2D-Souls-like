@@ -331,7 +331,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             resumeButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 CloseMenu();
             });
         }
@@ -340,7 +340,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             mainMenuButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 GoMainMenu();
             });
         }
@@ -349,7 +349,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             volumeButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 ShowVolumePanel();
             });
         }
@@ -358,7 +358,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             difficultyButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 ShowDifficultyPanel();
             });
         }
@@ -367,7 +367,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             volumeBackButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 ShowMainPanel();
             });
         }
@@ -376,7 +376,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             difficultyBackButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 ShowMainPanel();
             });
         }
@@ -385,7 +385,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             easyButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 SetEasyDifficulty();
             });
         }
@@ -394,7 +394,7 @@ public class UI_PauseMenu : MonoBehaviour
         {
             normalButton.onClick.AddListener(() =>
             {
-                UIAudio.PlayButtonClick();
+                UIAudio.PlayUiClick();
                 SetNormalDifficulty();
             });
         }

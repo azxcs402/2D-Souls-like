@@ -72,7 +72,7 @@ public class RuntimeMenuBootstrapper : MonoBehaviour
         LayoutElement titleLayout = titleObj.AddComponent<LayoutElement>();
         titleLayout.minHeight = 120f;
 
-        GameObject subtitleObj = CreateText(panel.transform, "Subtitle", "Press Play to begin", 24, FontStyle.Normal, TextAnchor.MiddleCenter);
+        GameObject subtitleObj = CreateText(panel.transform, "Subtitle", "Press New Game to begin", 24, FontStyle.Normal, TextAnchor.MiddleCenter);
         subtitleObj.AddComponent<LayoutElement>().minHeight = 48f;
 
         UI_MainMenu mainMenu = root.AddComponent<UI_MainMenu>();
@@ -83,31 +83,24 @@ public class RuntimeMenuBootstrapper : MonoBehaviour
         options.Configure(panel);
         options.gameObject.SetActive(false);
 
-        Button playButton = CreateButton(panel.transform, "Play", "Play");
+        Button newGameButton = CreateButton(panel.transform, "NewGameButton", "New Game");
         Button continueButton = CreateButton(panel.transform, "Continue", "Continue");
-        Button newGameButton = CreateButton(panel.transform, "NewGame", "New Game");
         Button optionsButton = CreateButton(panel.transform, "Options", "Options");
         Button quitButton = CreateButton(panel.transform, "Quit", "Quit");
 
         bool hasSave = SaveManager.instance != null && SaveManager.instance.HasSaveData;
         continueButton.interactable = hasSave;
 
-        playButton.onClick.AddListener(() =>
+        newGameButton.onClick.AddListener(() =>
         {
             Destroy(root);
-            mainMenu.PlayBTN();
+            mainMenu.NewGameBTN();
         });
 
         continueButton.onClick.AddListener(() =>
         {
             Destroy(root);
             mainMenu.ContinueBTN();
-        });
-
-        newGameButton.onClick.AddListener(() =>
-        {
-            Destroy(root);
-            mainMenu.NewGameBTN();
         });
 
         optionsButton.onClick.AddListener(mainMenu.OptionsBTN);

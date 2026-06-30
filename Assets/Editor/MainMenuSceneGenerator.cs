@@ -118,14 +118,12 @@ public static class MainMenuSceneGenerator
         UI_MainMenu mainMenu = menuRoot.GetComponent<UI_MainMenu>();
         mainMenu.Configure(mainPanel, null);
 
-        Button playButton = CreateOrMoveButton(mainActions.transform, "PlayButton", "Play");
-        Button continueButton = CreateOrMoveButton(mainActions.transform, "ContinueButton", "Continue");
         Button newGameButton = CreateOrMoveButton(mainActions.transform, "NewGameButton", "New Game");
+        Button continueButton = CreateOrMoveButton(mainActions.transform, "ContinueButton", "Continue");
         Button optionsButton = CreateOrMoveButton(mainActions.transform, "OptionsButton", "Options");
         Button quitButton = CreateOrMoveButton(mainActions.transform, "QuitButton", "Quit");
-        DecorateMainButton(playButton, true);
+        DecorateMainButton(newGameButton, true);
         DecorateMainButton(continueButton, false);
-        DecorateMainButton(newGameButton, false);
         DecorateMainButton(optionsButton, false);
         DecorateMainButton(quitButton, false);
 
@@ -172,7 +170,7 @@ public static class MainMenuSceneGenerator
         mainMenuObject.FindProperty("continueButton").objectReferenceValue = continueButton;
         mainMenuObject.ApplyModifiedPropertiesWithoutUndo();
 
-        BindMenuButtons(playButton, continueButton, newGameButton, optionsButton, quitButton, resetButton, backButton, options, volumeSlider, bgmVolumeSlider, sfxVolumeSlider);
+        BindMenuButtons(newGameButton, continueButton, optionsButton, quitButton, resetButton, backButton, options, volumeSlider, bgmVolumeSlider, sfxVolumeSlider);
 
         EditorUtility.SetDirty(gameManager);
         EditorUtility.SetDirty(saveManager);
@@ -440,7 +438,7 @@ public static class MainMenuSceneGenerator
             labelText.text = label;
         }
 
-        DecorateMainButton(buttonObject.GetComponent<Button>(), label == "Play");
+        DecorateMainButton(buttonObject.GetComponent<Button>(), label == "New Game");
         return buttonObject.GetComponent<Button>();
     }
 
@@ -523,9 +521,8 @@ public static class MainMenuSceneGenerator
     }
 
     private static void BindMenuButtons(
-        Button playButton,
-        Button continueButton,
         Button newGameButton,
+        Button continueButton,
         Button optionsButton,
         Button quitButton,
         Button resetButton,
@@ -535,7 +532,7 @@ public static class MainMenuSceneGenerator
         Slider bgmVolumeSlider,
         Slider sfxVolumeSlider)
     {
-        UI_MainMenu mainMenu = playButton != null ? playButton.GetComponentInParent<UI_MainMenu>() : null;
+        UI_MainMenu mainMenu = newGameButton != null ? newGameButton.GetComponentInParent<UI_MainMenu>() : null;
         if (mainMenu == null && quitButton != null)
         {
             mainMenu = quitButton.GetComponentInParent<UI_MainMenu>();
@@ -543,22 +540,16 @@ public static class MainMenuSceneGenerator
 
         if (mainMenu != null)
         {
-            if (playButton != null)
+            if (newGameButton != null)
             {
-                ClearPersistentListeners(playButton.onClick);
-                UnityEventTools.AddPersistentListener(playButton.onClick, mainMenu.PlayBTN);
+                ClearPersistentListeners(newGameButton.onClick);
+                UnityEventTools.AddPersistentListener(newGameButton.onClick, mainMenu.NewGameBTN);
             }
 
             if (continueButton != null)
             {
                 ClearPersistentListeners(continueButton.onClick);
                 UnityEventTools.AddPersistentListener(continueButton.onClick, mainMenu.ContinueBTN);
-            }
-
-            if (newGameButton != null)
-            {
-                ClearPersistentListeners(newGameButton.onClick);
-                UnityEventTools.AddPersistentListener(newGameButton.onClick, mainMenu.NewGameBTN);
             }
 
             if (optionsButton != null)
@@ -692,7 +683,7 @@ public static class MainMenuSceneGenerator
         labelRect.offsetMin = Vector2.zero;
         labelRect.offsetMax = Vector2.zero;
 
-        DecorateMainButton(button, label == "Play");
+        DecorateMainButton(button, label == "New Game");
         return button;
     }
 

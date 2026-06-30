@@ -65,13 +65,13 @@ public class UI_Options : MonoBehaviour
 
     public void ResetVolumeDefaults()
     {
-        UIAudio.PlayButtonClick();
+        UIAudio.PlayUiClick();
         ApplyVolumeState(new VolumeState(AudioVolumeDefaults.Master, AudioVolumeDefaults.Bgm, AudioVolumeDefaults.Sfx));
     }
 
     public void GoMainMenuBTN()
     {
-        UIAudio.PlayButtonClick();
+        UIAudio.PlayUiClick();
 
         if (GameManager.instance != null)
         {
@@ -81,7 +81,7 @@ public class UI_Options : MonoBehaviour
 
     public void CloseBTN()
     {
-        UIAudio.PlayButtonClick();
+        UIAudio.PlayUiClick();
 
         gameObject.SetActive(false);
         if (mainPanel != null)

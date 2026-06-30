@@ -144,7 +144,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 32b15e5bd4e69284987145b14a489238, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  bonfireActivated: 1
+  bonfireActivated: 0
   bonfireId: bonfire_default
   bonfireDisplayName: 
   restorePlayerOnRest: 1

@@ -21,7 +21,7 @@ public class Bonfire : MonoBehaviour, ISaveable
     };
 
     [Header("Activation")]
-    [SerializeField] private bool bonfireActivated = true;
+    [SerializeField] private bool bonfireActivated = false;
 
     [Header("Checkpoint")]
     [SerializeField] private string bonfireId = string.Empty;

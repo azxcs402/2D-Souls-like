@@ -3,7 +3,6 @@ using UnityEngine.UI;
 
 public class UI_MainMenu : MonoBehaviour
 {
-    [SerializeField] private bool resumeOnPlay = false;
     [SerializeField] private GameObject mainPanel;
     [SerializeField] private GameObject optionsPanel;
     [SerializeField] private Button continueButton;
@@ -13,6 +12,7 @@ public class UI_MainMenu : MonoBehaviour
     private void Awake()
     {
         ResolveHierarchyReferences();
+        UpdatePrimaryButtonLabel();
         WireButtons();
     }
 
@@ -21,6 +21,7 @@ public class UI_MainMenu : MonoBehaviour
         mainPanel = mainPanelRoot;
         optionsPanel = optionsPanelRoot;
         ResolveHierarchyReferences();
+        UpdatePrimaryButtonLabel();
         WireButtons();
     }
 
@@ -32,6 +33,7 @@ public class UI_MainMenu : MonoBehaviour
         }
 
         ResolveHierarchyReferences();
+        UpdatePrimaryButtonLabel();
         WireButtons();
 
         if (GameManager.instance != null && GameManager.instance.IsMenuScene)
@@ -51,27 +53,9 @@ public class UI_MainMenu : MonoBehaviour
         }
     }
 
-    public void PlayBTN()
-    {
-        UIAudio.PlayButtonClick();
-
-        if (GameManager.instance == null)
-        {
-            return;
-        }
-
-        if (resumeOnPlay)
-        {
-            GameManager.instance.ResumeGameplay();
-            return;
-        }
-
-        GameManager.instance.PlayGame();
-    }
-
     public void NewGameBTN()
     {
-        UIAudio.PlayButtonClick();
+        UIAudio.PlayUiClick();
 
         if (GameManager.instance == null)
         {
@@ -83,7 +67,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void ContinueBTN()
     {
-        UIAudio.PlayButtonClick();
+        UIAudio.PlayUiClick();
 
         if (GameManager.instance == null)
         {
@@ -95,7 +79,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void OptionsBTN()
     {
-        UIAudio.PlayButtonClick();
+        UIAudio.PlayUiClick();
 
         if (mainPanel != null)
         {
@@ -110,7 +94,7 @@ public class UI_MainMenu : MonoBehaviour
 
     public void QuitGameBTN()
     {
-        UIAudio.PlayButtonClick();
+        UIAudio.PlayUiClick();
 
         if (GameManager.instance != null)
         {
@@ -148,6 +132,15 @@ public class UI_MainMenu : MonoBehaviour
         }
     }
 
+    private void UpdatePrimaryButtonLabel()
+    {
+        Button newGameButton = FindButton(mainPanel != null ? mainPanel.transform : null, "NewGameButton");
+        if (newGameButton != null)
+        {
+            SetButtonLabel(newGameButton, "New Game");
+        }
+    }
+
     private void WireButtons()
     {
         if (listenersWired)
@@ -155,26 +148,20 @@ public class UI_MainMenu : MonoBehaviour
             return;
         }
 
-        Button playButton = FindButton(mainPanel != null ? mainPanel.transform : null, "PlayButton");
-        Button continueButtonLocal = continueButton;
         Button newGameButton = FindButton(mainPanel != null ? mainPanel.transform : null, "NewGameButton");
+        Button continueButtonLocal = continueButton;
         Button optionsButton = FindButton(mainPanel != null ? mainPanel.transform : null, "OptionsButton");
         Button quitButton = FindButton(mainPanel != null ? mainPanel.transform : null, "QuitButton");
         Button backButton = FindButton(optionsPanel != null ? optionsPanel.transform : null, "BackButton");
 
-        if (playButton != null && playButton.onClick.GetPersistentEventCount() == 0)
+        if (newGameButton != null && newGameButton.onClick.GetPersistentEventCount() == 0)
         {
-            playButton.onClick.AddListener(PlayBTN);
+            newGameButton.onClick.AddListener(NewGameBTN);
         }
 
         if (continueButtonLocal != null && continueButtonLocal.onClick.GetPersistentEventCount() == 0)
         {
             continueButtonLocal.onClick.AddListener(ContinueBTN);
-        }
-
-        if (newGameButton != null && newGameButton.onClick.GetPersistentEventCount() == 0)
-        {
-            newGameButton.onClick.AddListener(NewGameBTN);
         }
 
         if (optionsButton != null && optionsButton.onClick.GetPersistentEventCount() == 0)
@@ -235,11 +222,25 @@ public class UI_MainMenu : MonoBehaviour
 
         return null;
     }
+
+    private static void SetButtonLabel(Button button, string label)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        Text labelText = button.GetComponentInChildren<Text>(true);
+        if (labelText != null)
+        {
+            labelText.text = label;
+        }
+    }
 }
 
 public static class UIAudio
 {
-    public static void PlayButtonClick()
+    public static void PlayUiClick()
     {
         if (AudioManager.instance != null)
         {

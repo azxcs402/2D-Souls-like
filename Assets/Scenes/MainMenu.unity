@@ -315,7 +315,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 76c392e42b5098c458856cdf6ecaaaa1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_FirstSelected: {fileID: 0}
+  m_FirstSelected: {fileID: 1620}
   m_sendNavigationEvents: 1
   m_DragThreshold: 10
 --- !u!1 &1200
@@ -673,7 +673,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ec132ee3e5aba345877bb437ccca985, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  resumeOnPlay: 0
   mainPanel: {fileID: 1600}
   optionsPanel: {fileID: 1700}
   continueButton: {fileID: 1634}
@@ -848,7 +847,7 @@ GameObject:
   - component: {fileID: 1623}
   - component: {fileID: 1624}
   m_Layer: 5
-  m_Name: PlayButton
+  m_Name: NewGameButton
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1035,7 +1034,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: Play
+  m_Text: New Game
 --- !u!1 &1630
 GameObject:
   m_ObjectHideFlags: 0

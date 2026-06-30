@@ -29,7 +29,7 @@ public class BonfireTravelMenu : MonoBehaviour
 
     public static void Open(Bonfire sourceBonfire)
     {
-        if (sourceBonfire == null)
+        if (sourceBonfire == null || !sourceBonfire.IsActivated)
         {
             return;
         }
@@ -503,7 +503,8 @@ public class BonfireTravelMenu : MonoBehaviour
                 GameData.BonfireRecord record = gameData.litBonfireRecords[i];
                 if (record == null
                     || string.IsNullOrWhiteSpace(record.sceneName)
-                    || string.IsNullOrWhiteSpace(record.bonfireId))
+                    || string.IsNullOrWhiteSpace(record.bonfireId)
+                    || !IsRecordTeleportable(record))
                 {
                     continue;
                 }
@@ -519,6 +520,67 @@ public class BonfireTravelMenu : MonoBehaviour
         }
 
         destinationRecords.Sort(CompareRecords);
+    }
+
+    private static bool IsRecordTeleportable(GameData.BonfireRecord record)
+    {
+        if (record == null)
+        {
+            return false;
+        }
+
+        Bonfire[] loadedBonfires = FindObjectsByType<Bonfire>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < loadedBonfires.Length; i++)
+        {
+            Bonfire bonfire = loadedBonfires[i];
+            if (!MatchesLoadedBonfire(bonfire, record))
+            {
+                continue;
+            }
+
+            return bonfire.IsActivated;
+        }
+
+        return true;
+    }
+
+    private static bool MatchesLoadedBonfire(Bonfire bonfire, GameData.BonfireRecord record)
+    {
+        if (bonfire == null || record == null)
+        {
+            return false;
+        }
+
+        if (!string.Equals(bonfire.SceneName, record.sceneName, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (string.Equals(bonfire.BonfireId, record.bonfireId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        GameData.BonfireRecord bonfireRecord = bonfire.BuildTravelRecord();
+        if (bonfireRecord == null)
+        {
+            return false;
+        }
+
+        if (string.Equals(GetDestinationSignature(bonfireRecord), GetDestinationSignature(record), StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (GetWorldPositionKey(bonfireRecord.worldPosition) != GetWorldPositionKey(record.worldPosition))
+        {
+            return false;
+        }
+
+        string bonfireName = ResolveRecordName(bonfireRecord);
+        string recordName = ResolveRecordName(record);
+        return !string.IsNullOrWhiteSpace(bonfireName)
+            && string.Equals(bonfireName, recordName, StringComparison.OrdinalIgnoreCase);
     }
 
     private static int CompareRecords(GameData.BonfireRecord a, GameData.BonfireRecord b)
