@@ -200,7 +200,6 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder, IBossSki
     private float defaultTeleportChance;
     private Coroutine spellCastCoroutine;
     private Player playerScript;
-    private bool shouldReturnToPatrol;
     private SpriteRenderer visualSpriteRenderer;
     private bool defaultVisualFlipX;
     private Enemy_ReaperVisionAnchor visionAnchorComponent;
@@ -335,7 +334,6 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder, IBossSki
         }
 
         isAlerted = true;
-        shouldReturnToPatrol = false;
 
         if (stateMachine != null && stateMachine.CurrentState != teleportState && stateMachine.CurrentState != spellCastState)
         {
@@ -433,7 +431,6 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder, IBossSki
         playerVisible = false;
         playerInAttackRange = false;
         playerWithinChaseHeight = false;
-        shouldReturnToPatrol = true;
         lastTimeSeenPlayer = 0f;
         playerTarget = null;
     }
@@ -689,7 +686,6 @@ public class Enemy_Reaper : Enemy, ICounterable, IEnemyBattleResponder, IBossSki
             playerTargetDirection = GetPlayerDirection(detectedPlayer.position);
             lastTimeSeenPlayer = Time.time;
             isAlerted = true;
-            shouldReturnToPatrol = false;
         }
         else
         {

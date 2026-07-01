@@ -281,7 +281,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         && stateMachine.CurrentState != stunRecoveryState
         && stateMachine.CurrentState != spellCastState;
     public bool IsSkill3OnCooldown => Time.time < skill3CooldownUntilTime;
-    public Entity_Combat Combat { get; private set; }
+    public new Entity_Combat Combat { get; private set; }
     public event Action MeleeAttackCompleted;
     public event Action FireballSummoned;
     public event Action FireballPlayerInteracted;
@@ -975,7 +975,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         return noGround || detectedWall;
     }
 
-    public void SpecialAttack()
+    public override void SpecialAttack()
     {
         StartSpellAttackCooldown();
 
@@ -1230,9 +1230,22 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         }
     }
 
-#if UNITY_EDITOR
-    private void OnDrawGizmosSelected()
+    private float GetMeleeVerticalRange()
     {
+        Collider2D collider2D = GetComponent<Collider2D>();
+        if (collider2D != null)
+        {
+            return Mathf.Max(.1f, collider2D.bounds.size.y);
+        }
+
+        return Mathf.Max(.1f, transform.localScale.y);
+    }
+
+#if UNITY_EDITOR
+    protected override void OnDrawGizmosSelected()
+    {
+        base.OnDrawGizmosSelected();
+
         DrawBattleRangeGizmos();
     }
 
@@ -1269,12 +1282,6 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         }
 
         return new Bounds(transform.position, Vector3.one);
-    }
-
-    private float GetMeleeVerticalRange()
-    {
-        Bounds bodyBounds = GetGizmoBodyBounds();
-        return Mathf.Max(.1f, bodyBounds.size.y);
     }
 
     private void DrawGizmoBox(Vector3 center, Vector3 size, Color fillColor, Color wireColor, string label)
@@ -1746,13 +1753,14 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 #endif
     }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private IEnumerator EnhancedSkill3EndDebugProbeRoutine(int endCallId)
     {
         for (int i = 0; i < 12; i++)
         {
             yield return new WaitForFixedUpdate();
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             LogEnhancedSkill3HoldState($"PostEndProbe #{endCallId} fixedFrame={i + 1}");
+#endif
         }
 
         enhancedSkill3EndDebugCoroutine = null;
@@ -1760,6 +1768,7 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
 
     private void LogEnhancedSkill3HoldState(string context)
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (rb == null)
         {
             rb = GetComponent<Rigidbody2D>();
@@ -1777,10 +1786,12 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
             $"suspended={enhancedSkill3Suspended}, forceFall={enhancedSkill3ForceFallActive}, hasCastPos={enhancedSkill3HasCastPosition}, castPos={enhancedSkill3CastPosition}, " +
             $"state={stateName}, grounded={GroundDetected()}, groundContact={GroundContactDetected()}, facingLocked={IsFacingLocked}, {rbState}",
             this);
+#endif
     }
 
     private void LogTeleportDebug(string context, Vector2 destination)
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         if (rb == null)
         {
             rb = GetComponent<Rigidbody2D>();
@@ -1814,8 +1825,8 @@ public class Enemy_AbyssMage : Enemy, ICounterable, IEnemyBattleResponder, IBoss
         Debug.Log(
             $"[AbyssMageTeleport] {context} destination={destination}, active={isActiveAndEnabled}, hierarchyActive={gameObject.activeInHierarchy}, visibleRenderers={visibleRendererCount}/{(cachedSpriteRenderers != null ? cachedSpriteRenderers.Length : 0)}, state={stateName}, {rbState}",
             this);
-    }
 #endif
+    }
 
     private void RestoreStateAfterEnhancedSkill3Hold()
     {

@@ -89,11 +89,15 @@ public class UI_PauseMenu : MonoBehaviour
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(fallbackMainMenuSceneName))
+        if (string.IsNullOrWhiteSpace(fallbackMainMenuSceneName)
+            || !UnityEngine.Application.CanStreamedLevelBeLoaded(fallbackMainMenuSceneName))
         {
-            Time.timeScale = 1f;
-            UnityEngine.SceneManagement.SceneManager.LoadScene(fallbackMainMenuSceneName);
+            Debug.LogWarning($"Fallback main menu scene '{fallbackMainMenuSceneName}' is not loadable.");
+            return;
         }
+
+        Time.timeScale = 1f;
+        UnityEngine.SceneManagement.SceneManager.LoadScene(fallbackMainMenuSceneName);
     }
 
     public void SetEasyDifficulty()

@@ -214,7 +214,7 @@ public class Enemy_Mage : Enemy, ICounterable, IEnemyBattleResponder
     public bool IsStunned => stateMachine != null && stateMachine.CurrentState == stunnedState;
     public bool IsSpellCasting => stateMachine != null && stateMachine.CurrentState == spellCastState;
     public bool SpellCastPerformed => spellCastPerformed;
-    public Entity_Combat Combat { get; private set; }
+    public new Entity_Combat Combat { get; private set; }
 
     private Transform playerTarget;
     private bool isAlerted;
@@ -585,7 +585,7 @@ public class Enemy_Mage : Enemy, ICounterable, IEnemyBattleResponder
         return noGround || detectedWall;
     }
 
-    public void SpecialAttack()
+    public override void SpecialAttack()
     {
         StartSpellAttackCooldown();
 

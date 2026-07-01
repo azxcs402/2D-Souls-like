@@ -117,6 +117,7 @@ public class Bonfire : MonoBehaviour, ISaveable
     [SerializeField] private BoxCollider2D interactionCollider;
     [SerializeField] private AudioSource flameLoopSource;
     [SerializeField, HideInInspector] private string bonfireInstanceGuid = string.Empty;
+    private bool promptVisualReady;
 
     public string BonfireId => bonfireId;
     public string BonfireDisplayName => bonfireDisplayName;
@@ -206,16 +207,16 @@ public class Bonfire : MonoBehaviour, ISaveable
 
     private void Awake()
     {
+        promptVisualReady = false;
         CacheReferences();
         ConfigureCollider();
         EnsureActivationGuid();
-        EnsurePromptVisual();
         TryLoadDefaultFrames();
         bonfireActivated = bonfireActivated || startLit;
         isLit = bonfireActivated || startLit;
         ApplyLitVisuals();
         UpdateFlameLoopAudio();
-        UpdatePromptVisual();
+        promptVisualReady = true;
         ApplyFrame(0);
     }
 
@@ -421,9 +422,13 @@ public class Bonfire : MonoBehaviour, ISaveable
             {
                 GameManager.instance.ChangeScene(sceneName, false);
             }
-            else
+            else if (Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 SceneManager.LoadScene(sceneName);
+            }
+            else
+            {
+                Debug.LogWarning($"Current scene '{sceneName}' is not loadable in the current build.");
             }
         }
         else if (GameManager.instance != null)
@@ -866,6 +871,12 @@ public class Bonfire : MonoBehaviour, ISaveable
 
         flameRenderer.color = isLit ? litTint : unlitTint;
         flameRenderer.sortingOrder = isLit ? 12 : 10;
+
+        if (!promptVisualReady)
+        {
+            return;
+        }
+
         UpdatePromptVisual();
     }
 
@@ -1126,6 +1137,11 @@ public class Bonfire : MonoBehaviour, ISaveable
 
     private void UpdatePromptVisual()
     {
+        if (!promptVisualReady)
+        {
+            return;
+        }
+
         EnsurePromptVisual();
 
         if (promptRoot == null)

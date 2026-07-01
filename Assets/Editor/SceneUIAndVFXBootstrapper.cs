@@ -7,7 +7,6 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-[InitializeOnLoad]
 public static class SceneUIAndVFXBootstrapper
 {
     private const string MainMenuSceneName = "MainMenu";
@@ -36,12 +35,6 @@ public static class SceneUIAndVFXBootstrapper
     private const string OnHitVFXTemplateName = "OnHitVFX";
     private const string StaminaBarObjectName = "UI_PlayerStaminaBar";
     private const string HealingPotionObjectName = "UI_HealingPotionSlot";
-
-    static SceneUIAndVFXBootstrapper()
-    {
-        EditorApplication.delayCall += EnsureSceneObjects;
-        EditorSceneManager.sceneOpened += (_, _) => EditorApplication.delayCall += EnsureSceneObjects;
-    }
 
     [MenuItem("Tools/Scene Setup/Create Player HUD And OnHitVFX Templates")]
     public static void CreateSceneObjectsFromMenu()
@@ -1583,14 +1576,28 @@ public static class SceneUIAndVFXBootstrapper
 
     private static Font LoadChineseSystemFont()
     {
-        string[] candidates =
+        string[] candidates;
+        if (Application.platform == RuntimePlatform.WindowsEditor)
         {
-            "Noto Sans SC",
-            "Microsoft YaHei UI",
-            "Microsoft YaHei",
-            "SimHei",
-            "SimSun"
-        };
+            candidates = new[]
+            {
+                "Microsoft YaHei UI",
+                "Microsoft YaHei",
+                "SimHei",
+                "SimSun"
+            };
+        }
+        else
+        {
+            candidates = new[]
+            {
+                "Noto Sans SC",
+                "Microsoft YaHei UI",
+                "Microsoft YaHei",
+                "SimHei",
+                "SimSun"
+            };
+        }
 
         foreach (string candidate in candidates)
         {

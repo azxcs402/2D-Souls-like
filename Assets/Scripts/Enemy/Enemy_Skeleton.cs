@@ -770,7 +770,7 @@ public class Enemy_Skeleton : Enemy, ICounterable, IEnemyBattleResponder
         return Mathf.Max(0f, enemyBounds.min.x - playerBounds.max.x);
     }
 
-    private bool IsSelfCollider(Collider2D collider)
+    private new bool IsSelfCollider(Collider2D collider)
     {
         if (collider == null)
         {

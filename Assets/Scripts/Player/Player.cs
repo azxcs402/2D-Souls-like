@@ -2962,8 +2962,7 @@ public class Player : Entity
     }
 }
 
-[DisallowMultipleComponent]
-public class UI_PlayerHealingPotion : MonoBehaviour
+public abstract class UI_PlayerHealingPotionBase : MonoBehaviour
 {
     [SerializeField] private Player player;
     [SerializeField] private Entity_Health playerHealth;
@@ -2982,7 +2981,7 @@ public class UI_PlayerHealingPotion : MonoBehaviour
         Refresh();
     }
 
-    private void Awake()
+    protected virtual void Awake()
     {
         if (potionImage == null)
         {
@@ -3004,7 +3003,7 @@ public class UI_PlayerHealingPotion : MonoBehaviour
         EnsureVisualSetup();
     }
 
-    private void OnValidate()
+    protected virtual void OnValidate()
     {
         if (countText != null)
         {
@@ -3012,14 +3011,14 @@ public class UI_PlayerHealingPotion : MonoBehaviour
         }
     }
 
-    private void OnEnable()
+    protected virtual void OnEnable()
     {
         EnsureVisualSetup();
         BindToPlayer();
         Refresh();
     }
 
-    private void OnDisable()
+    protected virtual void OnDisable()
     {
         if (player != null)
         {
@@ -3032,7 +3031,7 @@ public class UI_PlayerHealingPotion : MonoBehaviour
         }
     }
 
-    private void LateUpdate()
+    protected virtual void LateUpdate()
     {
         Refresh();
     }
@@ -3202,103 +3201,3 @@ public class UI_PlayerHealingPotion : MonoBehaviour
     }
 }
 
-[DisallowMultipleComponent]
-public class PlayerHealingPotionWorldIcon : MonoBehaviour
-{
-    [SerializeField] private Player player;
-    [SerializeField] private SpriteRenderer spriteRenderer;
-
-    public void Configure(Player targetPlayer, SpriteRenderer renderer)
-    {
-        player = targetPlayer;
-        spriteRenderer = renderer;
-        RefreshSprite();
-    }
-
-    public void SetVisible(bool visible)
-    {
-        if (spriteRenderer == null)
-        {
-            return;
-        }
-
-        if (visible)
-        {
-            gameObject.SetActive(true);
-        }
-
-        spriteRenderer.enabled = visible;
-    }
-
-    public void SetSprite(Sprite sprite)
-    {
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.sprite = sprite;
-        }
-    }
-
-    private void Awake()
-    {
-        if (spriteRenderer == null)
-        {
-            spriteRenderer = GetComponent<SpriteRenderer>();
-        }
-    }
-
-    private void LateUpdate()
-    {
-        if (player == null)
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        if (spriteRenderer == null)
-        {
-            spriteRenderer = GetComponent<SpriteRenderer>();
-        }
-
-        if (spriteRenderer == null)
-        {
-            return;
-        }
-
-        RefreshSprite();
-
-        bool visible = player.IsHealingPotionInUse;
-        spriteRenderer.enabled = visible;
-        if (!visible)
-        {
-            return;
-        }
-
-        if (player.TryGetActiveColliderBounds(out Bounds bounds))
-        {
-            transform.position = new Vector3(
-                bounds.center.x,
-                bounds.max.y,
-                bounds.center.z
-            ) + player.HealingPotionWorldIconOffset;
-        }
-        else
-        {
-            transform.position = player.transform.position + player.HealingPotionWorldIconOffset;
-        }
-
-        transform.rotation = Quaternion.identity;
-    }
-
-    private void RefreshSprite()
-    {
-        if (spriteRenderer == null || player == null)
-        {
-            return;
-        }
-
-        if (spriteRenderer.sprite != player.HealingPotionWorldIconSprite)
-        {
-            spriteRenderer.sprite = player.HealingPotionWorldIconSprite;
-        }
-    }
-}
